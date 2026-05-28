@@ -1,56 +1,52 @@
 /* eslint-disable */
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 /* ══════════════════════════════════════════════════════════════
    SUPABASE CLIENT
 ══════════════════════════════════════════════════════════════ */
 const SUPA_URL = "https://dfsojlxtlceiuxcelcdo.supabase.co";
-const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmc29qbHh0bGNlaXV4Y2VsY2RvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NTk0NDUsImV4cCI6MjA5NTMzNTQ0NX0.RrMFnPdGHoiL17n6Ri4cCsg-JQBWvUPRPZe0ltZafq4";
+const SUPA_KEY = "sb_publishable_HpmvB-cPz5gUO-ghgnlwLQ_l9B9uMZq";
+const supabase = createClient(SUPA_URL, SUPA_KEY);
 
 const supa = {
-  async query(table, method = "GET", body = null, filters = "") {
-    const url = `${SUPA_URL}/rest/v1/${table}${filters}`;
-    const res = await fetch(url, {
-      method,
-      headers: {
-        "apikey": SUPA_KEY,
-        "Authorization": `Bearer ${SUPA_KEY}`,
-        "Content-Type": "application/json",
-        "Prefer": method === "POST" ? "return=representation" : method === "PATCH" ? "return=representation" : "",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Supabase ${method} ${table}: ${err}`);
+  select: async (table, filters = "") => {
+    let q = supabase.from(table).select("*");
+    if (filters) {
+      for (const part of filters.split("&")) {
+        const m = part.match(/^order=(\w+)\.(asc|desc)$/);
+        if (m) q = q.order(m[1], { ascending: m[2] === "asc" });
+      }
     }
-    if (method === "DELETE" || res.status === 204) return null;
-    const text = await res.text();
-    return text ? JSON.parse(text) : null;
+    const { data, error } = await q;
+    if (error) throw error;
+    return data;
   },
-  select: (table, filters = "") => supa.query(table, "GET", null, `?${filters}`),
-  insert: (table, data) => supa.query(table, "POST", data),
-  update: (table, data, filter) => supa.query(table, "PATCH", data, `?${filter}`),
-  delete: (table, filter) => supa.query(table, "DELETE", null, `?${filter}`),
-  upsert: (table, data) => supa.query(table, "POST", data, ""),
+  update: async (table, data, filter) => {
+    const m = filter.match(/^(\w+)=eq\.(.+)$/);
+    console.log(`[supa.update] table=${table} filter=${filter}`, data);
+    const { error } = await supabase.from(table).update(data).eq(m[1], m[2]);
+    if (error) { console.error(`[supa.update] ERROR table=${table}`, error); throw error; }
+  },
+  delete: async (table, filter) => {
+    const m = filter.match(/^(\w+)=eq\.(.+)$/);
+    const { error } = await supabase.from(table).delete().eq(m[1], m[2]);
+    if (error) throw error;
+  },
 };
 
-// Supabase upsert via POST with header
 async function supaUpsert(table, data) {
-  const url = `${SUPA_URL}/rest/v1/${table}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "apikey": SUPA_KEY,
-      "Authorization": `Bearer ${SUPA_KEY}`,
-      "Content-Type": "application/json",
-      "Prefer": "resolution=merge-duplicates,return=representation",
-    },
-    body: JSON.stringify(Array.isArray(data) ? data : [data]),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  const payload = Array.isArray(data) ? data : [data];
+  console.log(`[supaUpsert] table=${table}`, payload);
+  const { data: result, error } = await supabase
+    .from(table)
+    .upsert(payload, { onConflict: "id" })
+    .select();
+  if (error) {
+    console.error(`[supaUpsert] ERROR table=${table}`, error);
+    throw error;
+  }
+  console.log(`[supaUpsert] SUCCESS table=${table}`, result);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -691,14 +687,22 @@ function PlannerSection({ navigate }) {
 
   const saveTask = useCallback(async (taskData, skipClose = false) => {
     const exists = tasks.find(t => t.id===taskData.id);
+    console.log(`[saveTask] id=${taskData.id} exists=${!!exists}`, taskData);
     if (exists) {
       setTasks(prev => prev.map(t => t.id===taskData.id ? taskData : t));
-      try { await supa.update("tasks", taskData, `id=eq.${taskData.id}`); } catch(e) { console.error(e); }
+      const { id, ...patch } = taskData;
+      try {
+        await supa.update("tasks", patch, `id=eq.${taskData.id}`);
+        console.log(`[saveTask] update OK id=${taskData.id}`);
+      } catch(e) { console.error("[saveTask] update ERROR", e); }
     } else {
       const dayTasks = tasks.filter(t => t.date===taskData.date);
       const newTask = { ...taskData, order: taskData.order===999 ? dayTasks.length : taskData.order };
       setTasks(prev => [...prev, newTask]);
-      try { await supaUpsert("tasks", newTask); } catch(e) { console.error(e); }
+      try {
+        await supaUpsert("tasks", newTask);
+        console.log(`[saveTask] insert OK id=${newTask.id}`);
+      } catch(e) { console.error("[saveTask] insert ERROR", e); }
     }
     if (!skipClose) setShowForm(false);
   }, [tasks]);
