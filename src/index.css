@@ -11,3 +11,23 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Global resets */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+::-webkit-scrollbar { display: none; }
+input { caret-color: #6366f1; }
+::placeholder { color: rgba(255,255,255,0.25); }
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+input[type=date], input[type=time] { color-scheme: dark; }
+textarea { caret-color: #6366f1; }
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Planner task card press glow */
+@keyframes lp-pulse {
+  0%   { box-shadow: 0 0 0 0px rgba(99,102,241,0.6); }
+  60%  { box-shadow: 0 0 0 8px rgba(99,102,241,0.2); }
+  100% { box-shadow: 0 0 0 12px rgba(99,102,241,0); }
+}
+.lp-glow { animation: lp-pulse 0.5s ease-out forwards; }
