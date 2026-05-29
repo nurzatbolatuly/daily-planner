@@ -81,6 +81,11 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
               <button onClick={() => { setShowMoveCal(true); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"transparent", border:"none", color:"rgba(255,255,255,0.6)", fontSize:14, cursor:"pointer", textAlign:"left" }}>
                 <Ico n="calendar" s={16} c="rgba(255,255,255,0.6)"/>Перенести на другой день
               </button>
+              {task.date && (
+                <button onClick={() => { onMoveToDay(task.id, null); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"transparent", border:"none", color:"rgba(255,255,255,0.6)", fontSize:14, cursor:"pointer", textAlign:"left" }}>
+                  <Ico n="x" s={16} c="rgba(255,255,255,0.6)"/>Убрать срок (в «Без срока»)
+                </button>
+              )}
               <button onClick={() => { setShowEditForm(true); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"transparent", border:"none", color:"rgba(255,255,255,0.6)", fontSize:14, cursor:"pointer", textAlign:"left" }}>
                 <Ico n="edit" s={16} c="rgba(255,255,255,0.6)"/>Редактировать
               </button>
