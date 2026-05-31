@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { TRIP_LABELS } from "../../../constants/money";
@@ -7,15 +7,34 @@ import { supa } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { TripDayCardMon } from "../components/TripDayCardMon";
 
-export function TripDetailPageMon({ plan, accounts, onBack }) {
+export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
   const [days, setDays] = useState(plan.days || []);
   const sym = getSym(BASE_CUR);
   const rates = ratesFromAccounts(accounts);
 
-  const saveDay = async (idx, day) => {
-    const nd = [...days]; nd[idx] = day; setDays(nd);
-    try { await supa.update("trip_plans", { days: nd }, `id=eq.${plan.id}`); } catch(e) { console.error(e); }
+  // Локальный стейт обновляем сразу, запись в БД дебаунсим (раньше supa.update
+  // всего jsonb-массива летел на каждый символ). pendingRef хранит несохранённые
+  // дни, flush() сбрасывает их в БД — вызывается перед уходом со страницы.
+  const timerRef = useRef(null);
+  const pendingRef = useRef(null);
+  const flush = () => {
+    clearTimeout(timerRef.current);
+    if (pendingRef.current) { const nd = pendingRef.current; pendingRef.current = null; supa.update("trip_plans", { days: nd }, `id=eq.${plan.id}`).catch(e => console.error(e)); }
   };
+  const saveDay = (idx, day) => {
+    setDays(prev => {
+      const nd = prev.map((d,i) => i === idx ? day : d);
+      pendingRef.current = nd;
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(flush, 500);
+      return nd;
+    });
+  };
+  // Подстраховка: сбросить несохранённое при размонтировании.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => () => flush(), []);
+
+  const back = () => { flush(); onBack(true); };
 
   const allExp = days.flatMap(d => d.expenses || []);
   const totalAll = allExp.reduce((s,e) => s + toBase(e.amount, e.currency, rates), 0);
@@ -41,8 +60,9 @@ export function TripDetailPageMon({ plan, accounts, onBack }) {
   return (
     <div style={{ minHeight:"100vh", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
       <div style={{ background:C.monHeader, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
-        <button onClick={() => onBack(false)} style={{ background:"none", border:"none", cursor:"pointer", color:C.main, display:"flex" }}><Ico n="back" s={22}/></button>
+        <button onClick={back} style={{ background:"none", border:"none", cursor:"pointer", color:C.main, display:"flex" }}><Ico n="back" s={22}/></button>
         <span style={{ flex:1, fontSize:17, fontWeight:600, color:"#fff" }}>{plan.name}</span>
+        <button onClick={() => { flush(); navigate("editTrip", { ...plan, days }); }} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", marginRight:14 }}><Ico n="edit" s={20} c={C.mid}/></button>
         <button onClick={exportCSV} style={{ background:"none", border:"none", cursor:"pointer", display:"flex" }}><Ico n="download" s={20} c={C.mid}/></button>
       </div>
       <div style={{ flex:1, overflowY:"auto", padding:"12px 16px 80px" }}>

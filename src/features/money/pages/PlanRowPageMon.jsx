@@ -5,12 +5,17 @@ import { supaUpsert, supa } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { CatIcon } from "../../../components/CatIcon";
+import { CurrencyPage } from "../../../components/CurrencyPage";
 
-export function PlanRowPageMon({ expCats, incCats, onBack, edit }) {
+export function PlanRowPageMon({ expCats, incCats, onBack, edit, month }) {
   const [type, setType] = useState(edit?.type || "expense");
   const [catId, setCatId] = useState(edit?.cat_id || "");
   const [plan, setPlan] = useState(edit?.plan ? String(edit.plan) : "");
+  const [planCur, setPlanCur] = useState(edit?.plan_currency || BASE_CUR);
+  const [showCur, setShowCur] = useState(false);
   const [errors, setErrors] = useState({});
+
+  if (showCur) return <CurrencyPage value={planCur} onSelect={v => { setPlanCur(v); setShowCur(false); }} onBack={() => setShowCur(false)}/>;
 
   const save = async () => {
     const e = {};
@@ -23,6 +28,8 @@ export function PlanRowPageMon({ expCats, incCats, onBack, edit }) {
       cat_id: catId,
       type,
       plan: parseFloat(plan),
+      plan_currency: planCur,
+      month: edit?.month || month,
     };
     try {
       await supaUpsert("month_plans", p);
@@ -47,14 +54,19 @@ export function PlanRowPageMon({ expCats, incCats, onBack, edit }) {
             </button>
           ))}
         </div>
-        <FieldLabel error={errors.plan}>Plan amount ({BASE_CUR})</FieldLabel>
-        <input
-          value={plan}
-          onChange={e => { setPlan(e.target.value); setErrors(p => ({...p, plan:""})); }}
-          type="number"
-          placeholder="0"
-          style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${errors.plan?"rgba(244,67,54,0.5)":C.border}`, outline:"none", color:"#fff", fontSize:28, fontWeight:700, padding:"4px 0", marginBottom:errors.plan?4:20, boxSizing:"border-box" }}
-        />
+        <FieldLabel error={errors.plan}>Plan amount</FieldLabel>
+        <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:errors.plan?4:20 }}>
+          <input
+            value={plan}
+            onChange={e => { setPlan(e.target.value); setErrors(p => ({...p, plan:""})); }}
+            type="number"
+            placeholder="0"
+            style={{ flex:1, minWidth:0, background:"none", border:"none", borderBottom:`1px solid ${errors.plan?"rgba(244,67,54,0.5)":C.border}`, outline:"none", color:"#fff", fontSize:28, fontWeight:700, padding:"4px 0", boxSizing:"border-box" }}
+          />
+          <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", color:C.green, fontSize:16, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
+            {planCur} ▾
+          </button>
+        </div>
         {errors.plan && <p style={{ color:C.red, fontSize:12, marginBottom:12 }}>{errors.plan}</p>}
         <FieldLabel error={errors.cat}>Category</FieldLabel>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:24 }}>

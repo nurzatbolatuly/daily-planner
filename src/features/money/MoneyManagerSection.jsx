@@ -48,11 +48,11 @@ export default function MoneyManagerSection() {
     if (name === "editCat")    return <CatPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d} catType={d?.catType}/>;
     if (name === "addRec")     return <RecPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack}/>;
     if (name === "editRec")    return <RecPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack} edit={d}/>;
-    if (name === "addPlan")    return <PlanRowPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack}/>;
+    if (name === "addPlan")    return <PlanRowPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} month={d?.month}/>;
     if (name === "editPlan")   return <PlanRowPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d}/>;
     if (name === "addTrip")    return <TripEditPageMon onBack={goBackToTrips}/>;
     if (name === "editTrip")   return <TripEditPageMon onBack={goBackToTrips} edit={d}/>;
-    if (name === "tripDetail") return <TripDetailPageMon plan={d} accounts={data.accounts} onBack={goBack}/>;
+    if (name === "tripDetail") return <TripDetailPageMon plan={d} accounts={data.accounts} navigate={navigate} onBack={goBack}/>;
     if (name === "menu")       return <MoneyMenuPage navigate={navigate} onBack={() => goBack(false)}/>;
     if (name === "menuCats")   return <CatsListPageMon expCats={data.expCats} incCats={data.incCats} navigate={navigate} onBack={() => goBack(false)}/>;
     if (name === "menuRec")    return <RecListPageMon recurring={data.recurring} accounts={data.accounts} expCats={data.expCats} navigate={navigate} onBack={() => goBack(false)}/>;

@@ -4,7 +4,7 @@ import { TRIP_LABELS } from "../../../constants/money";
 import { todayStr } from "../../../utils/date";
 import { getSym, fmtAmt, toBase } from "../../../utils/format";
 import { BASE_CUR } from "../../../constants/currencies";
-import { RU_MONTHS_S } from "../../../constants/locale";
+import { RU_MONTHS } from "../../../constants/locale";
 import { Ico } from "../../../components/Ico";
 import { TripExpenseFormMon } from "./TripExpenseFormMon";
 
@@ -15,7 +15,7 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {} })
   const [newPlace, setNewPlace] = useState("");
 
   const d = new Date(day.date);
-  const dayLabel = `${d.getDate()} ${RU_MONTHS_S[d.getMonth()]}`;
+  const dayLabel = `${d.getDate()} ${RU_MONTHS[d.getMonth()]}`;
   const isToday = day.date === todayStr();
   const isPast = day.date < todayStr();
   const allDone = day.expenses.length > 0 && day.expenses.every(e => e.status === "paid");
@@ -46,7 +46,7 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {} })
 
   return (
     <div style={{ borderRadius:16, background:C.monCard, marginBottom:10, border:`1px solid ${allDone?"rgba(76,175,80,0.3)":C.border}`, overflow:"hidden" }}>
-      <div onClick={() => setCollapsed(!collapsed)} style={{ display:"flex", alignItems:"center", padding:"14px 16px", cursor:"pointer", background:isToday?"rgba(76,175,80,0.08)":"transparent" }}>
+      <div onClick={() => setCollapsed(!collapsed)} style={{ display:"flex", alignItems:"center",margin:"0px 0px 10px 0px", padding:"14px 16px", cursor:"pointer", background:isToday?"rgba(76,175,80,0.08)":"transparent" }}>
         <div style={{ flex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ fontSize:15, fontWeight:700, color:isToday?C.green:isPast?C.mid:"#fff" }}>{dayLabel}</span>

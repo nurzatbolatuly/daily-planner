@@ -26,14 +26,17 @@ export function useMoneyData() {
         supa.select("trip_plans"),
         supa.select("recurring"),
       ]);
-      if (acc?.length) setAccounts(acc);
-      if (txs?.length) setTransactions(txs);
-      if (trs?.length) setTransfers(trs);
+      // Всегда выставляем массивы целиком (даже пустые), иначе удаление ПОСЛЕДНЕЙ
+      // строки таблицы оставляет устаревший стейт. Категории — единственное
+      // исключение: при пустой таблице засеваем дефолтами.
+      setAccounts(acc || []);
+      setTransactions(txs || []);
+      setTransfers(trs || []);
       if (ec?.length) setExpCats(ec); else { await supaUpsert("exp_categories", DEF_EXP); setExpCats(DEF_EXP); }
       if (ic?.length) setIncCats(ic); else { await supaUpsert("inc_categories", DEF_INC); setIncCats(DEF_INC); }
-      if (mp?.length) setMonthPlans(mp);
-      if (tp?.length) setTripPlans(tp.map(p => ({...p, days: p.days||[]})));
-      if (rec?.length) setRecurring(rec);
+      setMonthPlans(mp || []);
+      setTripPlans((tp || []).map(p => ({...p, days: p.days||[]})));
+      setRecurring(rec || []);
     } catch(e) { console.error("Load money data:", e); }
     setLoading(false);
   }, []);
