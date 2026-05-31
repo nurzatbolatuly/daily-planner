@@ -54,7 +54,7 @@ export default function MoneyManagerSection() {
     if (name === "editTrip")   return <TripEditPageMon onBack={goBackToTrips} edit={d}/>;
     if (name === "tripDetail") return <TripDetailPageMon plan={d} accounts={data.accounts} navigate={navigate} onBack={goBack}/>;
     if (name === "menu")       return <MoneyMenuPage navigate={navigate} onBack={() => goBack(false)}/>;
-    if (name === "menuCats")   return <CatsListPageMon expCats={data.expCats} incCats={data.incCats} navigate={navigate} onBack={() => goBack(false)}/>;
+    if (name === "menuCats")   return <CatsListPageMon expCats={data.expCats} incCats={data.incCats} dispatch={data} navigate={navigate} onBack={() => goBack(false)}/>;
     if (name === "menuRec")    return <RecListPageMon recurring={data.recurring} accounts={data.accounts} expCats={data.expCats} navigate={navigate} onBack={() => goBack(false)}/>;
   }
 

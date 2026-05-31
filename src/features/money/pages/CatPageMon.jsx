@@ -27,6 +27,7 @@ export function CatPageMon({ expCats, incCats, onBack, edit, catType }) {
     if (!name.trim()) e.name = "Enter name";
     setErrors(e);
     if (Object.keys(e).length > 0) return;
+    const list = catType === "expense" ? expCats : incCats;
     const cat = {
       id: edit?.id || crypto.randomUUID(),
       name: name.trim(),
@@ -34,6 +35,7 @@ export function CatPageMon({ expCats, incCats, onBack, edit, catType }) {
       color,
       plan: parseFloat(plan) || 0,
       plan_currency: planCur,
+      sort_order: edit?.sort_order ?? (Math.max(0, ...list.map(c => c.sort_order ?? 0)) + 1),
     };
     try {
       await supaUpsert(catType === "expense" ? "exp_categories" : "inc_categories", cat);

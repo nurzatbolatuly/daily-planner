@@ -20,8 +20,8 @@ export function useMoneyData() {
         supa.select("accounts"),
         supa.select("transactions", "order=created_at.desc"),
         supa.select("transfers", "order=date.desc"),
-        supa.select("exp_categories"),
-        supa.select("inc_categories"),
+        supa.select("exp_categories", "order=sort_order.asc"),
+        supa.select("inc_categories", "order=sort_order.asc"),
         supa.select("month_plans"),
         supa.select("trip_plans"),
         supa.select("recurring"),
@@ -32,8 +32,8 @@ export function useMoneyData() {
       setAccounts(acc || []);
       setTransactions(txs || []);
       setTransfers(trs || []);
-      if (ec?.length) setExpCats(ec); else { await supaUpsert("exp_categories", DEF_EXP); setExpCats(DEF_EXP); }
-      if (ic?.length) setIncCats(ic); else { await supaUpsert("inc_categories", DEF_INC); setIncCats(DEF_INC); }
+      if (ec?.length) setExpCats(ec); else { const s = DEF_EXP.map((c,i)=>({...c, sort_order:i+1})); await supaUpsert("exp_categories", s); setExpCats(s); }
+      if (ic?.length) setIncCats(ic); else { const s = DEF_INC.map((c,i)=>({...c, sort_order:i+1})); await supaUpsert("inc_categories", s); setIncCats(s); }
       setMonthPlans(mp || []);
       setTripPlans((tp || []).map(p => ({...p, days: p.days||[]})));
       setRecurring(rec || []);
