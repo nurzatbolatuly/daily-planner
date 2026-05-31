@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { C } from "../../constants/theme";
 import { TIME_OF_DAY, WEEKDAYS } from "../../constants/planner";
+import { RU_MON_GEN } from "../../constants/locale";
 import { pad, todayStr } from "../../utils/date";
 import { Ico } from "../../components/Ico";
 
@@ -14,12 +15,21 @@ export default function PlannerTaskForm({ initialDate, initialTask, colorLabels,
   const [isRoutine, setIsRoutine] = useState(false);
   const [routineDays, setRoutineDays] = useState([]);
 
+  // Понедельник недели, к которой относится выбранная дата (без сдвига часового пояса).
+  const weekMondayOf = (dateStr) => {
+    const [y, m, dd] = (dateStr || todayStr()).split("-").map(Number);
+    const anchor = new Date(y, m - 1, dd);
+    const dow = anchor.getDay();
+    const monday = new Date(anchor);
+    monday.setDate(anchor.getDate() - (dow === 0 ? 6 : dow - 1));
+    return monday;
+  };
+
   const handleSave = () => {
     if (!title.trim()) return;
     if (isRoutine && routineDays.length > 0) {
-      const now = new Date(), dow = now.getDay();
-      const monday = new Date(now); monday.setDate(now.getDate() - (dow===0?6:dow-1));
-      routineDays.forEach((rd, i) => {
+      const monday = weekMondayOf(date);
+      routineDays.forEach((rd) => {
         const d = new Date(monday);
         const offset = rd === 0 ? 6 : rd - 1;
         d.setDate(monday.getDate() + offset);
@@ -75,17 +85,26 @@ export default function PlannerTaskForm({ initialDate, initialTask, colorLabels,
             <div>
               <button onClick={() => setIsRoutine(v=>!v)} style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, background:"none", border:"none", cursor:"pointer", color:isRoutine?"#a5b4fc":"rgba(255,255,255,0.35)", padding:0 }}>
                 <span style={{ width:18, height:18, borderRadius:4, border:isRoutine?"1.5px solid #818cf8":"1.5px solid rgba(255,255,255,0.2)", background:isRoutine?"rgba(99,102,241,0.25)":"transparent", display:"flex", alignItems:"center", justifyContent:"center" }}>{isRoutine && <Ico n="check" s={11} c="#a5b4fc"/>}</span>
-                Рутинная задача (на эту неделю)
+                Рутинная задача
               </button>
-              {isRoutine && (
-                <div style={{ display:"flex", gap:6, marginTop:8 }}>
-                  {WEEKDAYS.map(d => (
-                    <button key={d.id} onClick={() => setRoutineDays(prev => prev.includes(d.id)?prev.filter(x=>x!==d.id):[...prev,d.id])} style={{ flex:1, padding:"8px 2px", borderRadius:10, border:routineDays.includes(d.id)?"2px solid #818cf8":"2px solid rgba(255,255,255,0.08)", background:routineDays.includes(d.id)?"rgba(99,102,241,0.25)":"rgba(255,255,255,0.04)", color:routineDays.includes(d.id)?"#a5b4fc":"rgba(255,255,255,0.4)", fontSize:11, fontWeight:500, cursor:"pointer" }}>
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {isRoutine && (() => {
+                const monday = weekMondayOf(date);
+                const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+                return (
+                  <>
+                    <div style={{ display:"flex", gap:6, marginTop:8 }}>
+                      {WEEKDAYS.map(d => (
+                        <button key={d.id} onClick={() => setRoutineDays(prev => prev.includes(d.id)?prev.filter(x=>x!==d.id):[...prev,d.id])} style={{ flex:1, padding:"8px 2px", borderRadius:10, border:routineDays.includes(d.id)?"2px solid #818cf8":"2px solid rgba(255,255,255,0.08)", background:routineDays.includes(d.id)?"rgba(99,102,241,0.25)":"rgba(255,255,255,0.04)", color:routineDays.includes(d.id)?"#a5b4fc":"rgba(255,255,255,0.4)", fontSize:11, fontWeight:500, cursor:"pointer" }}>
+                          {d.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p style={{ margin:"8px 0 0", fontSize:11, color:"rgba(255,255,255,0.4)" }}>
+                      Неделя {monday.getDate()} {RU_MON_GEN[monday.getMonth()]} – {sunday.getDate()} {RU_MON_GEN[sunday.getMonth()]} (по выбранной дате)
+                    </p>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
