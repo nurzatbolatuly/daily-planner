@@ -2,14 +2,15 @@ import { useState } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { TRIP_LABELS } from "../../../constants/money";
-import { getSym, fmtAmt, toBase } from "../../../utils/format";
+import { getSym, fmtAmt, toBase, ratesFromAccounts } from "../../../utils/format";
 import { supa } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { TripDayCardMon } from "../components/TripDayCardMon";
 
-export function TripDetailPageMon({ plan, onBack }) {
+export function TripDetailPageMon({ plan, accounts, onBack }) {
   const [days, setDays] = useState(plan.days || []);
   const sym = getSym(BASE_CUR);
+  const rates = ratesFromAccounts(accounts);
 
   const saveDay = async (idx, day) => {
     const nd = [...days]; nd[idx] = day; setDays(nd);
@@ -17,10 +18,10 @@ export function TripDetailPageMon({ plan, onBack }) {
   };
 
   const allExp = days.flatMap(d => d.expenses || []);
-  const totalAll = allExp.reduce((s,e) => s + toBase(e.amount, e.currency), 0);
-  const totalPaid = allExp.reduce((s,e) => s + toBase(e.paidAmount || 0, e.currency), 0);
+  const totalAll = allExp.reduce((s,e) => s + toBase(e.amount, e.currency, rates), 0);
+  const totalPaid = allExp.reduce((s,e) => s + toBase(e.paidAmount || 0, e.currency, rates), 0);
   const byCat = {};
-  allExp.forEach(e => { if (!byCat[e.cat]) byCat[e.cat] = 0; byCat[e.cat] += toBase(e.amount, e.currency); });
+  allExp.forEach(e => { if (!byCat[e.cat]) byCat[e.cat] = 0; byCat[e.cat] += toBase(e.amount, e.currency, rates); });
   const byCur = {};
   allExp.filter(e => e.status !== "paid").forEach(e => {
     const needed = e.status === "partial" ? (e.amount - (e.paidAmount||0)) : e.amount;
@@ -80,7 +81,7 @@ export function TripDetailPageMon({ plan, onBack }) {
           )}
         </div>
         {days.map((day,i) => (
-          <TripDayCardMon key={day.date} day={day} dayIndex={i} onUpdate={d => saveDay(i,d)} prevDay={i>0?days[i-1]:null}/>
+          <TripDayCardMon key={day.date} day={day} dayIndex={i} onUpdate={d => saveDay(i,d)} prevDay={i>0?days[i-1]:null} rates={rates}/>
         ))}
       </div>
     </div>

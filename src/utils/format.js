@@ -9,6 +9,22 @@ export const fmtM = (n, code) => `${getSym(code)}${fmtAmt(n)}`;
 
 export const toBase = (amt, from, rates = {}) => from === BASE_CUR ? amt : amt * (rates[from] || 1);
 
+// Карта курсов { currency: rateToBase } из avg_rate счетов.
+// Если в одной валюте несколько счетов — берём среднее их avg_rate.
+// Валюты без курса в карту не попадают → toBase даст fallback 1:1 (прежнее поведение).
+export const ratesFromAccounts = (accounts = []) => {
+  const agg = {};
+  accounts.forEach(a => {
+    if (!a || a.currency === BASE_CUR || !a.avg_rate) return;
+    if (!agg[a.currency]) agg[a.currency] = { sum: 0, n: 0 };
+    agg[a.currency].sum += Number(a.avg_rate);
+    agg[a.currency].n += 1;
+  });
+  const rates = {};
+  Object.keys(agg).forEach(cur => { rates[cur] = agg[cur].sum / agg[cur].n; });
+  return rates;
+};
+
 export const avgRateFn = (ob, or_, aa, nr) => (ob+aa) === 0 ? nr : (ob*or_+aa*nr)/(ob+aa);
 
 export function fmtDateFull(d) {

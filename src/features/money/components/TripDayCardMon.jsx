@@ -8,7 +8,7 @@ import { RU_MONTHS_S } from "../../../constants/locale";
 import { Ico } from "../../../components/Ico";
 import { TripExpenseFormMon } from "./TripExpenseFormMon";
 
-export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay }) {
+export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {} }) {
   const [collapsed, setCollapsed] = useState(day.date < todayStr());
   const [editExpId, setEditExpId] = useState(null);
   const [addingExp, setAddingExp] = useState(false);
@@ -19,8 +19,8 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay }) {
   const isToday = day.date === todayStr();
   const isPast = day.date < todayStr();
   const allDone = day.expenses.length > 0 && day.expenses.every(e => e.status === "paid");
-  const dayTotal = day.expenses.reduce((s, e) => s + toBase(e.amount, e.currency), 0);
-  const dayPaid = day.expenses.reduce((s, e) => s + toBase(e.paidAmount || 0, e.currency), 0);
+  const dayTotal = day.expenses.reduce((s, e) => s + toBase(e.amount, e.currency, rates), 0);
+  const dayPaid = day.expenses.reduce((s, e) => s + toBase(e.paidAmount || 0, e.currency, rates), 0);
   const sym = getSym(BASE_CUR);
 
   const saveExp = (exp) => {

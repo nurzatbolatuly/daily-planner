@@ -42,7 +42,12 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
           <div style={{ position:"absolute", left:0, top:12, bottom:12, width:3, borderRadius:2, background:colorCfg.hex, opacity:0.75 }}/>
         )}
         <div style={{ display:"flex", alignItems:"center", gap:8, paddingLeft:16, paddingRight:12, paddingTop:12, paddingBottom:12 }}>
-          <div {...dragHandlers} style={{ color:"rgba(255,255,255,0.15)", cursor:"grab", flexShrink:0, touchAction:"none" }} onClick={e => e.stopPropagation()}>
+          <div {...dragHandlers}
+               onMouseDown={e => e.stopPropagation()}
+               onTouchStart={e => e.stopPropagation()}
+               onDragStart={() => { endPress(); dragHandlers.onDragStart(); }}
+               onClick={e => e.stopPropagation()}
+               style={{ color:"rgba(255,255,255,0.15)", cursor:"grab", flexShrink:0, touchAction:"none" }}>
             <Ico n="drag" s={16}/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>

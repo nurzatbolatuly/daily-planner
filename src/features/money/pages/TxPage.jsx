@@ -2,7 +2,7 @@ import { useState } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, addDays } from "../../../utils/date";
-import { supa, supaUpsert } from "../../../lib/supabase";
+import { supaRpc } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { CatIcon } from "../../../components/CatIcon";
@@ -44,15 +44,11 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit }) {
     const acc = accounts.find(a => a.id === accId);
     const delta = type === "income" ? parseFloat(amt) : -parseFloat(amt);
     const tx = { id: edit?.id || crypto.randomUUID(), type, amount: parseFloat(amt), currency: cur, category_id: cat, account_id: accId, date, note };
+    // Новый баланс: при редактировании сначала откатываем старую дельту, затем применяем новую.
+    const oldDelta = edit ? (edit.type === "income" ? -edit.amount : edit.amount) : 0;
+    const newBal = acc.balance + oldDelta + delta;
     try {
-      await supaUpsert("transactions", tx);
-      if (!edit) await supa.update("accounts", { balance: acc.balance + delta }, `id=eq.${accId}`);
-      else {
-        const old = edit;
-        const oldDelta = old.type === "income" ? -old.amount : old.amount;
-        const newBal = acc.balance + oldDelta + delta;
-        await supa.update("accounts", { balance: newBal }, `id=eq.${accId}`);
-      }
+      await supaRpc("save_tx", { p_tx: tx, p_account_id: accId, p_new_balance: newBal });
       onBack(true);
     } catch(e) { console.error(e); setSaving(false); }
   };
@@ -62,8 +58,11 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit }) {
     const acc = accounts.find(a => a.id === edit.account_id);
     const delta = edit.type === "income" ? -edit.amount : edit.amount;
     try {
-      await supa.delete("transactions", `id=eq.${edit.id}`);
-      if (acc) await supa.update("accounts", { balance: acc.balance + delta }, `id=eq.${acc.id}`);
+      await supaRpc("delete_tx", {
+        p_id: edit.id,
+        p_account_id: acc ? acc.id : null,
+        p_new_balance: acc ? acc.balance + delta : null,
+      });
       onBack(true);
     } catch(e) { console.error(e); }
   };

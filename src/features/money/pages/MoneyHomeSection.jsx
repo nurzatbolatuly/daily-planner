@@ -3,7 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { pad, todayStr } from "../../../utils/date";
-import { getSym, fmtAmt, fmtM, toBase, fmtDateShort } from "../../../utils/format";
+import { getSym, fmtAmt, fmtM, toBase, fmtDateShort, ratesFromAccounts } from "../../../utils/format";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 import { CalendarPicker } from "../../../components/CalendarPicker";
@@ -23,6 +23,7 @@ export function MoneyHomeSection({ data, navigate }) {
   const [filterCats, setFilterCats] = useState([]);
   const [showFilter, setShowFilter] = useState(false);
   const sym = getSym(BASE_CUR);
+  const rates = ratesFromAccounts(accounts);
 
   const totalBal = (() => {
     const accs = selAccId ? accounts.filter(a => a.id === selAccId) : accounts.filter(a => a.in_total);
@@ -47,7 +48,7 @@ export function MoneyHomeSection({ data, navigate }) {
   const periodTxs = filterTxs(transactions);
   const typeTxs = periodTxs.filter(t => t.type === txType);
   const cats = txType === "expense" ? expCats : incCats;
-  const catData = cats.map(c => ({ ...c, val: typeTxs.filter(t => t.category_id === c.id).reduce((s,t) => s + toBase(t.amount, t.currency), 0) })).filter(c => c.val > 0).sort((a,b) => b.val - a.val);
+  const catData = cats.map(c => ({ ...c, val: typeTxs.filter(t => t.category_id === c.id).reduce((s,t) => s + toBase(t.amount, t.currency, rates), 0) })).filter(c => c.val > 0).sort((a,b) => b.val - a.val);
   const grandTotal = catData.reduce((s,c) => s + c.val, 0);
 
   const grouped = {};

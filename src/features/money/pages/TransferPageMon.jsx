@@ -2,7 +2,7 @@ import { useState } from "react";
 import { C } from "../../../constants/theme";
 import { todayStr } from "../../../utils/date";
 import { avgRateFn } from "../../../utils/format";
-import { supa, supaUpsert } from "../../../lib/supabase";
+import { supaRpc } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { AccSelect } from "../../../components/AccSelect";
@@ -25,18 +25,19 @@ export function TransferPageMon({ accounts, onBack }) {
     if (!amt || fromId === toId) return;
     setSaving(true);
     const tr = { id: crypto.randomUUID(), from_id:fromId, to_id:toId, amount:parseFloat(amt), from_currency:fromAcc?.currency, to_amt:diffCur?(parseFloat(toAmt)||0):parseFloat(amt), to_currency:toAcc?.currency, rate:parseFloat(rate)||null, fee:parseFloat(fee)||0, date, note };
+    const newFromBal = fromAcc.balance - parseFloat(amt) - (parseFloat(fee)||0);
+    const newToBal = toAcc.balance + (diffCur ? (parseFloat(toAmt)||0) : parseFloat(amt));
+    let newAvgRate = null;
+    if (diffCur && rate) {
+      const oldRate = toAcc.avg_rate || parseFloat(rate);
+      newAvgRate = Math.round(avgRateFn(toAcc.balance, oldRate, parseFloat(toAmt)||0, parseFloat(rate))*100)/100;
+    }
     try {
-      await supaUpsert("transfers", tr);
-      const newFromBal = fromAcc.balance - parseFloat(amt) - (parseFloat(fee)||0);
-      const newToBal = toAcc.balance + (diffCur ? (parseFloat(toAmt)||0) : parseFloat(amt));
-      await supa.update("accounts", { balance: newFromBal }, `id=eq.${fromId}`);
-      let toUpdate = { balance: newToBal };
-      if (diffCur && rate) {
-        const oldRate = toAcc.avg_rate || parseFloat(rate);
-        const newAvg = Math.round(avgRateFn(toAcc.balance, oldRate, parseFloat(toAmt)||0, parseFloat(rate))*100)/100;
-        toUpdate.avg_rate = newAvg;
-      }
-      await supa.update("accounts", toUpdate, `id=eq.${toId}`);
+      await supaRpc("save_transfer", {
+        p_tr: tr,
+        p_from_id: fromId, p_from_balance: newFromBal,
+        p_to_id: toId, p_to_balance: newToBal, p_to_avg_rate: newAvgRate,
+      });
       onBack(true);
     } catch(e) { console.error(e); setSaving(false); }
   };

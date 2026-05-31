@@ -37,3 +37,11 @@ export async function supaUpsert(table, data) {
     .select();
   if (error) throw error;
 }
+
+// Вызов Postgres-функции (RPC). Используется для атомарных операций,
+// где нужно записать несколько строк (транзакция + баланс) одной транзакцией БД.
+export async function supaRpc(fn, params) {
+  const { data, error } = await supabase.rpc(fn, params);
+  if (error) throw error;
+  return data;
+}

@@ -23,8 +23,16 @@ export default function PlannerSection({ navigate }) {
   const [dragId, setDragId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
   const [anyPressing, setAnyPressing] = useState(false);
+  const [toast, setToast] = useState(null);
   const carouselRef = useRef(null);
   const touchDayStart = useRef(null);
+  const toastTimer = useRef(null);
+
+  const showError = useCallback((msg) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
+  }, []);
 
   const currentKey = `${currentDay.getFullYear()}-${pad(currentDay.getMonth()+1)}-${pad(currentDay.getDate())}`;
   const isToday = currentKey === todayStr();
@@ -32,7 +40,7 @@ export default function PlannerSection({ navigate }) {
   const isTomorrow = currentKey === addDays(todayStr(), 1);
   const dayLabel = isToday?"Сегодня":isYesterday?"Вчера":isTomorrow?"Завтра":`${currentDay.getDate()} ${RU_MON_GEN[currentDay.getMonth()]}`;
 
-  const carouselDays = Array.from({ length:60 }, (_,i) => { const d = new Date(); d.setDate(d.getDate()-7+i); return d; });
+  const carouselDays = Array.from({ length:61 }, (_,i) => { const d = new Date(currentDay); d.setDate(d.getDate()-30+i); return d; });
   const tasksByDate = {};
   const somedayTasks = [];
   tasks.forEach(t => {
@@ -61,25 +69,32 @@ export default function PlannerSection({ navigate }) {
     load();
   }, []);
 
-  const scrollToDay = useCallback(d => {
-    const key = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    const idx = carouselDays.findIndex(cd => `${cd.getFullYear()}-${pad(cd.getMonth()+1)}-${pad(cd.getDate())}` === key);
-    if (carouselRef.current && idx >= 0) carouselRef.current.children[idx]?.scrollIntoView({ behavior:"smooth", inline:"center", block:"nearest" });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Выбранный день всегда в центре окна (индекс 30 из 61) — скроллим его в центр полосы.
+  const scrollToCenter = useCallback((behavior = "auto") => {
+    carouselRef.current?.children[30]?.scrollIntoView({ behavior, inline:"center", block:"nearest" });
   }, []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setTimeout(() => scrollToDay(currentDay), 100); }, []);
+  // Центрируем при смене выбранного дня И после завершения загрузки (когда карусель
+  // впервые появляется в DOM — иначе на обновлении страницы скролл срабатывает «вхолостую»).
+  useEffect(() => {
+    if (loading) return;
+    const r = requestAnimationFrame(() => scrollToCenter());
+    return () => cancelAnimationFrame(r);
+  }, [currentDay, loading, scrollToCenter]);
 
   const updateTask = useCallback(async (id, patch) => {
-    setTasks(prev => prev.map(t => t.id===id ? {...t,...patch} : t));
-    try { await supa.update("tasks", patch, `id=eq.${id}`); } catch(e) { console.error(e); }
-  }, []);
+    let snapshot;
+    setTasks(prev => { snapshot = prev; return prev.map(t => t.id===id ? {...t,...patch} : t); });
+    try { await supa.update("tasks", patch, `id=eq.${id}`); }
+    catch(e) { console.error(e); setTasks(snapshot); showError("Не удалось сохранить изменение"); }
+  }, [showError]);
 
   const deleteTask = useCallback(async id => {
-    setTasks(prev => prev.filter(t => t.id!==id));
-    try { await supa.delete("tasks", `id=eq.${id}`); } catch(e) { console.error(e); }
-  }, []);
+    let snapshot;
+    setTasks(prev => { snapshot = prev; return prev.filter(t => t.id!==id); });
+    try { await supa.delete("tasks", `id=eq.${id}`); }
+    catch(e) { console.error(e); setTasks(snapshot); showError("Не удалось удалить задачу"); }
+  }, [showError]);
 
   const moveToDay = useCallback(async (id, newDate) => {
     const task = tasks.find(t => t.id===id);
@@ -87,24 +102,29 @@ export default function PlannerSection({ navigate }) {
     const dayTasks = tasks.filter(t => t.date===newDate);
     const newOrder = dayTasks.length > 0 ? Math.max(...dayTasks.map(t=>t.order))+1 : 0;
     const patch = { date: newDate, order: newOrder, status:"active" };
-    setTasks(prev => prev.map(t => t.id===id ? {...t,...patch} : t));
-    try { await supa.update("tasks", patch, `id=eq.${id}`); } catch(e) { console.error(e); }
-  }, [tasks]);
+    let snapshot;
+    setTasks(prev => { snapshot = prev; return prev.map(t => t.id===id ? {...t,...patch} : t); });
+    try { await supa.update("tasks", patch, `id=eq.${id}`); }
+    catch(e) { console.error(e); setTasks(snapshot); showError("Не удалось перенести задачу"); }
+  }, [tasks, showError]);
 
   const saveTask = useCallback(async (taskData, skipClose = false) => {
     const exists = tasks.find(t => t.id===taskData.id);
+    let snapshot;
     if (exists) {
-      setTasks(prev => prev.map(t => t.id===taskData.id ? taskData : t));
+      setTasks(prev => { snapshot = prev; return prev.map(t => t.id===taskData.id ? taskData : t); });
       const { id, ...patch } = taskData;
-      try { await supa.update("tasks", patch, `id=eq.${taskData.id}`); } catch(e) { console.error(e); }
+      try { await supa.update("tasks", patch, `id=eq.${taskData.id}`); }
+      catch(e) { console.error(e); setTasks(snapshot); showError("Не удалось сохранить задачу"); }
     } else {
       const dayTasks = tasks.filter(t => t.date===taskData.date);
       const newTask = { ...taskData, order: taskData.order===999 ? dayTasks.length : taskData.order };
-      setTasks(prev => [...prev, newTask]);
-      try { await supaUpsert("tasks", newTask); } catch(e) { console.error(e); }
+      setTasks(prev => { snapshot = prev; return [...prev, newTask]; });
+      try { await supaUpsert("tasks", newTask); }
+      catch(e) { console.error(e); setTasks(snapshot); showError("Не удалось создать задачу"); }
     }
     if (!skipClose) setShowForm(false);
-  }, [tasks]);
+  }, [tasks, showError]);
 
   // Drag & drop
   const getDragHandlers = id => ({
@@ -119,9 +139,11 @@ export default function PlannerSection({ navigate }) {
     if (fi<0||ti<0) return;
     const reordered = [...day]; const [moved] = reordered.splice(fi,1); reordered.splice(ti,0,moved);
     const updated = reordered.map((t,i) => ({...t,order:i}));
-    setTasks(prev => prev.map(t => { const u=updated.find(x=>x.id===t.id); return u||t; }));
+    let snapshot;
+    setTasks(prev => { snapshot = prev; return prev.map(t => { const u=updated.find(x=>x.id===t.id); return u||t; }); });
     setDragId(null); setDragOverId(null);
-    try { await Promise.all(updated.map(t => supa.update("tasks", {order:t.order}, `id=eq.${t.id}`))); } catch(e) { console.error(e); }
+    try { await Promise.all(updated.map(t => supa.update("tasks", {order:t.order}, `id=eq.${t.id}`))); }
+    catch(e) { console.error(e); setTasks(snapshot); showError("Не удалось изменить порядок"); }
   };
 
   const handleMainTouchStart = e => { touchDayStart.current = e.touches[0].clientX; };
@@ -130,7 +152,7 @@ export default function PlannerSection({ navigate }) {
     const dx = e.changedTouches[0].clientX - touchDayStart.current;
     if (Math.abs(dx) > 70) {
       const nd = new Date(currentDay); nd.setDate(nd.getDate() + (dx<0?1:-1));
-      setCurrentDay(nd); scrollToDay(nd);
+      setCurrentDay(nd);
     }
     touchDayStart.current = null;
   };
@@ -167,7 +189,7 @@ export default function PlannerSection({ navigate }) {
               const hasTasks = tasksByDate[dk]?.length>0;
               const hasActive = tasksByDate[dk]?.some(t=>t.status==="active");
               return (
-                <button key={dk} onClick={() => { setCurrentDay(new Date(d)); scrollToDay(d); }} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 10px", borderRadius:12, border:"none", background:isActive?"#6366f1":td?"rgba(99,102,241,0.15)":"transparent", color:isActive?"#fff":td?"#a5b4fc":"rgba(255,255,255,0.45)", cursor:"pointer", minWidth:44 }}>
+                <button key={dk} onClick={() => setCurrentDay(new Date(d))} style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 10px", borderRadius:12, border:"none", background:isActive?"#6366f1":td?"rgba(99,102,241,0.15)":"transparent", color:isActive?"#fff":td?"#a5b4fc":"rgba(255,255,255,0.45)", cursor:"pointer", minWidth:44 }}>
                   <span style={{ fontSize:10, fontWeight:500 }}>{RU_DAYS_S[d.getDay()]}</span>
                   <span style={{ fontSize:14, fontWeight:700 }}>{d.getDate()}</span>
                   <span style={{ width:5, height:5, borderRadius:3, background:hasTasks?(hasActive?(isActive?"#fff":"#818cf8"):(isActive?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.2)")):"transparent" }}/>
@@ -250,7 +272,14 @@ export default function PlannerSection({ navigate }) {
       </button>
 
       {showForm && <PlannerTaskForm initialDate={currentDay} colorLabels={colorLabels} onSave={saveTask} onClose={() => setShowForm(false)}/>}
-      {showCalendar && <CalendarPicker mode="single" value={currentKey} onChange={v => { setCurrentDay(new Date(v)); scrollToDay(new Date(v)); setShowCalendar(false); }} onClose={() => setShowCalendar(false)}/>}
+      {showCalendar && <CalendarPicker mode="single" value={currentKey} onChange={v => { setCurrentDay(new Date(v)); setShowCalendar(false); }} onClose={() => setShowCalendar(false)}/>}
+
+      {/* Error toast */}
+      {toast && (
+        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", zIndex:200, maxWidth:"90vw", padding:"12px 18px", borderRadius:14, background:"rgba(244,67,54,0.95)", color:"#fff", fontSize:13, fontWeight:500, boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }} onClick={() => setToast(null)}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

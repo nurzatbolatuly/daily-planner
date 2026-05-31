@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { DEF_EXP, DEF_INC } from "../../../constants/money";
 import { todayStr, monthKey } from "../../../utils/date";
-import { supa, supaUpsert } from "../../../lib/supabase";
+import { supa, supaUpsert, supaRpc } from "../../../lib/supabase";
 
 export function useMoneyData() {
   const [accounts, setAccounts] = useState([]);
@@ -41,27 +41,32 @@ export function useMoneyData() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
 
-  // Auto-fire recurring
+  // Auto-fire recurring (один раз за загрузку; защита от двойного срабатывания StrictMode/повторных рендеров)
+  const firingRef = useRef(false);
   useEffect(() => {
-    if (!recurring.length) return;
-    const today = new Date(), day = today.getDate(), mk = monthKey(todayStr());
-    const fire = async () => {
-      await Promise.all(recurring.map(async r => {
-        if (r.day !== day || r.last_fired === mk) return;
+    if (firingRef.current || !recurring.length || !accounts.length) return;
+    const day = new Date().getDate(), mk = monthKey(todayStr());
+    const due = recurring.filter(r => r.day === day && r.last_fired !== mk && accounts.some(a => a.id === r.acc_id));
+    if (!due.length) return;
+    firingRef.current = true;
+    (async () => {
+      // Накапливаем баланс по счёту, чтобы несколько списаний на один счёт не затирали друг друга
+      const balByAcc = {};
+      accounts.forEach(a => { balByAcc[a.id] = a.balance; });
+      for (const r of due) {
         const acc = accounts.find(a => a.id === r.acc_id);
-        if (!acc) return;
+        if (!acc) continue;
         const tx = { id: crypto.randomUUID(), type:"expense", amount:r.amount, currency:acc.currency, category_id:r.cat_id, account_id:r.acc_id, date:todayStr(), note:`${r.name} (авто)` };
+        const newBal = balByAcc[acc.id] - r.amount;
         try {
-          await supaUpsert("transactions", tx);
-          await supa.update("accounts", { balance: acc.balance - r.amount }, `id=eq.${acc.id}`);
-          await supa.update("recurring", { last_fired: mk }, `id=eq.${r.id}`);
+          await supaRpc("fire_recurring", { p_tx: tx, p_account_id: acc.id, p_new_balance: newBal, p_rec_id: r.id, p_month: mk });
+          balByAcc[acc.id] = newBal;
           setTransactions(prev => [tx, ...prev]);
-          setAccounts(prev => prev.map(a => a.id===acc.id ? {...a, balance: a.balance-r.amount} : a));
+          setAccounts(prev => prev.map(a => a.id===acc.id ? {...a, balance: newBal} : a));
           setRecurring(prev => prev.map(rec => rec.id===r.id ? {...rec, last_fired:mk} : rec));
-        } catch(e) { console.error(e); }
-      }));
-    };
-    fire();
+        } catch(e) { console.error(e); firingRef.current = false; }
+      }
+    })();
   }, [recurring, accounts]);
 
   return { accounts, setAccounts, transactions, setTransactions, transfers, setTransfers, expCats, setExpCats, incCats, setIncCats, monthPlans, setMonthPlans, tripPlans, setTripPlans, recurring, setRecurring, loading, reload: load };

@@ -22,14 +22,16 @@ export default function MoneyManagerSection() {
   const data = useMoneyData();
   const [monTab, setMonTab] = useState(() => localStorage.getItem("mon.tab") || "home");
   const [plansTab, setPlansTab] = useState(() => localStorage.getItem("mon.plansTab") || "month");
-  const [screen, setScreen] = useState(null);
+  // Стек экранов: navigate — push, goBack — pop одного уровня. Текущий экран — вершина стека.
+  const [stack, setStack] = useState([]);
+  const screen = stack[stack.length - 1] || null;
 
   const setMonTabP  = (t) => { setMonTab(t);   localStorage.setItem("mon.tab", t); };
   const setPlansTabP = (t) => { setPlansTab(t); localStorage.setItem("mon.plansTab", t); };
 
-  const navigate = (name, d) => setScreen({ name, data: d });
-  const goBack = (reload = false) => { if (reload) data.reload(); setScreen(null); };
-  const goBackToTrips = (reload = false) => { setPlansTabP("trips"); setMonTabP("plans"); if (reload) data.reload(); setScreen(null); };
+  const navigate = (name, d) => setStack(s => [...s, { name, data: d }]);
+  const goBack = (reload = false) => { if (reload) data.reload(); setStack(s => s.slice(0, -1)); };
+  const goBackToTrips = (reload = false) => { setPlansTabP("trips"); setMonTabP("plans"); if (reload) data.reload(); setStack([]); };
 
   if (data.loading) return <div style={{ background:C.monBg, minHeight:"100vh" }}><Spinner color={C.green}/></div>;
 
@@ -50,7 +52,7 @@ export default function MoneyManagerSection() {
     if (name === "editPlan")   return <PlanRowPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d}/>;
     if (name === "addTrip")    return <TripEditPageMon onBack={goBackToTrips}/>;
     if (name === "editTrip")   return <TripEditPageMon onBack={goBackToTrips} edit={d}/>;
-    if (name === "tripDetail") return <TripDetailPageMon plan={d} onBack={goBack}/>;
+    if (name === "tripDetail") return <TripDetailPageMon plan={d} accounts={data.accounts} onBack={goBack}/>;
     if (name === "menu")       return <MoneyMenuPage navigate={navigate} onBack={() => goBack(false)}/>;
     if (name === "menuCats")   return <CatsListPageMon expCats={data.expCats} incCats={data.incCats} navigate={navigate} onBack={() => goBack(false)}/>;
     if (name === "menuRec")    return <RecListPageMon recurring={data.recurring} accounts={data.accounts} expCats={data.expCats} navigate={navigate} onBack={() => goBack(false)}/>;
@@ -72,7 +74,7 @@ export default function MoneyManagerSection() {
       </div>
       <div style={{ position:"fixed", bottom:0, left:0, right:0, height:64, background:C.monHeader, borderTop:"1px solid rgba(76,175,80,0.1)", display:"flex", zIndex:30 }}>
         {MON_TABS.map(t => (
-          <button key={t.id} onClick={() => { if(t.id==="menu") navigate("menu"); else { setMonTabP(t.id); setScreen(null); } }} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, background:"none", border:"none", cursor:"pointer", color:monTab===t.id&&t.id!=="menu"?C.green:"rgba(255,255,255,0.3)" }}>
+          <button key={t.id} onClick={() => { if(t.id==="menu") navigate("menu"); else { setMonTabP(t.id); setStack([]); } }} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, background:"none", border:"none", cursor:"pointer", color:monTab===t.id&&t.id!=="menu"?C.green:"rgba(255,255,255,0.3)" }}>
             <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               {t.d.split("M").filter(Boolean).map((p,i) => <path key={i} d={`M${p}`}/>)}
             </svg>
