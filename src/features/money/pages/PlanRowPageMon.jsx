@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
+import { getSym, fmtAmt } from "../../../utils/format";
 import { supaUpsert, supa } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
@@ -10,32 +11,49 @@ import { CurrencyPage } from "../../../components/CurrencyPage";
 export function PlanRowPageMon({ expCats, incCats, onBack, edit, month }) {
   const [type, setType] = useState(edit?.type || "expense");
   const [catId, setCatId] = useState(edit?.cat_id || "");
-  const [plan, setPlan] = useState(edit?.plan ? String(edit.plan) : "");
   const [planCur, setPlanCur] = useState(edit?.plan_currency || BASE_CUR);
+  // Позиции плана ('на что буду платить'). amount держим строкой для инпута.
+  // Старые строки (есть plan, нет items) превращаем в одну позицию.
+  const [items, setItems] = useState(() => {
+    if (edit?.items?.length) return edit.items.map(it => ({ id: it.id || crypto.randomUUID(), label: it.label || "", amount: it.amount != null ? String(it.amount) : "" }));
+    if (edit?.plan) return [{ id: crypto.randomUUID(), label: "", amount: String(edit.plan) }];
+    return [{ id: crypto.randomUUID(), label: "", amount: "" }];
+  });
   const [showCur, setShowCur] = useState(false);
   const [errors, setErrors] = useState({});
 
   if (showCur) return <CurrencyPage value={planCur} onSelect={v => { setPlanCur(v); setShowCur(false); }} onBack={() => setShowCur(false)}/>;
 
+  const total = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+  const setItem = (id, patch) => setItems(prev => prev.map(it => it.id === id ? { ...it, ...patch } : it));
+  const addItem = () => setItems(prev => [...prev, { id: crypto.randomUUID(), label: "", amount: "" }]);
+  const delItem = (id) => setItems(prev => prev.length === 1 ? prev : prev.filter(it => it.id !== id));
+
   const save = async () => {
     const e = {};
     if (!catId) e.cat = "Select category";
-    if (!plan) e.plan = "Enter amount";
+    const cleanItems = items
+      .map(it => ({ id: it.id, label: it.label.trim(), amount: parseFloat(it.amount) || 0 }))
+      .filter(it => it.amount > 0);
+    if (!cleanItems.length) e.items = "Add at least one item with amount";
     setErrors(e);
     if (Object.keys(e).length > 0) return;
     const p = {
       id: edit?.id || crypto.randomUUID(),
       cat_id: catId,
       type,
-      plan: parseFloat(plan),
+      plan: cleanItems.reduce((s, it) => s + it.amount, 0),
       plan_currency: planCur,
       month: edit?.month || month,
+      items: cleanItems,
     };
     try {
       await supaUpsert("month_plans", p);
       onBack(true);
     } catch(e) { console.error(e); }
   };
+
+  const inputBox = { background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, borderRadius:8, padding:"9px 12px", color:"#fff", fontSize:14, outline:"none", boxSizing:"border-box" };
 
   return (
     <div style={{ minHeight:"100vh", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
@@ -54,20 +72,27 @@ export function PlanRowPageMon({ expCats, incCats, onBack, edit, month }) {
             </button>
           ))}
         </div>
-        <FieldLabel error={errors.plan}>Plan amount</FieldLabel>
-        <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:errors.plan?4:20 }}>
-          <input
-            value={plan}
-            onChange={e => { setPlan(e.target.value); setErrors(p => ({...p, plan:""})); }}
-            type="number"
-            placeholder="0"
-            style={{ flex:1, minWidth:0, background:"none", border:"none", borderBottom:`1px solid ${errors.plan?"rgba(244,67,54,0.5)":C.border}`, outline:"none", color:"#fff", fontSize:28, fontWeight:700, padding:"4px 0", boxSizing:"border-box" }}
-          />
-          <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", color:C.green, fontSize:16, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+          <FieldLabel error={errors.items}>Plan items</FieldLabel>
+          <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", color:C.green, fontSize:15, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
             {planCur} ▾
           </button>
         </div>
-        {errors.plan && <p style={{ color:C.red, fontSize:12, marginBottom:12 }}>{errors.plan}</p>}
+        {items.map(it => (
+          <div key={it.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+            <input value={it.label} onChange={e => setItem(it.id, { label:e.target.value })} placeholder="На что (напр. Продукты)" style={{ ...inputBox, flex:1, minWidth:0 }}/>
+            <input value={it.amount} onChange={e => { setItem(it.id, { amount:e.target.value }); setErrors(p => ({...p, items:""})); }} type="number" placeholder="0" style={{ ...inputBox, width:92, fontWeight:600, textAlign:"right" }}/>
+            <button onClick={() => delItem(it.id)} disabled={items.length===1} style={{ background:"none", border:"none", cursor:items.length===1?"default":"pointer", padding:4, display:"flex", opacity:items.length===1?0.3:1 }}>
+              <Ico n="x" s={16} c="rgba(244,67,54,0.6)"/>
+            </button>
+          </div>
+        ))}
+        {errors.items && <p style={{ color:C.red, fontSize:12, marginBottom:8 }}>{errors.items}</p>}
+        <button onClick={addItem} style={{ width:"100%", padding:"10px", borderRadius:10, background:"transparent", border:`1px dashed rgba(76,175,80,0.4)`, color:C.green, fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:12 }}>+ Add item</button>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 14px", borderRadius:10, background:"rgba(255,255,255,0.04)", marginBottom:24 }}>
+          <span style={{ fontSize:13, color:C.dim }}>Total</span>
+          <span style={{ fontSize:18, fontWeight:700, color:"#fff" }}>{getSym(planCur)}{fmtAmt(total,0)}</span>
+        </div>
         <FieldLabel error={errors.cat}>Category</FieldLabel>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:24 }}>
           {(type === "expense" ? expCats : incCats).map(c => (
