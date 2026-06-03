@@ -5,6 +5,9 @@ export const getSym = code => ALL_CURR.find(c => c.code === code)?.sym || code;
 
 export const fmtAmt = (n, dec = 2) => Math.abs(Number(n)||0).toLocaleString("ru-RU", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
+// Целое число — без копеек, дробное — с .00 (показываем копейки только если есть остаток).
+export const fmtAmtAuto = n => fmtAmt(n, Number.isInteger(Number(n)||0) ? 0 : 2);
+
 export const fmtM = (n, code) => `${getSym(code)}${fmtAmt(n)}`;
 
 export const toBase = (amt, from, rates = {}) => from === BASE_CUR ? amt : amt * (rates[from] || 1);

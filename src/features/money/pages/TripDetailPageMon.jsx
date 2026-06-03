@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { TRIP_LABELS } from "../../../constants/money";
-import { getSym, fmtAmt, toBase, ratesFromAccounts } from "../../../utils/format";
+import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/format";
 import { supa } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { TripDayCardMon } from "../components/TripDayCardMon";
@@ -41,12 +41,14 @@ export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
   const totalPaid = allExp.reduce((s,e) => s + toBase(e.paidAmount || 0, e.currency, rates), 0);
   const byCat = {};
   allExp.forEach(e => { if (!byCat[e.cat]) byCat[e.cat] = 0; byCat[e.cat] += toBase(e.amount, e.currency, rates); });
-  const byCur = {};
-  allExp.filter(e => e.status !== "paid").forEach(e => {
-    const needed = e.status === "partial" ? (e.amount - (e.paidAmount||0)) : e.amount;
-    if (!byCur[e.currency]) byCur[e.currency] = {cash:0, card:0};
-    if (e.isCash) byCur[e.currency].cash += needed;
-    else byCur[e.currency].card += needed;
+  // Свод по каждой использованной валюте в её родной валюте (без toBase — валюты не складываем).
+  // Ключи = только валюты, встретившиеся в расходах (вкл. ₸, если есть расходы в ₸).
+  const byCurFull = {};
+  allExp.forEach(e => {
+    const c = e.currency;
+    if (!byCurFull[c]) byCurFull[c] = { total:0, paid:0 };
+    byCurFull[c].total += e.amount;
+    byCurFull[c].paid += e.paidAmount || 0;
   });
 
   const exportCSV = () => {
@@ -68,7 +70,7 @@ export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
       <div style={{ flex:1, overflowY:"auto", padding:"12px 16px 80px" }}>
         <div style={{ borderRadius:16, background:C.monCard, padding:"16px", marginBottom:12 }}>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:12 }}>
-            {[{l:"Total",v:`${sym}${fmtAmt(totalAll,0)}`,c:"#fff"},{l:"Paid",v:`${sym}${fmtAmt(totalPaid,0)}`,c:C.green},{l:"Remaining",v:`${sym}${fmtAmt(totalAll-totalPaid,0)}`,c:"#f87171"}].map((s,i) => (
+            {[{l:"Total",v:`${sym}${fmtAmtAuto(totalAll)}`,c:"#fff"},{l:"Paid",v:`${sym}${fmtAmtAuto(totalPaid)}`,c:C.green},{l:"Remaining",v:`${sym}${fmtAmtAuto(totalAll-totalPaid)}`,c:"#f87171"}].map((s,i) => (
               <div key={i} style={{ textAlign:"center", padding:"10px", borderRadius:10, background:"rgba(255,255,255,0.04)" }}>
                 <p style={{ margin:0, fontSize:10, color:C.dim, marginBottom:3 }}>{s.l}</p>
                 <p style={{ margin:0, fontSize:13, fontWeight:700, color:s.c }}>{s.v}</p>
@@ -78,25 +80,29 @@ export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
           {Object.entries(byCat).sort((a,b) => b[1]-a[1]).map(([cat,amt]) => (
             <div key={cat} style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
               <span style={{ fontSize:13, color:C.mid }}>{TRIP_LABELS[cat]||cat}</span>
-              <span style={{ fontSize:13, color:C.main, fontWeight:500 }}>{sym}{fmtAmt(amt,0)}</span>
+              <span style={{ fontSize:13, color:C.main, fontWeight:500 }}>{sym}{fmtAmtAuto(amt)}</span>
             </div>
           ))}
-          {Object.keys(byCur).length > 0 && (
+          {Object.keys(byCurFull).length > 0 && (
             <>
               <div style={{ height:1, background:C.border, margin:"10px 0 8px" }}/>
-              <p style={{ margin:"0 0 6px", fontSize:11, color:C.dim, textTransform:"uppercase", letterSpacing:1 }}>Need to pay</p>
-              {Object.entries(byCur).map(([cur,v]) => (
-                <div key={cur} style={{ marginBottom:6 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                    <span style={{ fontSize:13, fontWeight:600, color:C.main }}>{cur}</span>
-                    <span style={{ fontSize:13, color:C.main }}>{getSym(cur)}{fmtAmt(v.cash+v.card,0)}</span>
+              <p style={{ margin:"0 0 8px", fontSize:11, color:C.dim, textTransform:"uppercase", letterSpacing:1 }}>By currency</p>
+              {Object.entries(byCurFull).sort((a,b) => toBase(b[1].total,b[0],rates) - toBase(a[1].total,a[0],rates)).map(([cur,v]) => {
+                const cs = getSym(cur);
+                return (
+                  <div key={cur} style={{ marginBottom:10 }}>
+                    <p style={{ margin:"0 0 5px", fontSize:13, fontWeight:600, color:C.main }}>{cur}</p>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+                      {[{l:"Total",v:`${cs}${fmtAmtAuto(v.total)}`,c:"#fff"},{l:"Paid",v:`${cs}${fmtAmtAuto(v.paid)}`,c:C.green},{l:"Remaining",v:`${cs}${fmtAmtAuto(v.total-v.paid)}`,c:"#f87171"}].map((s,i) => (
+                        <div key={i} style={{ textAlign:"center", padding:"8px", borderRadius:10, background:"rgba(255,255,255,0.04)" }}>
+                          <p style={{ margin:0, fontSize:10, color:C.dim, marginBottom:3 }}>{s.l}</p>
+                          <p style={{ margin:0, fontSize:13, fontWeight:700, color:s.c }}>{s.v}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div style={{ display:"flex", gap:12 }}>
-                    {v.cash > 0 && <span style={{ fontSize:12, color:C.dim }}>💵 {getSym(cur)}{fmtAmt(v.cash,0)}</span>}
-                    {v.card > 0 && <span style={{ fontSize:12, color:C.dim }}>💳 {getSym(cur)}{fmtAmt(v.card,0)}</span>}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </>
           )}
         </div>
