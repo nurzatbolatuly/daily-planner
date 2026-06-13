@@ -68,7 +68,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit }) {
   };
 
   return (
-    <div style={{ minHeight:"100vh", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
+    <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
       <div style={{ background:C.monHeader }}>
         <div style={{ display:"flex", alignItems:"center", padding:"14px 16px 0" }}>
           <button onClick={() => onBack(false)} style={{ background:"none", border:"none", cursor:"pointer", color:"#fff", marginRight:12, display:"flex" }}><Ico n="back" s={22}/></button>
@@ -83,7 +83,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit }) {
       <div style={{ flex:1, overflowY:"auto", padding:"0 16px 80px" }}>
         <div style={{ textAlign:"center", padding:"24px 24px 16px" }}>
           <div style={{ display:"flex", alignItems:"baseline", justifyContent:"center", gap:16 }}>
-            <input value={amt} onChange={e => { setAmt(e.target.value); setErrors(p => ({...p, amt:""})); }} type="number" placeholder="0" style={{ background:"none", border:"none", outline:"none", color:errors.amt?C.red:"#fff", fontSize:38, fontWeight:700, textAlign:"center", width:180 }}/>
+            <input value={amt} onChange={e => { setAmt(e.target.value); setErrors(p => ({...p, amt:""})); }} type="number" placeholder="0" style={{ background:"none", border:"none", outline:"none", color:errors.amt?C.red:"#fff", fontSize:38, fontWeight:700, textAlign:"center", width:"min(180px, 50%)" }}/>
             <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", color:C.green, fontSize:22, fontWeight:700, cursor:"pointer" }}>{cur}</button>
           </div>
           <div style={{ height:1, background:errors.amt?"rgba(244,67,54,0.5)":"rgba(255,255,255,0.15)", margin:"8px 40px 0" }}/>
@@ -94,11 +94,11 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit }) {
         </div>
         <div style={{ marginBottom:16 }}>
           <FieldLabel error={errors.cat}>Categories</FieldLabel>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(64px, 1fr))", gap:10 }}>
             {cats.map(c => { const sel = cat === c.id; return (
               <button key={c.id} onClick={() => { setCat(c.id); setErrors(p => ({...p, cat:""})); }} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5, padding:"10px 4px", borderRadius:12, background:sel?c.color:"transparent", border:"none", cursor:"pointer" }}>
-                <CatIcon k={c.icon} size={50} color={sel?"rgba(0,0,0,0.25)":c.color}/>
-                <span style={{ fontSize:11, color:sel?"#fff":C.mid, textAlign:"center" }}>{c.name}</span>
+                <CatIcon k={c.icon} size={44} color={sel?"rgba(0,0,0,0.25)":c.color}/>
+                <span style={{ fontSize:11, color:sel?"#fff":C.mid, textAlign:"center", wordBreak:"break-word" }}>{c.name}</span>
               </button>
             ); })}
           </div>

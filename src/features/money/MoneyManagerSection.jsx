@@ -33,7 +33,7 @@ export default function MoneyManagerSection() {
   const goBack = (reload = false) => { if (reload) data.reload(); setStack(s => s.slice(0, -1)); };
   const goBackToTrips = (reload = false) => { setPlansTabP("trips"); setMonTabP("plans"); if (reload) data.reload(); setStack([]); };
 
-  if (data.loading) return <div style={{ background:C.monBg, minHeight:"100vh" }}><Spinner color={C.green}/></div>;
+  if (data.loading) return <div style={{ background:C.monBg, minHeight:"calc(100dvh - var(--app-header-h))" }}><Spinner color={C.green}/></div>;
 
   // Full-page screens
   if (screen) {
@@ -66,13 +66,15 @@ export default function MoneyManagerSection() {
   ];
 
   return (
-    <div style={{ background:C.monBg, minHeight:"100vh", color:"#fff" }}>
-      <div style={{ overflowY:"auto", height:"calc(100vh - 64px)" }}>
+    <div style={{ background:C.monBg, minHeight:"calc(100dvh - var(--app-header-h))", color:"#fff" }}>
+      {/* Scrollable content — height accounts for app header (CSS var) + bottom nav + iOS safe area */}
+      <div style={{ overflowY:"auto", height:"calc(100dvh - var(--app-header-h) - 64px - env(safe-area-inset-bottom, 0px))" }}>
         {monTab === "home"     && <MoneyHomeSection     data={data} navigate={navigate}/>}
         {monTab === "accounts" && <MoneyAccountsSection data={data} navigate={navigate}/>}
         {monTab === "plans"    && <MoneyPlansSection    data={data} navigate={navigate} plansTab={plansTab} setPlansTab={setPlansTabP}/>}
       </div>
-      <div style={{ position:"fixed", bottom:0, left:0, right:0, height:64, background:C.monHeader, borderTop:"1px solid rgba(76,175,80,0.1)", display:"flex", zIndex:30 }}>
+      {/* Bottom nav — height grows with iOS safe area so buttons stay above home indicator */}
+      <div style={{ position:"fixed", bottom:0, left:0, right:0, height:"calc(64px + env(safe-area-inset-bottom, 0px))", paddingBottom:"env(safe-area-inset-bottom, 0px)", background:C.monHeader, borderTop:"1px solid rgba(76,175,80,0.1)", display:"flex", zIndex:30 }}>
         {MON_TABS.map(t => (
           <button key={t.id} onClick={() => { if(t.id==="menu") navigate("menu"); else { setMonTabP(t.id); setStack([]); } }} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, background:"none", border:"none", cursor:"pointer", color:monTab===t.id&&t.id!=="menu"?C.green:"rgba(255,255,255,0.3)" }}>
             <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

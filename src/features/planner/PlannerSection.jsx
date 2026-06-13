@@ -27,6 +27,9 @@ export default function PlannerSection({ navigate }) {
   const carouselRef = useRef(null);
   const touchDayStart = useRef(null);
   const toastTimer = useRef(null);
+  const dragIdRef = useRef(null);
+  const dragOverIdRef = useRef(null);
+  const tasksRef = useRef([]);
 
   const showError = useCallback((msg) => {
     setToast(msg);
@@ -49,6 +52,7 @@ export default function PlannerSection({ navigate }) {
     tasksByDate[t.date].push(t);
   });
   const currentTasks = (tasksByDate[currentKey]||[]).sort((a,b) => a.order-b.order);
+  tasksRef.current = tasks;
   const activeCnt = currentTasks.filter(t=>t.status==="active").length;
   const doneCnt = currentTasks.filter(t=>t.status==="done").length;
 
@@ -126,25 +130,49 @@ export default function PlannerSection({ navigate }) {
     if (!skipClose) setShowForm(false);
   }, [tasks, showError]);
 
-  // Drag & drop
-  const getDragHandlers = id => ({
-    draggable: true,
-    onDragStart: () => setDragId(id),
-    onDragEnd: () => { setDragId(null); setDragOverId(null); },
-  });
-  const handleDrop = async targetId => {
-    if (!dragId || dragId===targetId) { setDragId(null); setDragOverId(null); return; }
-    const day = tasks.filter(t => t.date===currentKey).sort((a,b) => a.order-b.order);
-    const fi = day.findIndex(t => t.id===dragId), ti = day.findIndex(t => t.id===targetId);
+  // Drag & drop — pointer events (работает на touch + mouse, в отличие от HTML5 drag API)
+  const executeDrop = useCallback(async () => {
+    const fromId = dragIdRef.current;
+    const toId   = dragOverIdRef.current;
+    setDragId(null); setDragOverId(null);
+    dragIdRef.current = null; dragOverIdRef.current = null;
+    if (!fromId || !toId || fromId === toId) return;
+    const day = tasksRef.current.filter(t => t.date===currentKey).sort((a,b) => a.order-b.order);
+    const fi = day.findIndex(t => t.id===fromId), ti = day.findIndex(t => t.id===toId);
     if (fi<0||ti<0) return;
     const reordered = [...day]; const [moved] = reordered.splice(fi,1); reordered.splice(ti,0,moved);
     const updated = reordered.map((t,i) => ({...t,order:i}));
     let snapshot;
     setTasks(prev => { snapshot = prev; return prev.map(t => { const u=updated.find(x=>x.id===t.id); return u||t; }); });
-    setDragId(null); setDragOverId(null);
-    try { await Promise.all(updated.map(t => supa.update("tasks", {order:t.order}, `id=eq.${t.id}`))); }
+    try { await Promise.all(updated.map(t => supa.update("tasks",{order:t.order},`id=eq.${t.id}`))); }
     catch(e) { console.error(e); setTasks(snapshot); showError("Не удалось изменить порядок"); }
-  };
+  }, [currentKey, showError]);
+  const executeDropRef = useRef(executeDrop);
+  useEffect(() => { executeDropRef.current = executeDrop; }, [executeDrop]);
+
+  const getDragHandlers = useCallback(id => ({
+    onPointerDown: e => {
+      e.stopPropagation();
+      dragIdRef.current = id;
+      setDragId(id);
+      const onMove = moveEvent => {
+        moveEvent.preventDefault();
+        const el = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+        const overId = el?.closest('[data-taskid]')?.dataset.taskid || null;
+        if (overId !== dragOverIdRef.current) {
+          dragOverIdRef.current = overId;
+          setDragOverId(overId);
+        }
+      };
+      const onUp = () => {
+        executeDropRef.current();
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      };
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onUp);
+    },
+  }), []);
 
   const handleMainTouchStart = e => { touchDayStart.current = e.touches[0].clientX; };
   const handleMainTouchEnd = e => {
@@ -157,11 +185,10 @@ export default function PlannerSection({ navigate }) {
     touchDayStart.current = null;
   };
 
-  if (loading) return <div style={{ background:C.planBg, minHeight:"100vh" }}><Spinner color={C.indigo}/></div>;
+  if (loading) return <div style={{ background:C.planBg, minHeight:"calc(100dvh - var(--app-header-h))" }}><Spinner color={C.indigo}/></div>;
 
   return (
-    <div style={{ background:C.planBg, minHeight:"100vh", paddingBottom:80 }}>
-      {/* Sticky header */}
+    <div style={{ background:C.planBg, minHeight:"calc(100dvh - var(--app-header-h))", paddingBottom:80 }}>
       <div style={{ position:"sticky", top:0, zIndex:20, background:"rgba(13,13,26,0.92)", backdropFilter:"blur(16px)", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
         <div style={{ maxWidth:480, margin:"0 auto", padding:"12px 16px" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -239,9 +266,8 @@ export default function PlannerSection({ navigate }) {
           )}
           {currentTasks.map((task, idx) => (
             <div key={task.id}
-                 onDragOver={e => { e.preventDefault(); setDragOverId(task.id); }}
-                 onDrop={() => handleDrop(task.id)}
-                 style={{ opacity:dragId===task.id?0.4:1, transform:dragOverId===task.id?"scaleX(1.01)":"none", transition:"transform 0.1s" }}>
+                 data-taskid={task.id}
+                 style={{ opacity:dragId===task.id?0.4:1, transform:dragOverId===task.id&&dragId!==task.id?"scaleX(1.01)":"none", transition:"transform 0.1s" }}>
               <PlannerTaskCard task={task} colorLabels={colorLabels}
                                onStatusChange={(id,s) => updateTask(id, {status:s})}
                                onMoveToDay={moveToDay}
@@ -267,7 +293,7 @@ export default function PlannerSection({ navigate }) {
       </div>
 
       {/* FAB */}
-      <button onClick={() => setShowForm(true)} style={{ position:"fixed", bottom:88, right:20, width:56, height:56, borderRadius:20, background:"#6366f1", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 8px 24px rgba(99,102,241,0.4)", zIndex:20 }}>
+      <button onClick={() => setShowForm(true)} style={{ position:"fixed", bottom:"calc(20px + env(safe-area-inset-bottom, 0px))", right:20, width:56, height:56, borderRadius:20, background:"#6366f1", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 8px 24px rgba(99,102,241,0.4)", zIndex:20 }}>
         <Ico n="plus" s={24} c="#fff"/>
       </button>
 

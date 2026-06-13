@@ -22,7 +22,7 @@ export function CalendarPicker({ mode="single", value, valueEnd, onChange, onCha
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:60, display:"flex", flexDirection:"column", justifyContent:"flex-end" }} onClick={onClose}>
-      <div style={{ background:C.monCard2, borderRadius:"20px 20px 0 0", padding:"16px 16px 40px" }} onClick={e => e.stopPropagation()}>
+      <div style={{ background:C.monCard2, borderRadius:"20px 20px 0 0", padding:"16px 16px calc(32px + env(safe-area-inset-bottom, 0px))" }} onClick={e => e.stopPropagation()}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
           <button onClick={() => { if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1); }} style={{ background:"none", border:"none", cursor:"pointer", color:C.mid, display:"flex" }}><Ico n="chevL" s={22}/></button>
           <span style={{ fontSize:16, fontWeight:600, color:"#fff" }}>{RU_MONTHS[month]} {year}</span>
@@ -31,7 +31,7 @@ export function CalendarPicker({ mode="single", value, valueEnd, onChange, onCha
         <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2, marginBottom:4 }}>
           {RU_DAYS_S.map(d => <div key={d} style={{ textAlign:"center", fontSize:11, color:C.dim, padding:"4px 0" }}>{d}</div>)}
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2, height:252 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2 }}>
           {cells.map((d,i) => {
             if (!d) return <div key={i}/>;
             const key = dk(d), sel = isStart(d)||isEnd(d), rng = inRange(d);

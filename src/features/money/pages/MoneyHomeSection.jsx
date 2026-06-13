@@ -167,7 +167,7 @@ export function MoneyHomeSection({ data, navigate }) {
       {/* Account picker */}
       {showAccPicker && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:60, display:"flex", flexDirection:"column", justifyContent:"flex-end" }} onClick={() => setShowAccPicker(false)}>
-          <div style={{ background:C.monCard2, borderRadius:"20px 20px 0 0", padding:"16px 16px 40px", maxHeight:"70vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
+          <div style={{ background:C.monCard2, borderRadius:"20px 20px 0 0", padding:"16px 16px calc(32px + env(safe-area-inset-bottom, 0px))", maxHeight:"70dvh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ width:40, height:4, borderRadius:2, background:"rgba(255,255,255,0.2)", margin:"0 auto 16px" }}/>
             <p style={{ fontSize:16, fontWeight:600, color:"#fff", marginBottom:12 }}>Select account</p>
             {[{id:null,name:"Total — all accounts",icon:"other",color:C.green},...accounts].map(a => (
@@ -184,17 +184,17 @@ export function MoneyHomeSection({ data, navigate }) {
       {/* Filter */}
       {showFilter && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:60, display:"flex", flexDirection:"column", justifyContent:"flex-end" }} onClick={() => setShowFilter(false)}>
-          <div style={{ background:C.monCard2, borderRadius:"20px 20px 0 0", padding:"16px 16px 40px", maxHeight:"70vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
+          <div style={{ background:C.monCard2, borderRadius:"20px 20px 0 0", padding:"16px 16px calc(32px + env(safe-area-inset-bottom, 0px))", maxHeight:"70dvh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ width:40, height:4, borderRadius:2, background:"rgba(255,255,255,0.2)", margin:"0 auto 12px" }}/>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:12 }}>
               <p style={{ fontSize:16, fontWeight:600, color:"#fff", margin:0 }}>Filter by category</p>
               {filterCats.length > 0 && <button onClick={() => setFilterCats([])} style={{ background:"none", border:"none", color:"#f87171", fontSize:13, cursor:"pointer" }}>Clear all</button>}
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(64px, 1fr))", gap:10 }}>
               {cats.map(c => { const sel = filterCats.includes(c.id); return (
                 <button key={c.id} onClick={() => setFilterCats(prev => sel?prev.filter(x=>x!==c.id):[...prev,c.id])} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5, padding:"10px 4px", borderRadius:12, background:sel?c.color:"rgba(255,255,255,0.04)", border:`2px solid ${sel?c.color:C.border}`, cursor:"pointer" }}>
                   <CatIcon k={c.icon} size={44} color={sel?"rgba(0,0,0,0.25)":c.color}/>
-                  <span style={{ fontSize:11, color:sel?"#fff":C.mid, textAlign:"center" }}>{c.name}</span>
+                  <span style={{ fontSize:11, color:sel?"#fff":C.mid, textAlign:"center", wordBreak:"break-word" }}>{c.name}</span>
                 </button>
               ); })}
             </div>

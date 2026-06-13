@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { C } from "../../constants/theme";
 import { Ico } from "../../components/Ico";
 import { supa } from "../../lib/supabase";
@@ -34,7 +34,7 @@ function SomedayCardForm({ initial, colorLabels, onSave, onClose }) {
       onClick={onClose}
     >
       <div
-        style={{ width:"100%", maxWidth:480, borderRadius:"24px 24px 0 0", background:"#1a1a2e", borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 20px 32px", boxShadow:"0 -20px 60px rgba(0,0,0,0.4)" }}
+        style={{ width:"100%", maxWidth:480, borderRadius:"24px 24px 0 0", background:"#1a1a2e", borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 20px calc(32px + env(safe-area-inset-bottom, 0px))", boxShadow:"0 -20px 60px rgba(0,0,0,0.4)", maxHeight:"calc(92dvh - env(safe-area-inset-top, 0px))", overflowY:"auto" }}
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
@@ -98,29 +98,57 @@ export default function SomedaySection({ tasks, colorLabels, onSave, onDelete, o
   const [dragId,      setDragId]      = useState(null);
   const [dragOverId,  setDragOverId]  = useState(null);
   const [anyPressing, setAnyPressing] = useState(false);
+  const dragIdRef    = useRef(null);
+  const dragOverIdRef = useRef(null);
+  const sortedRef    = useRef([]);
 
   const sorted = [...tasks].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+  sortedRef.current = sorted;
 
-  const getDragHandlers = id => ({
-    draggable: true,
-    onDragStart: () => setDragId(id),
-    onDragEnd:   () => { setDragId(null); setDragOverId(null); },
-  });
-
-  const handleDrop = async targetId => {
-    if (!dragId || dragId === targetId) { setDragId(null); setDragOverId(null); return; }
-    const fi = sorted.findIndex(t => t.id === dragId);
-    const ti = sorted.findIndex(t => t.id === targetId);
+  const executeDrop = useCallback(async () => {
+    const fromId = dragIdRef.current;
+    const toId   = dragOverIdRef.current;
+    setDragId(null); setDragOverId(null);
+    dragIdRef.current = null; dragOverIdRef.current = null;
+    if (!fromId || !toId || fromId === toId) return;
+    const list = sortedRef.current;
+    const fi = list.findIndex(t => t.id === fromId);
+    const ti = list.findIndex(t => t.id === toId);
     if (fi < 0 || ti < 0) return;
-    const reordered = [...sorted];
+    const reordered = [...list];
     const [moved] = reordered.splice(fi, 1);
     reordered.splice(ti, 0, moved);
     const updated = reordered.map((t, i) => ({ ...t, order: i }));
     updated.forEach(t => onSave(t, true));
-    setDragId(null); setDragOverId(null);
     try { await Promise.all(updated.map(t => supa.update("tasks", { order: t.order }, `id=eq.${t.id}`))); }
     catch(e) { console.error(e); }
-  };
+  }, [onSave]);
+  const executeDropRef = useRef(executeDrop);
+  useEffect(() => { executeDropRef.current = executeDrop; }, [executeDrop]);
+
+  const getDragHandlers = useCallback(id => ({
+    onPointerDown: e => {
+      e.stopPropagation();
+      dragIdRef.current = id;
+      setDragId(id);
+      const onMove = moveEvent => {
+        moveEvent.preventDefault();
+        const el = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+        const overId = el?.closest('[data-taskid]')?.dataset.taskid || null;
+        if (overId !== dragOverIdRef.current) {
+          dragOverIdRef.current = overId;
+          setDragOverId(overId);
+        }
+      };
+      const onUp = () => {
+        executeDropRef.current();
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      };
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onUp);
+    },
+  }), []);
 
   // Пользователь выбрал дату из календаря → открываем полную форму с предзаполненными данными
   const handleMoveToDay = (id, date) => {
@@ -160,8 +188,7 @@ export default function SomedaySection({ tasks, colorLabels, onSave, onDelete, o
             {sorted.map(task => (
               <div
                 key={task.id}
-                onDragOver={e => { e.preventDefault(); setDragOverId(task.id); }}
-                onDrop={() => handleDrop(task.id)}
+                data-taskid={task.id}
                 style={{ opacity: dragId===task.id ? 0.4 : 1, transform: dragOverId===task.id && dragId!==task.id ? "scaleX(1.01)" : "none", transition:"transform 0.1s" }}
               >
                 <PlannerTaskCard

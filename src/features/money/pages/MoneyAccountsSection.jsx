@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { getSym, fmtAmt, fmtM } from "../../../utils/format";
@@ -24,6 +24,12 @@ export function MoneyAccountsSection({ data, navigate }) {
   const [dragId, setDragId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
 
+  const dragIdRef = useRef(null);
+  const dragOverIdRef = useRef(null);
+  const orderedRef = useRef(ordered);
+  const executeDropRef = useRef(null);
+  orderedRef.current = ordered;
+
   useEffect(() => {
     setOrdered(getSavedOrder(accounts));
   }, [accounts]);
@@ -34,19 +40,50 @@ export function MoneyAccountsSection({ data, navigate }) {
     return s + (a.avg_rate ? a.balance * a.avg_rate : 0);
   }, 0);
 
-  const handleDrop = targetId => {
-    if (!dragId || dragId === targetId) { setDragId(null); setDragOverId(null); return; }
-    const fi = ordered.findIndex(a => a.id === dragId);
-    const ti = ordered.findIndex(a => a.id === targetId);
+  const executeDrop = useCallback(() => {
+    const fromId = dragIdRef.current;
+    const toId = dragOverIdRef.current;
+    dragIdRef.current = null;
+    dragOverIdRef.current = null;
+    setDragId(null);
+    setDragOverId(null);
+    if (!fromId || !toId || fromId === toId) return;
+    const curr = orderedRef.current;
+    const fi = curr.findIndex(a => a.id === fromId);
+    const ti = curr.findIndex(a => a.id === toId);
     if (fi < 0 || ti < 0) return;
-    const next = [...ordered];
+    const next = [...curr];
     const [moved] = next.splice(fi, 1);
     next.splice(ti, 0, moved);
     setOrdered(next);
-    setDragId(null);
-    setDragOverId(null);
     localStorage.setItem("accountOrder", JSON.stringify(next.map(a => a.id)));
-  };
+  }, []);
+
+  executeDropRef.current = executeDrop;
+
+  const getDragHandlers = useCallback(id => ({
+    onPointerDown: e => {
+      e.stopPropagation();
+      dragIdRef.current = id;
+      setDragId(id);
+      const onMove = moveEvent => {
+        moveEvent.preventDefault();
+        const el = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+        const overId = el?.closest('[data-accid]')?.dataset.accid || null;
+        if (overId !== dragOverIdRef.current) {
+          dragOverIdRef.current = overId;
+          setDragOverId(overId);
+        }
+      };
+      const onUp = () => {
+        executeDropRef.current();
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      };
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onUp);
+    },
+  }), []);
 
   return (
     <div style={{ paddingBottom:80 }}>
@@ -67,11 +104,7 @@ export function MoneyAccountsSection({ data, navigate }) {
         {ordered.map(acc => (
           <div
             key={acc.id}
-            draggable
-            onDragStart={() => setDragId(acc.id)}
-            onDragEnd={() => { setDragId(null); setDragOverId(null); }}
-            onDragOver={e => { e.preventDefault(); setDragOverId(acc.id); }}
-            onDrop={() => handleDrop(acc.id)}
+            data-accid={acc.id}
             onClick={() => navigate("editAcc", acc)}
             style={{
               display:"flex", alignItems:"center", gap:12, padding:"16px 14px",
@@ -83,8 +116,8 @@ export function MoneyAccountsSection({ data, navigate }) {
             }}
           >
             <div
-              draggable={false}
-              style={{ color:"rgba(255,255,255,0.2)", cursor:"grab", flexShrink:0, touchAction:"none", padding:"4px 2px" }}
+              {...getDragHandlers(acc.id)}
+              style={{ color:"rgba(255,255,255,0.2)", cursor:"grab", flexShrink:0, touchAction:"none", padding:"4px 2px", userSelect:"none" }}
               onClick={e => e.stopPropagation()}
             >
               <Ico n="drag" s={18}/>
@@ -106,7 +139,7 @@ export function MoneyAccountsSection({ data, navigate }) {
 
       <button
         onClick={() => navigate("addAcc")}
-        style={{ position:"fixed", bottom:90, right:20, width:56, height:56, borderRadius:28, background:C.yellow, border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 20px rgba(200,150,30,0.4)", zIndex:20 }}
+        style={{ position:"fixed", bottom:"calc(76px + env(safe-area-inset-bottom, 0px))", right:20, width:56, height:56, borderRadius:28, background:C.yellow, border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 20px rgba(200,150,30,0.4)", zIndex:20 }}
       >
         <Ico n="plus" s={26} c="#fff"/>
       </button>

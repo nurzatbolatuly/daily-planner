@@ -22,7 +22,7 @@ export function AccSelect({ accounts, value, onChange, onCurrencyChange, label, 
       </div>
       {open && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:60, display:"flex", flexDirection:"column", justifyContent:"flex-end" }} onClick={() => setOpen(false)}>
-          <div style={{ background:C.monCard2, borderRadius:"20px 20px 0 0", padding:"16px 16px 40px", maxHeight:"70vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
+          <div style={{ background:C.monCard2, borderRadius:"20px 20px 0 0", padding:"16px 16px calc(32px + env(safe-area-inset-bottom, 0px))", maxHeight:"70dvh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ width:40, height:4, borderRadius:2, background:"rgba(255,255,255,0.2)", margin:"0 auto 16px" }}/>
             <p style={{ fontSize:16, fontWeight:600, color:"#fff", marginBottom:12 }}>Select account</p>
             {accounts.map(a => (

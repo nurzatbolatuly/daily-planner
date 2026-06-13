@@ -45,9 +45,8 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
           <div {...dragHandlers}
                onMouseDown={e => e.stopPropagation()}
                onTouchStart={e => e.stopPropagation()}
-               onDragStart={() => { endPress(); dragHandlers.onDragStart(); }}
                onClick={e => e.stopPropagation()}
-               style={{ color:"rgba(255,255,255,0.15)", cursor:"grab", flexShrink:0, touchAction:"none" }}>
+               style={{ color:"rgba(255,255,255,0.15)", cursor:"grab", flexShrink:0, touchAction:"none", userSelect:"none" }}>
             <Ico n="drag" s={16}/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
@@ -71,7 +70,7 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
       {/* Context menu */}
       {showMenu && (
         <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)" }} onClick={() => setShowMenu(false)}>
-          <div ref={menuRef} style={{ width:"100%", maxWidth:480, marginLeft:16, marginRight:16, marginBottom:32, borderRadius:24, background:"#1a1a2e", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }} onClick={e => e.stopPropagation()}>
+          <div ref={menuRef} style={{ width:"100%", maxWidth:480, marginLeft:16, marginRight:16, marginBottom:"calc(32px + env(safe-area-inset-bottom, 0px))", borderRadius:24, background:"#1a1a2e", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }} onClick={e => e.stopPropagation()}>
             <div style={{ padding:"16px 20px", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
               <p style={{ margin:0, fontSize:14, fontWeight:600, color:"rgba(255,255,255,0.9)" }}>{task.title}</p>
             </div>

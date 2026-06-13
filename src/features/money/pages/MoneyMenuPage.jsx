@@ -3,7 +3,7 @@ import { Ico } from "../../../components/Ico";
 
 export function MoneyMenuPage({ navigate, onBack }) {
   return (
-    <div style={{ minHeight:"100vh", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
+    <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
       <div style={{ background:C.monHeader, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
         <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", color:C.main, display:"flex" }}><Ico n="back" s={22}/></button>
         <span style={{ flex:1, fontSize:17, fontWeight:600, color:"#fff" }}>Menu</span>

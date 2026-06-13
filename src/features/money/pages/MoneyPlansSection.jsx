@@ -59,52 +59,57 @@ export function MoneyPlansSection({ data, navigate, plansTab, setPlansTab }) {
               </div>
             ))}
           </div>
+          {/* Таблица планов — горизонтальный скролл на узких экранах */}
           <div style={{ background:C.monCard, borderRadius:16, overflow:"hidden", marginBottom:12 }}>
-            <div style={{ display:"grid", gridTemplateColumns:"1.8fr 55px 1fr 1fr 1fr", padding:"10px 14px", background:"rgba(255,255,255,0.05)" }}>
-              {["Category","Type","Plan","Fact","Rest"].map(h => <p key={h} style={{ margin:0, fontSize:10, fontWeight:700, color:C.dim, textAlign:"center" }}>{h}</p>)}
-            </div>
-            {monthRows.length === 0 && (
-              <p style={{ margin:0, padding:"18px 14px", fontSize:12, color:C.dim, textAlign:"center" }}>Нет строк плана за этот месяц</p>
-            )}
-            {monthRows.map(mp => {
-              const allC = [...expCats,...incCats]; const cat = allC.find(c => c.id === mp.cat_id);
-              const actual = getActual(mp.cat_id, mp.type); const pb = planBase(mp); const rest = pb - actual;
-              const cur = mp.plan_currency || BASE_CUR;
-              const its = (mp.items || []).filter(it => it.amount);
-              const isOpen = !!expanded[mp.id];
-              return (
-                <div key={mp.id} style={{ borderTop:`1px solid ${C.border}` }}>
-                  <div onClick={() => toggle(mp.id)} style={{ display:"grid", gridTemplateColumns:"1.8fr 55px 1fr 1fr 1fr", padding:"12px 14px", cursor:"pointer", alignItems:"center" }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
-                      <CatIcon k={cat?.icon||"other"} size={28} color={cat?.color||"#607d8b"}/>
-                      <span style={{ fontSize:12, color:C.main, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{cat?.name||"—"}</span>
-                      {its.length > 0 && <Ico n={isOpen?"chevU":"chevD"} s={13} c={C.dim}/>}
-                    </div>
-                    <p style={{ margin:0, fontSize:11, textAlign:"center", color:mp.type==="income"?"#34d399":"#f87171" }}>{mp.type==="income"?"Inc":"Exp"}</p>
-                    <p style={{ margin:0, fontSize:12, textAlign:"center", color:C.mid }}>{cur===BASE_CUR ? `${sym}${fmtAmt(mp.plan,0)}` : `${getSym(cur)}${fmtAmt(mp.plan,0)}`}</p>
-                    <p style={{ margin:0, fontSize:12, textAlign:"center", color:C.main }}>{sym}{fmtAmt(actual,0)}</p>
-                    <p style={{ margin:0, fontSize:12, textAlign:"center", fontWeight:600, color:rest>=0?"#34d399":"#f87171" }}>{sym}{fmtAmt(rest,0)}</p>
-                  </div>
-                  {isOpen && (
-                    <div style={{ padding:"0 14px 12px" }}>
-                      {its.map(it => (
-                        <div key={it.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"3px 0 3px 34px" }}>
-                          <span style={{ fontSize:12, color:C.dim, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginRight:8 }}>• {it.label || "—"}</span>
-                          <span style={{ fontSize:12, color:C.mid, flexShrink:0 }}>{getSym(cur)}{fmtAmt(it.amount,0)}</span>
-                        </div>
-                      ))}
-                      {its.length === 0 && <p style={{ margin:"3px 0 0 34px", fontSize:12, color:C.dim }}>Без разбивки</p>}
-                      <button onClick={() => navigate("editPlan", mp)} style={{ marginTop:8, marginLeft:34, padding:"6px 14px", borderRadius:8, background:"rgba(255,255,255,0.06)", border:`1px solid ${C.border}`, color:C.green, fontSize:12, fontWeight:600, cursor:"pointer" }}>Редактировать</button>
-                    </div>
-                  )}
+            <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
+              <div style={{ minWidth:380 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1.8fr 55px 1fr 1fr 1fr", padding:"10px 14px", background:"rgba(255,255,255,0.05)" }}>
+                  {["Category","Type","Plan","Fact","Rest"].map(h => <p key={h} style={{ margin:0, fontSize:10, fontWeight:700, color:C.dim, textAlign:"center" }}>{h}</p>)}
                 </div>
-              );
-            })}
-            <div style={{ display:"grid", gridTemplateColumns:"1.8fr 55px 1fr 1fr 1fr", padding:"12px 14px", borderTop:`1px solid rgba(255,255,255,0.1)`, background:"rgba(255,255,255,0.04)" }}>
-              <p style={{ margin:0, fontSize:12, fontWeight:700, color:C.mid, gridColumn:"span 2" }}>Total</p>
-              <p style={{ margin:0, fontSize:12, fontWeight:700, textAlign:"center", color:C.mid }}>{sym}{fmtAmt(totalPlanExp,0)}</p>
-              <p style={{ margin:0, fontSize:12, fontWeight:700, textAlign:"center", color:C.main }}>{sym}{fmtAmt(totalActExp,0)}</p>
-              <p style={{ margin:0, fontSize:12, fontWeight:700, textAlign:"center", color:(totalActInc-totalActExp)>=0?"#34d399":"#f87171" }}>{sym}{fmtAmt(totalActInc-totalActExp,0)}</p>
+                {monthRows.length === 0 && (
+                  <p style={{ margin:0, padding:"18px 14px", fontSize:12, color:C.dim, textAlign:"center" }}>Нет строк плана за этот месяц</p>
+                )}
+                {monthRows.map(mp => {
+                  const allC = [...expCats,...incCats]; const cat = allC.find(c => c.id === mp.cat_id);
+                  const actual = getActual(mp.cat_id, mp.type); const pb = planBase(mp); const rest = pb - actual;
+                  const cur = mp.plan_currency || BASE_CUR;
+                  const its = (mp.items || []).filter(it => it.amount);
+                  const isOpen = !!expanded[mp.id];
+                  return (
+                    <div key={mp.id} style={{ borderTop:`1px solid ${C.border}` }}>
+                      <div onClick={() => toggle(mp.id)} style={{ display:"grid", gridTemplateColumns:"1.8fr 55px 1fr 1fr 1fr", padding:"12px 14px", cursor:"pointer", alignItems:"center" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
+                          <CatIcon k={cat?.icon||"other"} size={28} color={cat?.color||"#607d8b"}/>
+                          <span style={{ fontSize:12, color:C.main, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{cat?.name||"—"}</span>
+                          {its.length > 0 && <Ico n={isOpen?"chevU":"chevD"} s={13} c={C.dim}/>}
+                        </div>
+                        <p style={{ margin:0, fontSize:11, textAlign:"center", color:mp.type==="income"?"#34d399":"#f87171" }}>{mp.type==="income"?"Inc":"Exp"}</p>
+                        <p style={{ margin:0, fontSize:12, textAlign:"center", color:C.mid }}>{cur===BASE_CUR ? `${sym}${fmtAmt(mp.plan,0)}` : `${getSym(cur)}${fmtAmt(mp.plan,0)}`}</p>
+                        <p style={{ margin:0, fontSize:12, textAlign:"center", color:C.main }}>{sym}{fmtAmt(actual,0)}</p>
+                        <p style={{ margin:0, fontSize:12, textAlign:"center", fontWeight:600, color:rest>=0?"#34d399":"#f87171" }}>{sym}{fmtAmt(rest,0)}</p>
+                      </div>
+                      {isOpen && (
+                        <div style={{ padding:"0 14px 12px" }}>
+                          {its.map(it => (
+                            <div key={it.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"3px 0 3px 34px" }}>
+                              <span style={{ fontSize:12, color:C.dim, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginRight:8 }}>• {it.label || "—"}</span>
+                              <span style={{ fontSize:12, color:C.mid, flexShrink:0 }}>{getSym(cur)}{fmtAmt(it.amount,0)}</span>
+                            </div>
+                          ))}
+                          {its.length === 0 && <p style={{ margin:"3px 0 0 34px", fontSize:12, color:C.dim }}>Без разбивки</p>}
+                          <button onClick={() => navigate("editPlan", mp)} style={{ marginTop:8, marginLeft:34, padding:"6px 14px", borderRadius:8, background:"rgba(255,255,255,0.06)", border:`1px solid ${C.border}`, color:C.green, fontSize:12, fontWeight:600, cursor:"pointer" }}>Редактировать</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div style={{ display:"grid", gridTemplateColumns:"1.8fr 55px 1fr 1fr 1fr", padding:"12px 14px", borderTop:`1px solid rgba(255,255,255,0.1)`, background:"rgba(255,255,255,0.04)" }}>
+                  <p style={{ margin:0, fontSize:12, fontWeight:700, color:C.mid, gridColumn:"span 2" }}>Total</p>
+                  <p style={{ margin:0, fontSize:12, fontWeight:700, textAlign:"center", color:C.mid }}>{sym}{fmtAmt(totalPlanExp,0)}</p>
+                  <p style={{ margin:0, fontSize:12, fontWeight:700, textAlign:"center", color:C.main }}>{sym}{fmtAmt(totalActExp,0)}</p>
+                  <p style={{ margin:0, fontSize:12, fontWeight:700, textAlign:"center", color:(totalActInc-totalActExp)>=0?"#34d399":"#f87171" }}>{sym}{fmtAmt(totalActInc-totalActExp,0)}</p>
+                </div>
+              </div>
             </div>
           </div>
           <button onClick={() => navigate("addPlan", { month: planMonthKey })} style={{ width:"100%", padding:"13px", borderRadius:12, background:"transparent", border:`1px dashed rgba(76,175,80,0.4)`, color:C.green, fontSize:14, fontWeight:600, cursor:"pointer" }}>+ Add plan row</button>
