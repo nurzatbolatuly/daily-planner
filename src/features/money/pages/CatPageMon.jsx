@@ -3,11 +3,12 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { EXP_ICONS, INC_ICONS } from "../../../constants/icons";
 import { supaUpsert, supa } from "../../../lib/supabase";
-import { Ico } from "../../../components/Ico";
+import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { CatIcon } from "../../../components/CatIcon";
 import { ColorPickerComp } from "../../../components/ColorPickerComp";
 import { CurrencyPage } from "../../../components/CurrencyPage";
+import { ConfirmSheet } from "../../../components/ConfirmSheet";
 
 export function CatPageMon({ expCats, incCats, onBack, edit, catType }) {
   const [name, setName] = useState(edit?.name || "");
@@ -17,16 +18,21 @@ export function CatPageMon({ expCats, incCats, onBack, edit, catType }) {
   const [planCur, setPlanCur] = useState(edit?.plan_currency || BASE_CUR);
   const [showCur, setShowCur] = useState(false);
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (showCur) return <CurrencyPage value={planCur} onSelect={v => { setPlanCur(v); setShowCur(false); }} onBack={() => setShowCur(false)}/>;
 
   const iconKeys = Object.keys(catType === "income" ? INC_ICONS : EXP_ICONS);
 
   const save = async () => {
-    const e = {};
-    if (!name.trim()) e.name = "Enter name";
-    setErrors(e);
-    if (Object.keys(e).length > 0) return;
+    const errs = {};
+    if (!name.trim()) errs.name = "Введите название";
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setSaving(true);
+    setSaveError(null);
     const list = catType === "expense" ? expCats : incCats;
     const cat = {
       id: edit?.id || crypto.randomUUID(),
@@ -40,31 +46,33 @@ export function CatPageMon({ expCats, incCats, onBack, edit, catType }) {
     try {
       await supaUpsert(catType === "expense" ? "exp_categories" : "inc_categories", cat);
       onBack(true);
-    } catch(e) { console.error(e); }
+    } catch(err) { console.error(err); setSaveError("Не удалось сохранить категорию"); setSaving(false); }
+  };
+
+  const del = async () => {
+    setConfirmDelete(false);
+    try {
+      await supa.delete(catType === "expense" ? "exp_categories" : "inc_categories", `id=eq.${edit.id}`);
+      onBack(true);
+    } catch(err) { console.error(err); setSaveError("Не удалось удалить категорию"); }
   };
 
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
-      <div style={{ background:C.monHeader, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
-        <button onClick={() => onBack(false)} style={{ background:"none", border:"none", cursor:"pointer", color:C.main, display:"flex" }}>
-          <Ico n="back" s={22}/>
-        </button>
-        <span style={{ flex:1, fontSize:17, fontWeight:600, color:"#fff" }}>{edit ? "Edit Category" : "New Category"}</span>
-        <div style={{ width:30 }}/>
-      </div>
+      <PageHeader title={edit ? "Редактировать категорию" : "Новая категория"} onBack={() => onBack(false)}/>
       <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 100px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20, paddingBottom:16, borderBottom:`1px solid ${C.border}` }}>
           <CatIcon k={icon} size={52} color={color}/>
           <input
             value={name}
             onChange={e => { setName(e.target.value); setErrors(p => ({...p, name:""})); }}
-            placeholder="Category name"
+            placeholder="Название категории"
             style={{ flex:1, background:"none", border:"none", borderBottom:`1px solid ${errors.name?"rgba(244,67,54,0.5)":"rgba(255,255,255,0.2)"}`, outline:"none", color:"#fff", fontSize:20, fontWeight:600, padding:"4px 0" }}
           />
         </div>
         {errors.name && <p style={{ color:C.red, fontSize:13, marginBottom:12 }}>{errors.name}</p>}
         <div style={{ marginBottom:16 }}>
-          <FieldLabel>{catType === "expense" ? "Projected expense" : "Projected income"}</FieldLabel>
+          <FieldLabel>{catType === "expense" ? "Плановый расход" : "Плановый доход"}</FieldLabel>
           <div style={{ display:"flex", alignItems:"baseline", gap:10 }}>
             <input
               value={plan}
@@ -79,7 +87,7 @@ export function CatPageMon({ expCats, incCats, onBack, edit, catType }) {
           </div>
         </div>
         <div style={{ marginBottom:16 }}>
-          <FieldLabel>Icons</FieldLabel>
+          <FieldLabel>Иконка</FieldLabel>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
             {iconKeys.map(k => (
               <button key={k} onClick={() => setIcon(k)} style={{ width:52, height:52, borderRadius:26, border:icon===k?"3px solid #fff":"3px solid transparent", background:"transparent", cursor:"pointer", padding:0, margin:"0 auto" }}>
@@ -89,21 +97,26 @@ export function CatPageMon({ expCats, incCats, onBack, edit, catType }) {
           </div>
         </div>
         <div style={{ marginBottom:28 }}>
-          <FieldLabel>Color</FieldLabel>
+          <FieldLabel>Цвет</FieldLabel>
           <ColorPickerComp value={color} onChange={setColor}/>
         </div>
-        <button onClick={save} style={{ width:"100%", padding:"15px", borderRadius:30, background:C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>Save</button>
+        {saveError && <p style={{ color:C.errorLight, fontSize:13, textAlign:"center", marginBottom:8 }}>{saveError}</p>}
+        <button onClick={save} disabled={saving} style={{ width:"100%", padding:"15px", borderRadius:30, background:saving?C.savingDisabled:C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>{saving?"Сохранение...":"Сохранить"}</button>
         {edit && (
           <button
-            onClick={async () => {
-              await supa.delete(catType === "expense" ? "exp_categories" : "inc_categories", `id=eq.${edit.id}`);
-              onBack(true);
-            }}
+            onClick={() => setConfirmDelete(true)}
             style={{ width:"100%", marginTop:10, padding:"14px", borderRadius:30, background:"rgba(244,67,54,0.1)", border:"1px solid rgba(244,67,54,0.3)", color:C.red, fontSize:15, fontWeight:600, cursor:"pointer" }}
           >
-            Delete
+            Удалить
           </button>
         )}
+        <ConfirmSheet
+          open={confirmDelete}
+          onClose={() => setConfirmDelete(false)}
+          onConfirm={del}
+          title="Удалить категорию?"
+          message="Транзакции с этой категорией останутся, но категория у них будет отображаться как «—»."
+        />
       </div>
     </div>
   );

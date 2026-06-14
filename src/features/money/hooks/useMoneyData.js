@@ -67,7 +67,11 @@ export function useMoneyData() {
           setTransactions(prev => [tx, ...prev]);
           setAccounts(prev => prev.map(a => a.id===acc.id ? {...a, balance: newBal} : a));
           setRecurring(prev => prev.map(rec => rec.id===r.id ? {...rec, last_fired:mk} : rec));
-        } catch(e) { console.error(e); firingRef.current = false; }
+        } catch(e) {
+          // Не сбрасываем firingRef — при сбое одного recurring не запускаем всё заново
+          // на следующем рендере (это привело бы к двойному списанию).
+          console.error("fire_recurring failed:", e);
+        }
       }
     })();
   }, [recurring, accounts]);

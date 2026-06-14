@@ -1,3 +1,5 @@
+export const ORDER_UNSET = 999;
+
 export const DEFAULT_COLOR_LABELS = [
   { id:"none",   label:"Без метки", hex:"#6b7280" },
   { id:"red",    label:"Срочно",    hex:"#f87171" },

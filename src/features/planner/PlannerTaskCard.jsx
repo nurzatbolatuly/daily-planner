@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { C } from "../../constants/theme";
 import { STATUS_CONFIG, TIME_OF_DAY } from "../../constants/planner";
 import { Ico } from "../../components/Ico";
 import { CalendarPicker } from "../../components/CalendarPicker";
@@ -57,7 +58,7 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
 
   return (
     <>
-      <div className={pressing?"lp-glow":""} style={{ position:"relative", borderRadius:16, border:isDim?"1px solid rgba(255,255,255,0.05)":pressing?"1px solid rgba(99,102,241,0.5)":"1px solid rgba(255,255,255,0.1)", background:isDim?"rgba(255,255,255,0.03)":pressing?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.06)", opacity:isDim?0.45:(isAnyPressing&&!pressing)?0.35:1, transform:pressing?"scale(1.025)":"scale(1)", transition:"opacity 0.2s,transform 0.15s,background 0.15s", cursor:"pointer", userSelect:"none" }}
+      <div className={pressing?"lp-glow":""} style={{ position:"relative", borderRadius:16, border:isDim?"1px solid rgba(255,255,255,0.05)":pressing?"1px solid rgba(99,102,241,0.5)":"1px solid rgba(255,255,255,0.1)", background:isDim?"rgba(255,255,255,0.03)":pressing?"rgba(99,102,241,0.12)":C.planCard, opacity:isDim?0.45:(isAnyPressing&&!pressing)?0.35:1, transform:pressing?"scale(1.025)":"scale(1)", transition:"opacity 0.2s,transform 0.15s,background 0.15s", cursor:"pointer", userSelect:"none" }}
            onMouseDown={startPress} onMouseUp={endPress} onMouseLeave={endPress}
            onTouchStart={startPress} onTouchMove={handleTouchMove} onTouchEnd={endPress}
            onClick={handleClick}>
@@ -84,8 +85,8 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
               {task.note && <span style={{ fontSize:12, color:"rgba(255,255,255,0.25)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{task.note}</span>}
             </div>
           </div>
-          <button onClick={e => { e.stopPropagation(); onStatusChange(task.id, task.status==="done"?"active":"done"); }} style={{ width:24, height:24, borderRadius:12, border:task.status==="done"?"2px solid #34d399":"2px solid rgba(255,255,255,0.2)", background:task.status==="done"?"rgba(52,211,153,0.2)":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:"pointer" }}>
-            {task.status==="done" && <Ico n="check" s={12} c="#34d399"/>}
+          <button onClick={e => { e.stopPropagation(); onStatusChange(task.id, task.status==="done"?"active":"done"); }} style={{ width:24, height:24, borderRadius:12, border:task.status==="done"?`2px solid ${C.emerald}`:"2px solid rgba(255,255,255,0.2)", background:task.status==="done"?"rgba(52,211,153,0.2)":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:"pointer" }}>
+            {task.status==="done" && <Ico n="check" s={12} c={C.emerald}/>}
           </button>
         </div>
       </div>
@@ -99,21 +100,21 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
             </div>
             <div style={{ padding:8 }}>
               {["active","done","hold","cancelled"].map(s => (
-                <button key={s} onClick={() => { onStatusChange(task.id, s); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:task.status===s?"rgba(255,255,255,0.08)":"transparent", border:"none", color:task.status===s?"#fff":"rgba(255,255,255,0.6)", fontSize:14, cursor:"pointer", textAlign:"left" }}>
+                <button key={s} onClick={() => { onStatusChange(task.id, s); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:task.status===s?"rgba(255,255,255,0.08)":"transparent", border:"none", color:task.status===s?"#fff":C.mid, fontSize:14, cursor:"pointer", textAlign:"left" }}>
                   {STATUS_CONFIG[s].label}
-                  {task.status===s && <Ico n="check" s={14} c="#34d399"/>}
+                  {task.status===s && <Ico n="check" s={14} c={C.emerald}/>}
                 </button>
               ))}
               <div style={{ height:1, background:"rgba(255,255,255,0.05)", margin:"4px 0" }}/>
-              <button onClick={() => { setShowMoveCal(true); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"transparent", border:"none", color:"rgba(255,255,255,0.6)", fontSize:14, cursor:"pointer", textAlign:"left" }}>
+              <button onClick={() => { setShowMoveCal(true); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"transparent", border:"none", color:C.mid, fontSize:14, cursor:"pointer", textAlign:"left" }}>
                 <Ico n="calendar" s={16} c="rgba(255,255,255,0.6)"/>Перенести на другой день
               </button>
               {task.date && (
-                <button onClick={() => { onMoveToDay(task.id, null); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"transparent", border:"none", color:"rgba(255,255,255,0.6)", fontSize:14, cursor:"pointer", textAlign:"left" }}>
+                <button onClick={() => { onMoveToDay(task.id, null); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"transparent", border:"none", color:C.mid, fontSize:14, cursor:"pointer", textAlign:"left" }}>
                   <Ico n="x" s={16} c="rgba(255,255,255,0.6)"/>Убрать срок (в «Без срока»)
                 </button>
               )}
-              <button onClick={() => { setShowEditForm(true); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"transparent", border:"none", color:"rgba(255,255,255,0.6)", fontSize:14, cursor:"pointer", textAlign:"left" }}>
+              <button onClick={() => { setShowEditForm(true); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"transparent", border:"none", color:C.mid, fontSize:14, cursor:"pointer", textAlign:"left" }}>
                 <Ico n="edit" s={16} c="rgba(255,255,255,0.6)"/>Редактировать
               </button>
               <button onClick={() => { onDelete(task.id); setShowMenu(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"transparent", border:"none", color:"rgba(244,67,54,0.7)", fontSize:14, cursor:"pointer", textAlign:"left" }}>
@@ -137,10 +138,10 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
                 </div>
               </div>
               <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:12 }}>
-                <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:"rgba(255,255,255,0.6)" }}>{statusCfg.label}</span>
-                {colorCfg.id!=="none" && <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:"rgba(255,255,255,0.6)", display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:4, background:colorCfg.hex, display:"inline-block" }}/>{colorCfg.label}</span>}
-                {task.time && <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:"rgba(255,255,255,0.6)", display:"flex", alignItems:"center", gap:4 }}><Ico n="clock" s={10} c="rgba(255,255,255,0.6)"/>{task.time}</span>}
-                {task.time_of_day && !task.time && <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:"rgba(255,255,255,0.6)" }}>{TIME_OF_DAY.find(t=>t.id===task.time_of_day)?.icon} {TIME_OF_DAY.find(t=>t.id===task.time_of_day)?.label}</span>}
+                <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:C.mid }}>{statusCfg.label}</span>
+                {colorCfg.id!=="none" && <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:C.mid, display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:4, background:colorCfg.hex, display:"inline-block" }}/>{colorCfg.label}</span>}
+                {task.time && <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:C.mid, display:"flex", alignItems:"center", gap:4 }}><Ico n="clock" s={10} c="rgba(255,255,255,0.6)"/>{task.time}</span>}
+                {task.time_of_day && !task.time && <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:C.mid }}>{TIME_OF_DAY.find(t=>t.id===task.time_of_day)?.icon} {TIME_OF_DAY.find(t=>t.id===task.time_of_day)?.label}</span>}
               </div>
             </div>
             {task.note && <div style={{ margin:"0 24px 24px", padding:16, borderRadius:16, background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)" }}><p style={{ margin:0, fontSize:14, color:"rgba(255,255,255,0.65)", lineHeight:1.5 }}>{task.note}</p></div>}

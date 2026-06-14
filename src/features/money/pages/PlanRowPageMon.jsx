@@ -3,12 +3,13 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { getSym, fmtAmt } from "../../../utils/format";
 import { supaUpsert, supa } from "../../../lib/supabase";
+import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { Ico } from "../../../components/Ico";
+import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { CatIcon } from "../../../components/CatIcon";
+import { CategoryPicker } from "../../../components/CategoryPicker";
 import { CurrencyPage } from "../../../components/CurrencyPage";
-
-const SAVINGS_PURPOSES = ["investment", "savings", "reserve"];
 
 export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, month, prefillCatId, prefillAccId, prefillType }) {
   const [type,    setType]    = useState(edit?.type || prefillType || "expense");
@@ -35,15 +36,15 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
   const delItem = (id) => setItems(prev => prev.length === 1 ? prev : prev.filter(it => it.id !== id));
 
   const save = async () => {
-    const e = {};
-    if (type === "savings" && !accId) e.acc = "Select account";
-    if (type !== "savings" && !catId)  e.cat = "Select category";
+    const errs = {};
+    if (type === "savings" && !accId) errs.acc = "Выберите счёт";
+    if (type !== "savings" && !catId)  errs.cat = "Выберите категорию";
     const cleanItems = items
       .map(it => ({ id: it.id, label: it.label.trim(), amount: parseFloat(it.amount) || 0 }))
       .filter(it => it.amount > 0);
-    if (!cleanItems.length) e.items = "Add at least one item with amount";
-    setErrors(e);
-    if (Object.keys(e).length > 0) return;
+    if (!cleanItems.length) errs.items = "Добавьте хотя бы одну статью с суммой";
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     const p = {
       id:            edit?.id || crypto.randomUUID(),
       cat_id:        type !== "savings" ? catId : null,
@@ -57,24 +58,18 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
     try {
       await supaUpsert("month_plans", p);
       onBack(true);
-    } catch(e) { console.error(e); }
+    } catch(err) { console.error(err); }
   };
 
   const inputBox = { background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, borderRadius:8, padding:"9px 12px", color:"#fff", fontSize:14, outline:"none", boxSizing:"border-box" };
 
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
-      <div style={{ background:C.monHeader, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
-        <button onClick={() => onBack(false)} style={{ background:"none", border:"none", cursor:"pointer", color:C.main, display:"flex" }}>
-          <Ico n="back" s={22}/>
-        </button>
-        <span style={{ flex:1, fontSize:17, fontWeight:600, color:"#fff" }}>{edit ? "Edit plan row" : "Add plan row"}</span>
-        <div style={{ width:30 }}/>
-      </div>
+      <PageHeader title={edit ? "Редактировать план" : "Добавить план"} onBack={() => onBack(false)}/>
       <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 100px" }}>
         {/* Type tabs */}
         <div style={{ display:"flex", gap:2, background:"rgba(255,255,255,0.04)", borderRadius:10, padding:3, marginBottom:20 }}>
-          {[["expense","Expense"],["income","Income"],["savings","Savings"]].map(([v,l]) => (
+          {[["expense","Расходы"],["income","Доходы"],["savings","Накопления"]].map(([v,l]) => (
             <button key={v} onClick={() => switchType(v)} style={{ flex:1, padding:"10px", borderRadius:8, border:"none", cursor:"pointer", fontSize:13, fontWeight:600, background:type===v?C.monCard2:"transparent", color:type===v?C.green:C.dim }}>
               {l}
             </button>
@@ -83,14 +78,14 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
 
         {/* Plan items */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-          <FieldLabel error={errors.items}>Plan items</FieldLabel>
+          <FieldLabel error={errors.items}>Статьи плана</FieldLabel>
           <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", color:C.green, fontSize:15, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
             {planCur} ▾
           </button>
         </div>
         {items.map(it => (
           <div key={it.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-            <input value={it.label} onChange={e => setItem(it.id, { label:e.target.value })} placeholder={type === "savings" ? "Goal (e.g. emergency fund)" : "Item (e.g. groceries)"} style={{ ...inputBox, flex:1, minWidth:0 }}/>
+            <input value={it.label} onChange={e => setItem(it.id, { label:e.target.value })} placeholder={type === "savings" ? "Цель (напр. резервный фонд)" : "Статья (напр. продукты)"} style={{ ...inputBox, flex:1, minWidth:0 }}/>
             <input value={it.amount} onChange={e => { setItem(it.id, { amount:e.target.value }); setErrors(p => ({...p, items:""})); }} type="number" placeholder="0" style={{ ...inputBox, width:92, fontWeight:600, textAlign:"right" }}/>
             <button onClick={() => delItem(it.id)} disabled={items.length===1} style={{ background:"none", border:"none", cursor:items.length===1?"default":"pointer", padding:4, display:"flex", opacity:items.length===1?0.3:1 }}>
               <Ico n="x" s={16} c="rgba(244,67,54,0.6)"/>
@@ -98,23 +93,18 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
           </div>
         ))}
         {errors.items && <p style={{ color:C.red, fontSize:12, marginBottom:8 }}>{errors.items}</p>}
-        <button onClick={addItem} style={{ width:"100%", padding:"10px", borderRadius:10, background:"transparent", border:`1px dashed rgba(76,175,80,0.4)`, color:C.green, fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:12 }}>+ Add item</button>
+        <button onClick={addItem} style={{ width:"100%", padding:"10px", borderRadius:10, background:"transparent", border:`1px dashed rgba(76,175,80,0.4)`, color:C.green, fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:12 }}>+ Добавить статью</button>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 14px", borderRadius:10, background:"rgba(255,255,255,0.04)", marginBottom:24 }}>
-          <span style={{ fontSize:13, color:C.dim }}>Total</span>
+          <span style={{ fontSize:13, color:C.dim }}>Итого</span>
           <span style={{ fontSize:18, fontWeight:700, color:"#fff" }}>{getSym(planCur)}{fmtAmt(total,0)}</span>
         </div>
 
         {/* Category picker (expense / income) */}
         {type !== "savings" && (
           <>
-            <FieldLabel error={errors.cat}>Category</FieldLabel>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:24 }}>
-              {(type === "expense" ? expCats : incCats).map(c => (
-                <button key={c.id} onClick={() => { setCatId(c.id); setErrors(p => ({...p, cat:""})); }} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"10px 4px", borderRadius:10, background:catId===c.id?c.color:"transparent", border:"none", cursor:"pointer" }}>
-                  <CatIcon k={c.icon} size={46} color={catId===c.id?"rgba(0,0,0,0.25)":c.color}/>
-                  <span style={{ fontSize:10, color:catId===c.id?"#fff":C.mid, textAlign:"center" }}>{c.name}</span>
-                </button>
-              ))}
+            <FieldLabel error={errors.cat}>Категория</FieldLabel>
+            <div style={{ marginBottom:24 }}>
+              <CategoryPicker cats={type === "expense" ? expCats : incCats} value={catId} onChange={id => { setCatId(id); setErrors(p => ({...p, cat:""})); }} cols="repeat(4,1fr)"/>
             </div>
           </>
         )}
@@ -122,9 +112,9 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
         {/* Account picker (savings) */}
         {type === "savings" && (
           <>
-            <FieldLabel error={errors.acc}>Account</FieldLabel>
+            <FieldLabel error={errors.acc}>Счёт</FieldLabel>
             {savingsAccounts.length === 0 && (
-              <p style={{ color:C.dim, fontSize:13, marginBottom:24 }}>No investment / savings / reserve accounts found. Set the account purpose in account settings.</p>
+              <p style={{ color:C.dim, fontSize:13, marginBottom:24 }}>Нет накопительных счетов. Укажите назначение счёта в настройках.</p>
             )}
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:24 }}>
               {savingsAccounts.map(a => {
@@ -144,13 +134,13 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
           </>
         )}
 
-        <button onClick={save} style={{ width:"100%", padding:"15px", borderRadius:30, background:C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>Save</button>
+        <button onClick={save} style={{ width:"100%", padding:"15px", borderRadius:30, background:C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>Сохранить</button>
         {edit && (
           <button
-            onClick={async () => { await supa.delete("month_plans", `id=eq.${edit.id}`); onBack(true); }}
+            onClick={async () => { if (!window.confirm("Удалить эту статью плана?")) return; await supa.delete("month_plans", `id=eq.${edit.id}`); onBack(true); }}
             style={{ width:"100%", marginTop:10, padding:"14px", borderRadius:30, background:"rgba(244,67,54,0.1)", border:"1px solid rgba(244,67,54,0.3)", color:C.red, fontSize:15, fontWeight:600, cursor:"pointer" }}
           >
-            Delete
+            Удалить
           </button>
         )}
       </div>

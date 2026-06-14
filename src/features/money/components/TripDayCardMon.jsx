@@ -50,25 +50,25 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {} })
         <div style={{ flex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ fontSize:15, fontWeight:700, color:isToday?C.green:isPast?C.mid:"#fff" }}>{dayLabel}</span>
-            {isToday && <span style={{ fontSize:10, fontWeight:700, color:C.green, background:"rgba(76,175,80,0.15)", padding:"2px 7px", borderRadius:10 }}>TODAY</span>}
-            {allDone && <span style={{ fontSize:10, fontWeight:700, color:"#34d399", background:"rgba(52,211,153,0.15)", padding:"2px 7px", borderRadius:10 }}>✓ DONE</span>}
+            {isToday && <span style={{ fontSize:10, fontWeight:700, color:C.green, background:"rgba(76,175,80,0.15)", padding:"2px 7px", borderRadius:10 }}>СЕГОДНЯ</span>}
+            {allDone && <span style={{ fontSize:10, fontWeight:700, color:C.emerald, background:"rgba(52,211,153,0.15)", padding:"2px 7px", borderRadius:10 }}>✓ DONE</span>}
           </div>
           {day.location && <p style={{ margin:"2px 0 0", fontSize:13, color:C.mid }}>{day.location}</p>}
         </div>
         <div style={{ textAlign:"right", marginRight:12 }}>
           <p style={{ margin:0, fontSize:14, fontWeight:700, color:"#fff" }}>{sym}{fmtAmt(dayTotal,0)}</p>
-          {dayPaid > 0 && <p style={{ margin:0, fontSize:11, color:C.green }}>{sym}{fmtAmt(dayPaid,0)} paid</p>}
+          {dayPaid > 0 && <p style={{ margin:0, fontSize:11, color:C.green }}>{sym}{fmtAmt(dayPaid,0)} оплачено</p>}
         </div>
         <Ico n={collapsed?"chevD":"chevU"} s={18} c={C.dim}/>
       </div>
 
       {!collapsed && (
         <div style={{ padding:"0 16px 16px" }}>
-          <input value={day.location||""} onChange={e => onUpdate({...day, location:e.target.value})} placeholder="Location / City" style={{ width:"100%", background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 12px", color:"#fff", fontSize:14, outline:"none", marginBottom:10, boxSizing:"border-box" }}/>
-          <textarea value={day.note||""} onChange={e => onUpdate({...day, note:e.target.value})} placeholder="Day notes..." style={{ width:"100%", background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 12px", color:"#fff", fontSize:13, outline:"none", resize:"none", minHeight:52, marginBottom:10, boxSizing:"border-box" }}/>
+          <input value={day.location||""} onChange={e => onUpdate({...day, location:e.target.value})} placeholder="Место / Город" style={{ width:"100%", background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 12px", color:"#fff", fontSize:14, outline:"none", marginBottom:10, boxSizing:"border-box" }}/>
+          <textarea value={day.note||""} onChange={e => onUpdate({...day, note:e.target.value})} placeholder="Заметки на день..." style={{ width:"100%", background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 12px", color:"#fff", fontSize:13, outline:"none", resize:"none", minHeight:52, marginBottom:10, boxSizing:"border-box" }}/>
 
           <div style={{ marginBottom:10 }}>
-            <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:600, color:C.dim, textTransform:"uppercase", letterSpacing:1 }}>Places to visit</p>
+            <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:600, color:C.dim, textTransform:"uppercase", letterSpacing:1 }}>Места для посещения</p>
             {(day.places||[]).map(pl => (
               <div key={pl.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
                 <button onClick={() => onUpdate({...day, places:day.places.map(p => p.id===pl.id ? {...p, done:!p.done} : p)})} style={{ width:20, height:20, borderRadius:10, border:`2px solid ${pl.done?C.green:"rgba(255,255,255,0.2)"}`, background:pl.done?C.green:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:"pointer" }}>
@@ -79,16 +79,16 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {} })
               </div>
             ))}
             <div style={{ display:"flex", gap:6, marginTop:6 }}>
-              <input value={newPlace} onChange={e => setNewPlace(e.target.value)} onKeyDown={e => e.key==="Enter" && addPlace()} placeholder="Add place..." style={{ flex:1, background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 10px", color:"#fff", fontSize:13, outline:"none" }}/>
+              <input value={newPlace} onChange={e => setNewPlace(e.target.value)} onKeyDown={e => e.key==="Enter" && addPlace()} placeholder="Добавить место..." style={{ flex:1, background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 10px", color:"#fff", fontSize:13, outline:"none" }}/>
               <button onClick={addPlace} style={{ background:C.green, border:"none", borderRadius:8, padding:"6px 14px", color:"#fff", cursor:"pointer", fontSize:16, fontWeight:700 }}>+</button>
             </div>
           </div>
 
           <div style={{ marginBottom:8 }}>
-            <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:600, color:C.dim, textTransform:"uppercase", letterSpacing:1 }}>Expenses</p>
+            <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:600, color:C.dim, textTransform:"uppercase", letterSpacing:1 }}>Расходы</p>
             {day.expenses.map(exp => {
               if (editExpId === exp.id) return <TripExpenseFormMon key={exp.id} exp={exp} onSave={saveExp} onCancel={() => setEditExpId(null)}/>;
-              const stColor = exp.status==="paid" ? C.green : exp.status==="partial" ? "#f59e0b" : "rgba(255,255,255,0.3)";
+              const stColor = exp.status==="paid" ? C.green : exp.status==="partial" ? C.amber : "rgba(255,255,255,0.3)";
               return (
                 <div key={exp.id} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", borderRadius:10, background:"rgba(255,255,255,0.04)", marginBottom:4, border:`1px solid ${C.border}` }}>
                   <div style={{ width:8, height:8, borderRadius:4, background:stColor, marginTop:6, flexShrink:0 }}/>
@@ -99,7 +99,7 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {} })
                     </div>
                     <div style={{ display:"flex", gap:8, marginTop:2, flexWrap:"wrap" }}>
                       <span style={{ fontSize:12, color:C.dim }}>{TRIP_LABELS[exp.cat]||exp.cat}</span>
-                      {exp.status==="partial" && <span style={{ fontSize:12, color:"#f59e0b" }}>{getSym(exp.currency)}{fmtAmt(exp.paidAmount)} paid</span>}
+                      {exp.status==="partial" && <span style={{ fontSize:12, color:C.amber }}>{getSym(exp.currency)}{fmtAmt(exp.paidAmount)} оплачено</span>}
                       {exp.note && <span style={{ fontSize:12, color:C.dim, fontStyle:"italic" }}>{exp.note}</span>}
                     </div>
                   </div>
@@ -117,8 +117,8 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {} })
             ? <TripExpenseFormMon onSave={saveExp} onCancel={() => setAddingExp(false)}/>
             : (
               <div style={{ display:"flex", gap:8 }}>
-                <button onClick={() => setAddingExp(true)} style={{ flex:1, padding:"9px", borderRadius:10, background:"rgba(76,175,80,0.1)", border:"1px solid rgba(76,175,80,0.3)", color:C.green, fontSize:13, cursor:"pointer", fontWeight:600 }}>+ Add expense</button>
-                {dayIndex > 0 && prevDay && <button onClick={copyFromPrev} style={{ padding:"9px 12px", borderRadius:10, background:"rgba(255,255,255,0.05)", border:`1px solid ${C.border}`, color:C.dim, fontSize:12, cursor:"pointer" }}>Copy prev</button>}
+                <button onClick={() => setAddingExp(true)} style={{ flex:1, padding:"9px", borderRadius:10, background:"rgba(76,175,80,0.1)", border:"1px solid rgba(76,175,80,0.3)", color:C.green, fontSize:13, cursor:"pointer", fontWeight:600 }}>+ Добавить расход</button>
+                {dayIndex > 0 && prevDay && <button onClick={copyFromPrev} style={{ padding:"9px 12px", borderRadius:10, background:"rgba(255,255,255,0.05)", border:`1px solid ${C.border}`, color:C.dim, fontSize:12, cursor:"pointer" }}>Копировать с пред.</button>}
               </div>
             )
           }

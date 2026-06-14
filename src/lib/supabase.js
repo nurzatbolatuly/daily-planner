@@ -2,6 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPA_URL = process.env.REACT_APP_SUPABASE_URL;
 const SUPA_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
+
+if (!SUPA_URL || !SUPA_KEY) {
+  throw new Error("Missing REACT_APP_SUPABASE_URL or REACT_APP_SUPABASE_ANON_KEY in .env");
+}
+
 export const supabase = createClient(SUPA_URL, SUPA_KEY);
 
 export const supa = {
@@ -22,12 +27,14 @@ export const supa = {
     return data;
   },
   update: async (table, data, filter) => {
-    const m = filter.match(/^(\w+)=eq\.(.+)$/);
+    const m = filter?.match(/^(\w+)=eq\.(.+)$/);
+    if (!m) throw new Error(`supa.update: invalid filter "${filter}"`);
     const { error } = await supabase.from(table).update(data).eq(m[1], m[2]);
     if (error) throw error;
   },
   delete: async (table, filter) => {
-    const m = filter.match(/^(\w+)=eq\.(.+)$/);
+    const m = filter?.match(/^(\w+)=eq\.(.+)$/);
+    if (!m) throw new Error(`supa.delete: invalid filter "${filter}"`);
     const { error } = await supabase.from(table).delete().eq(m[1], m[2]);
     if (error) throw error;
   },

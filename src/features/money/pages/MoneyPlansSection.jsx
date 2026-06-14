@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
+import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad } from "../../../utils/date";
 import { getSym, fmtAmt, toBase, ratesFromAccounts } from "../../../utils/format";
+import { exportPlansXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
-
-const SAVINGS_PURPOSES = ["investment", "savings", "reserve"];
 
 function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, toggle, navigate, planMonthKey, sym, rates }) {
   return (
@@ -17,7 +17,7 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
         <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={{ minWidth: 340 }}>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", padding: "10px 14px", background: "rgba(255,255,255,0.05)" }}>
-              {["Category", "Plan", "Fact", "Rest"].map(h => (
+              {["Категория", "План", "Факт", "Остаток"].map(h => (
                 <p key={h} style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.dim, textAlign: "center" }}>{h}</p>
               ))}
             </div>
@@ -41,7 +41,7 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
                       {planCurrency === BASE_CUR ? `${sym}${fmtAmt(plan, 0)}` : `${getSym(planCurrency)}${fmtAmt(plan, 0)}`}
                     </p>
                     <p style={{ margin: 0, fontSize: 12, textAlign: "center", color: C.main }}>{sym}{fmtAmt(actual, 0)}</p>
-                    <p style={{ margin: 0, fontSize: 12, textAlign: "center", fontWeight: 600, color: rest >= 0 ? "#34d399" : "#f87171" }}>{sym}{fmtAmt(rest, 0)}</p>
+                    <p style={{ margin: 0, fontSize: 12, textAlign: "center", fontWeight: 600, color: rest >= 0 ? C.emerald : C.errorLight }}>{sym}{fmtAmt(rest, 0)}</p>
                   </div>
                   {isOpen && (
                     <div style={{ padding: "0 14px 12px" }}>
@@ -52,21 +52,21 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
                         </div>
                       ))}
                       {its.length === 0 && planData && (
-                        <p style={{ margin: "3px 0 0 34px", fontSize: 12, color: C.dim }}>No breakdown</p>
+                        <p style={{ margin: "3px 0 0 34px", fontSize: 12, color: C.dim }}>Нет разбивки</p>
                       )}
                       {planData ? (
                         <button
                           onClick={() => navigate("editPlan", planData)}
                           style={{ marginTop: 8, marginLeft: 34, padding: "6px 14px", borderRadius: 8, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, color: C.green, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                         >
-                          Edit
+                          Редактировать
                         </button>
                       ) : (
                         <button
                           onClick={() => navigate("addPlan", { month: planMonthKey, cat_id: cat?.id, acc_id: accId, type })}
                           style={{ marginTop: 8, marginLeft: 34, padding: "6px 14px", borderRadius: 8, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, color: C.green, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                         >
-                          Set plan
+                          Установить план
                         </button>
                       )}
                     </div>
@@ -76,10 +76,10 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
             })}
 
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", padding: "12px 14px", borderTop: `1px solid rgba(255,255,255,0.1)`, background: "rgba(255,255,255,0.04)" }}>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.mid }}>Total</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.mid }}>Итого</p>
               <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textAlign: "center", color: C.mid }}>{sym}{fmtAmt(totalPlan, 0)}</p>
               <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textAlign: "center", color: C.main }}>{sym}{fmtAmt(totalAct, 0)}</p>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textAlign: "center", color: (totalPlan - totalAct) >= 0 ? "#34d399" : "#f87171" }}>{sym}{fmtAmt(totalPlan - totalAct, 0)}</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textAlign: "center", color: (totalPlan - totalAct) >= 0 ? C.emerald : C.errorLight }}>{sym}{fmtAmt(totalPlan - totalAct, 0)}</p>
             </div>
           </div>
         </div>
@@ -88,80 +88,64 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
   );
 }
 
-export function MoneyPlansSection({ data, navigate, plansTab, setPlansTab }) {
+export const MoneyPlansSection = memo(function MoneyPlansSection({ data, navigate, plansTab, setPlansTab }) {
   const { accounts, transactions, transfers, expCats, incCats, monthPlans, tripPlans } = data;
   const [planMonth, setPlanMonth] = useState(new Date().getMonth());
   const [planYear,  setPlanYear]  = useState(new Date().getFullYear());
   const [expanded,  setExpanded]  = useState({});
   const toggle = key => setExpanded(p => ({ ...p, [key]: !p[key] }));
   const sym   = getSym(BASE_CUR);
-  const rates = ratesFromAccounts(accounts);
+  const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
   const planMonthKey = `${planYear}-${pad(planMonth + 1)}`;
   const monthRows    = monthPlans.filter(p => p.month === planMonthKey);
 
-  const txsM = transactions.filter(t => {
-    const d = new Date(t.date);
-    return d.getMonth() === planMonth && d.getFullYear() === planYear;
-  });
+  const { txsM, transfersM } = useMemo(() => ({
+    txsM: transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === planMonth && d.getFullYear() === planYear;
+    }),
+    transfersM: transfers.filter(t => {
+      const d = new Date(t.created_at);
+      return d.getMonth() === planMonth && d.getFullYear() === planYear && !t.is_adjustment;
+    }),
+  }), [transactions, transfers, planMonth, planYear]);
 
-  const transfersM = transfers.filter(t => {
-    const d = new Date(t.created_at);
-    return d.getMonth() === planMonth && d.getFullYear() === planYear && !t.is_adjustment;
-  });
+  const { expRows, incRows, savingsRows } = useMemo(() => {
+    const getActual = (catId, type) =>
+      txsM.filter(t => t.type === type && t.category_id === catId)
+        .reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0);
 
-  const getActual = (catId, type) =>
-    txsM
-      .filter(t => t.type === type && t.category_id === catId)
-      .reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0);
+    const getSavingsActual = (accId) =>
+      transfersM.filter(t => t.to_id === accId)
+        .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
 
-  const getSavingsActual = (accId) =>
-    transfersM
-      .filter(t => t.to_id === accId)
-      .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
+    const buildRows = (cats, type) =>
+      cats.map(cat => {
+        const planData = monthRows.find(p => p.cat_id === cat.id && p.type === type) ?? null;
+        return { key:`${cat.id}-${type}`, cat, type, plan:planData?.plan??0, planCurrency:planData?.plan_currency??BASE_CUR, items:planData?.items??[], planData, actual:getActual(cat.id, type) };
+      });
 
-  const buildRows = (cats, type) =>
-    cats.map(cat => {
-      const planData = monthRows.find(p => p.cat_id === cat.id && p.type === type) ?? null;
-      return {
-        key:          `${cat.id}-${type}`,
-        cat,
-        type,
-        plan:         planData?.plan ?? 0,
-        planCurrency: planData?.plan_currency ?? BASE_CUR,
-        items:        planData?.items ?? [],
-        planData,
-        actual:       getActual(cat.id, type),
-      };
-    });
-
-  const savingsAccounts = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
-  const savingsRows = savingsAccounts.map(acc => {
-    const planData = monthRows.find(p => p.type === "savings" && p.acc_id === acc.id) ?? null;
+    const savingsAccounts = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
     return {
-      key:          `sav-${acc.id}`,
-      cat:          { icon: acc.icon, color: acc.color, name: acc.name },
-      type:         "savings",
-      plan:         planData?.plan ?? 0,
-      planCurrency: planData?.plan_currency ?? BASE_CUR,
-      items:        planData?.items ?? [],
-      planData,
-      actual:       getSavingsActual(acc.id),
-      accId:        acc.id,
+      expRows: buildRows(expCats, "expense"),
+      incRows: buildRows(incCats, "income"),
+      savingsRows: savingsAccounts.map(acc => {
+        const planData = monthRows.find(p => p.type === "savings" && p.acc_id === acc.id) ?? null;
+        return { key:`sav-${acc.id}`, cat:{icon:acc.icon,color:acc.color,name:acc.name}, type:"savings", plan:planData?.plan??0, planCurrency:planData?.plan_currency??BASE_CUR, items:planData?.items??[], planData, actual:getSavingsActual(acc.id), accId:acc.id };
+      }),
     };
-  });
-
-  const expRows = buildRows(expCats, "expense");
-  const incRows = buildRows(incCats, "income");
+  }, [txsM, transfersM, expCats, incCats, accounts, monthRows, rates]);
 
   const sum = (rows, field) => rows.reduce((s, r) => s + toBase(r[field], r.planCurrency, rates), 0);
-  const totalPlanExp = sum(expRows, "plan");
-  const totalPlanInc = sum(incRows, "plan");
-  const totalPlanSav = sum(savingsRows, "plan");
-  const totalActExp  = expRows.reduce((s, r) => s + r.actual, 0);
-  const totalActInc  = incRows.reduce((s, r) => s + r.actual, 0);
-  const totalActSav  = savingsRows.reduce((s, r) => s + r.actual, 0);
-
-  const totalPlanExpAll = totalPlanExp + totalPlanSav;
+  const { totalPlanExp, totalPlanInc, totalPlanSav, totalActExp, totalActInc, totalActSav, totalPlanExpAll } = useMemo(() => {
+    const tPE = sum(expRows, "plan"), tPI = sum(incRows, "plan"), tPS = sum(savingsRows, "plan");
+    return { totalPlanExp:tPE, totalPlanInc:tPI, totalPlanSav:tPS,
+      totalActExp: expRows.reduce((s,r) => s+r.actual, 0),
+      totalActInc: incRows.reduce((s,r) => s+r.actual, 0),
+      totalActSav: savingsRows.reduce((s,r) => s+r.actual, 0),
+      totalPlanExpAll: tPE + tPS };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expRows, incRows, savingsRows, rates]);
 
   const prevM = () => {
     if (planMonth === 0) { setPlanMonth(11); setPlanYear(y => y - 1); }
@@ -173,17 +157,16 @@ export function MoneyPlansSection({ data, navigate, plansTab, setPlansTab }) {
   };
 
   const exportPlanCSV = () => {
-    const rows = [["Category", "Type", "Plan", "Currency", "PlanBase", "Actual", "Remaining"]];
-    [...expRows, ...incRows, ...savingsRows].forEach(r => {
-      const pb = toBase(r.plan, r.planCurrency, rates);
-      rows.push([r.cat?.name || "", r.type, r.plan, r.planCurrency, pb.toFixed(2), r.actual.toFixed(2), (pb - r.actual).toFixed(2)]);
+    exportPlansXLSX({
+      expRows,
+      incRows,
+      savingsRows,
+      totals: { totalPlanExp, totalPlanInc, totalPlanSav, totalActExp, totalActInc, totalActSav, totalPlanExpAll },
+      rates,
+      planMonth,
+      planYear,
+      filename: `plan_${planYear}-${pad(planMonth + 1)}.xlsx`,
     });
-    const csv = rows.map(r => r.join(",")).join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `plan_${planYear}-${pad(planMonth + 1)}.csv`;
-    a.click();
   };
 
   const tableProps = { expanded, toggle, navigate, planMonthKey, sym, rates };
@@ -191,10 +174,10 @@ export function MoneyPlansSection({ data, navigate, plansTab, setPlansTab }) {
   return (
     <div style={{ paddingBottom: 80 }}>
       <div style={{ background: C.monHeader, padding: "14px 16px", textAlign: "center" }}>
-        <p style={{ margin: 0, fontSize: 17, fontWeight: 600, color: "#fff" }}>Plans</p>
+        <p style={{ margin: 0, fontSize: 17, fontWeight: 600, color: "#fff" }}>Планы</p>
       </div>
       <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.04)", margin: "12px 16px", borderRadius: 10, padding: 3 }}>
-        {[["month", "Monthly"], ["trips", "Trips"]].map(([v, l]) => (
+        {[["month", "Месяц"], ["trips", "Поездки"]].map(([v, l]) => (
           <button key={v} onClick={() => setPlansTab(v)} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: plansTab === v ? C.monCard2 : "transparent", color: plansTab === v ? C.green : C.dim }}>{l}</button>
         ))}
       </div>
@@ -210,9 +193,9 @@ export function MoneyPlansSection({ data, navigate, plansTab, setPlansTab }) {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 16 }}>
             {[
-              { l: "Inc Plan",  v: `${sym}${fmtAmt(totalPlanInc, 0)}`,              c: "#34d399" },
-              { l: "Exp Plan",  v: `${sym}${fmtAmt(totalPlanExpAll, 0)}`,            c: "#f87171" },
-              { l: "Remainder", v: `${sym}${fmtAmt(totalPlanInc - totalPlanExpAll, 0)}`, c: "#60a5fa" },
+              { l: "План дохода",   v: `${sym}${fmtAmt(totalPlanInc, 0)}`,              c: C.emerald },
+              { l: "План расхода",  v: `${sym}${fmtAmt(totalPlanExpAll, 0)}`,            c: C.errorLight },
+              { l: "Остаток",       v: `${sym}${fmtAmt(totalPlanInc - totalPlanExpAll, 0)}`, c: C.blue },
             ].map((c, i) => (
               <div key={i} style={{ background: C.monCard, borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
                 <p style={{ margin: "0 0 4px", fontSize: 9, color: C.dim }}>{c.l}</p>
@@ -226,17 +209,17 @@ export function MoneyPlansSection({ data, navigate, plansTab, setPlansTab }) {
             rows={expRows}
             totalPlan={totalPlanExp}
             totalAct={totalActExp}
-            label="Expenses"
-            accentColor="#f87171"
+            label="Расходы"
+            accentColor={C.errorLight}
           />
-          {savingsAccounts.length > 0 && (
+          {savingsRows.length > 0 && (
             <PlanTable
               {...tableProps}
               rows={savingsRows}
               totalPlan={totalPlanSav}
               totalAct={totalActSav}
-              label="Savings / Invest."
-              accentColor="#60a5fa"
+              label="Накопления / Инвест."
+              accentColor={C.blue}
             />
           )}
           <PlanTable
@@ -244,15 +227,15 @@ export function MoneyPlansSection({ data, navigate, plansTab, setPlansTab }) {
             rows={incRows}
             totalPlan={totalPlanInc}
             totalAct={totalActInc}
-            label="Income"
-            accentColor="#34d399"
+            label="Доходы"
+            accentColor={C.emerald}
           />
         </div>
       )}
 
       {plansTab === "trips" && (
         <div style={{ padding: "0 16px" }}>
-          {tripPlans.length === 0 && <p style={{ textAlign: "center", padding: "40px 0", color: C.dim, fontSize: 14 }}>No trip plans yet</p>}
+          {tripPlans.length === 0 && <p style={{ textAlign: "center", padding: "40px 0", color: C.dim, fontSize: 14 }}>Нет планов поездок</p>}
           {tripPlans.map(tp => {
             const allExp = (tp.days || []).flatMap(d => d.expenses || []);
             const total = allExp.reduce((s, e) => s + toBase(e.amount, e.currency, rates), 0);
@@ -262,11 +245,11 @@ export function MoneyPlansSection({ data, navigate, plansTab, setPlansTab }) {
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
                   <div>
                     <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#fff" }}>{tp.name}</p>
-                    <p style={{ margin: "3px 0 0", fontSize: 12, color: C.dim }}>{tp.start_date} → {tp.end_date} · {(tp.days || []).length} days</p>
+                    <p style={{ margin: "3px 0 0", fontSize: 12, color: C.dim }}>{tp.start_date} → {tp.end_date} · {(tp.days || []).length} дн.</p>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#fff" }}>{sym}{fmtAmt(total, 0)}</p>
-                    <p style={{ margin: 0, fontSize: 11, color: C.green }}>{sym}{fmtAmt(paid, 0)} paid</p>
+                    <p style={{ margin: 0, fontSize: 11, color: C.green }}>{sym}{fmtAmt(paid, 0)} оплачено</p>
                   </div>
                 </div>
                 {total > 0 && (
@@ -277,9 +260,9 @@ export function MoneyPlansSection({ data, navigate, plansTab, setPlansTab }) {
               </div>
             );
           })}
-          <button onClick={() => navigate("addTrip")} style={{ width: "100%", padding: "13px", borderRadius: 12, background: "transparent", border: `1px dashed rgba(76,175,80,0.4)`, color: C.green, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>+ New trip plan</button>
+          <button onClick={() => navigate("addTrip")} style={{ width: "100%", padding: "13px", borderRadius: 12, background: "transparent", border: `1px dashed rgba(76,175,80,0.4)`, color: C.green, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>+ Новый план поездки</button>
         </div>
       )}
     </div>
   );
-}
+});

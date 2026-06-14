@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { C } from "../../constants/theme";
 import { Ico } from "../../components/Ico";
-import { supa } from "../../lib/supabase";
+import { useDragReorder } from "../../hooks/useDragReorder";
 import PlannerTaskCard from "./PlannerTaskCard";
 import PlannerTaskForm from "./PlannerTaskForm";
 
@@ -32,10 +32,12 @@ function SomedayCardForm({ initial, colorLabels, onSave, onClose }) {
     <div
       style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", background:"rgba(0,0,0,0.6)", backdropFilter:"blur(4px)" }}
       onClick={onClose}
+      onTouchMove={e => e.preventDefault()}
     >
       <div
         style={{ width:"100%", maxWidth:480, borderRadius:"24px 24px 0 0", background:"#1a1a2e", borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 20px calc(32px + env(safe-area-inset-bottom, 0px))", boxShadow:"0 -20px 60px rgba(0,0,0,0.4)", maxHeight:"calc(92dvh - env(safe-area-inset-top, 0px))", overflowY:"auto" }}
         onClick={e => e.stopPropagation()}
+        onTouchMove={e => e.stopPropagation()}
       >
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <h3 style={{ margin:0, fontSize:16, fontWeight:600, color:"rgba(255,255,255,0.9)" }}>
@@ -52,14 +54,14 @@ function SomedayCardForm({ initial, colorLabels, onSave, onClose }) {
             onChange={e => setTitle(e.target.value)}
             placeholder="Название"
             autoFocus
-            style={{ borderRadius:12, padding:"12px 16px", fontSize:14, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.9)", outline:"none" }}
+            style={{ borderRadius:12, padding:"12px 16px", fontSize:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.9)", outline:"none" }}
           />
           <textarea
             value={note}
             onChange={e => setNote(e.target.value)}
             placeholder="Заметка (необязательно)"
             rows={3}
-            style={{ borderRadius:12, padding:"12px 16px", fontSize:14, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.9)", outline:"none", resize:"none" }}
+            style={{ borderRadius:12, padding:"12px 16px", fontSize:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.9)", outline:"none", resize:"none" }}
           />
           <div>
             <p style={{ margin:"0 0 8px", fontSize:12, color:C.dim }}>Тег</p>
@@ -95,60 +97,17 @@ export default function SomedaySection({ tasks, colorLabels, onSave, onDelete, o
   const [showForm,    setShowForm]    = useState(false);
   const [editTask,    setEditTask]    = useState(null);
   const [pendingMove, setPendingMove] = useState(null); // задача ждёт переноса на день
-  const [dragId,      setDragId]      = useState(null);
-  const [dragOverId,  setDragOverId]  = useState(null);
   const [anyPressing, setAnyPressing] = useState(false);
-  const dragIdRef    = useRef(null);
-  const dragOverIdRef = useRef(null);
-  const sortedRef    = useRef([]);
 
   const sorted = [...tasks].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-  sortedRef.current = sorted;
 
-  const executeDrop = useCallback(async () => {
-    const fromId = dragIdRef.current;
-    const toId   = dragOverIdRef.current;
-    setDragId(null); setDragOverId(null);
-    dragIdRef.current = null; dragOverIdRef.current = null;
-    if (!fromId || !toId || fromId === toId) return;
-    const list = sortedRef.current;
-    const fi = list.findIndex(t => t.id === fromId);
-    const ti = list.findIndex(t => t.id === toId);
-    if (fi < 0 || ti < 0) return;
-    const reordered = [...list];
-    const [moved] = reordered.splice(fi, 1);
-    reordered.splice(ti, 0, moved);
-    const updated = reordered.map((t, i) => ({ ...t, order: i }));
-    updated.forEach(t => onSave(t, true));
-    try { await Promise.all(updated.map(t => supa.update("tasks", { order: t.order }, `id=eq.${t.id}`))); }
-    catch(e) { console.error(e); }
+  const handleReorder = useCallback((reordered) => {
+    reordered.map((t, i) => ({ ...t, order: i })).forEach(t => onSave(t, true));
   }, [onSave]);
-  const executeDropRef = useRef(executeDrop);
-  useEffect(() => { executeDropRef.current = executeDrop; }, [executeDrop]);
 
-  const getDragHandlers = useCallback(id => ({
-    onPointerDown: e => {
-      e.stopPropagation();
-      dragIdRef.current = id;
-      setDragId(id);
-      const onMove = moveEvent => {
-        moveEvent.preventDefault();
-        const el = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
-        const overId = el?.closest('[data-taskid]')?.dataset.taskid || null;
-        if (overId !== dragOverIdRef.current) {
-          dragOverIdRef.current = overId;
-          setDragOverId(overId);
-        }
-      };
-      const onUp = () => {
-        executeDropRef.current();
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-      };
-      document.addEventListener('pointermove', onMove, { passive: false });
-      document.addEventListener('pointerup', onUp);
-    },
-  }), []);
+  const { dragId, dragOverId, getDragHandlers } = useDragReorder({
+    items: sorted, onReorder: handleReorder, dataAttr: "taskid",
+  });
 
   // Пользователь выбрал дату из календаря → открываем полную форму с предзаполненными данными
   const handleMoveToDay = (id, date) => {

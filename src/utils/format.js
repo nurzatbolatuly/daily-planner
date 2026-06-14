@@ -36,7 +36,16 @@ export const ratesFromAccounts = (accounts = []) => {
   return rates;
 };
 
-export const avgRateFn = (ob, or_, aa, nr) => (ob+aa) === 0 ? nr : (ob*or_+aa*nr)/(ob+aa);
+export const avgRateFn = (oldBalance, oldRate, addedAmount, newRate) =>
+  (oldBalance + addedAmount) === 0 ? newRate : (oldBalance * oldRate + addedAmount * newRate) / (oldBalance + addedAmount);
+
+// Суммарный баланс в BASE_CUR для счетов с in_total === true.
+// Использует avg_rate каждого счёта индивидуально (точнее, чем средний по валюте).
+export const calcTotalBalance = (accounts = []) =>
+  accounts.filter(a => a.in_total).reduce((s, a) => {
+    if (a.currency === BASE_CUR) return s + (a.balance || 0);
+    return s + (a.avg_rate ? (a.balance || 0) * a.avg_rate : 0);
+  }, 0);
 
 export function fmtDateFull(d) {
   const dt = new Date(d);
@@ -44,9 +53,10 @@ export function fmtDateFull(d) {
 }
 
 export function fmtDateShort(s) {
-  const d = new Date(s), t = new Date(), y = new Date(t);
-  y.setDate(t.getDate()-1);
+  const d = new Date(s), t = new Date(), yesterday = new Date(t);
+  yesterday.setDate(t.getDate()-1);
   if(d.toDateString()===t.toDateString()) return "Сегодня";
-  if(d.toDateString()===y.toDateString()) return "Вчера";
+  if(d.toDateString()===yesterday.toDateString()) return "Вчера";
+  if(d.getFullYear() !== t.getFullYear()) return `${d.getDate()} ${RU_MON_GEN[d.getMonth()]} ${d.getFullYear()}`;
   return `${d.getDate()} ${RU_MON_GEN[d.getMonth()]}`;
 }

@@ -1,6 +1,26 @@
-import { useState, useRef, useLayoutEffect } from "react";
+import { Component, useState, useRef, useLayoutEffect } from "react";
+import { C } from "./constants/theme";
 import PlannerSection from "./features/planner/PlannerSection";
 import MoneyManagerSection from "./features/money/MoneyManagerSection";
+
+class ErrorBoundary extends Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding:32, color:C.errorLight, fontFamily:"monospace" }}>
+          <div style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>Что-то пошло не так</div>
+          <div style={{ fontSize:13, opacity:0.7 }}>{this.state.error.message}</div>
+          <button onClick={() => this.setState({ error: null })} style={{ marginTop:16, padding:"8px 16px", background:`rgba(248,113,113,0.15)`, border:`1px solid ${C.errorLight}`, borderRadius:8, color:C.errorLight, cursor:"pointer", fontSize:13 }}>
+            Попробовать снова
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
   const [section, setSection] = useState(() => localStorage.getItem("app.section") || "planner");
@@ -31,8 +51,10 @@ export default function App() {
 
       {/* Content — fills remaining height, each section manages its own scroll */}
       <div style={{ flex:1, overflow:"auto" }}>
-        {section === "planner" && <PlannerSection/>}
-        {section === "money"   && <MoneyManagerSection/>}
+        <ErrorBoundary key={section}>
+          {section === "planner" && <PlannerSection/>}
+          {section === "money"   && <MoneyManagerSection/>}
+        </ErrorBoundary>
       </div>
     </div>
   );

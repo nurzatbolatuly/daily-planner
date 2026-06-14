@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { C } from "../../../constants/theme";
-import { Ico } from "../../../components/Ico";
+import { PageHeader } from "../../../components/PageHeader";
 import { CatIcon } from "../../../components/CatIcon";
+import { Ico } from "../../../components/Ico";
 import { supaUpsert } from "../../../lib/supabase";
 
 export function CatsListPageMon({ expCats, incCats, dispatch, navigate, onBack }) {
@@ -31,18 +32,14 @@ export function CatsListPageMon({ expCats, incCats, dispatch, navigate, onBack }
 
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
-      <div style={{ background:C.monHeader, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
-        <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", color:C.main, display:"flex" }}>
-          <Ico n="back" s={22}/>
-        </button>
-        <span style={{ flex:1, fontSize:17, fontWeight:600, color:"#fff" }}>Categories</span>
-        <button onClick={() => setReorder(r => !r)} style={{ background:"none", border:"none", cursor:"pointer", color:C.green, fontSize:14, fontWeight:600 }}>
-          {reorder ? "Done" : "Reorder"}
-        </button>
-      </div>
+      <PageHeader
+        title="Категории"
+        onBack={onBack}
+        right={<button onClick={() => setReorder(r => !r)} style={{ background:"none", border:"none", cursor:"pointer", color:C.green, fontSize:14, fontWeight:600 }}>{reorder ? "Готово" : "Сортировка"}</button>}
+      />
       <div style={{ flex:1, overflowY:"auto", padding:"12px 16px 80px" }}>
         <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, marginBottom:16 }}>
-          {[["expense","EXPENSES"],["income","INCOME"]].map(([v,l]) => (
+          {[["expense","РАСХОДЫ"],["income","ДОХОДЫ"]].map(([v,l]) => (
             <button key={v} onClick={() => setTab(v)} style={{ flex:1, padding:"10px 0", background:"none", border:"none", cursor:"pointer", fontSize:12, fontWeight:700, color:tab===v?"#fff":C.dim, borderBottom:tab===v?"2px solid #fff":"2px solid transparent" }}>
               {l}
             </button>
@@ -71,7 +68,7 @@ export function CatsListPageMon({ expCats, incCats, dispatch, navigate, onBack }
               <div style={{ width:52, height:52, borderRadius:26, background:C.yellow, display:"flex", alignItems:"center", justifyContent:"center" }}>
                 <Ico n="plus" s={24} c="#fff"/>
               </div>
-              <span style={{ fontSize:11, color:C.dim }}>Add</span>
+              <span style={{ fontSize:11, color:C.dim }}>Добавить</span>
             </button>
           )}
         </div>

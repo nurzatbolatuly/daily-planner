@@ -1,85 +1,38 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { getSym, fmtAmt, fmtBal } from "../../../utils/format";
+import { getSym, fmtAmt, fmtBal, calcTotalBalance } from "../../../utils/format";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { ACC_PURPOSES } from "../../../constants/money";
+import { useDragReorder } from "../../../hooks/useDragReorder";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 
-export function MoneyAccountsSection({ data, navigate }) {
+export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, navigate }) {
   const { accounts } = data;
   const [ordered, setOrdered] = useState(() => getSavedOrder(accounts));
-  const [dragId, setDragId] = useState(null);
-  const [dragOverId, setDragOverId] = useState(null);
-
-  const dragIdRef = useRef(null);
-  const dragOverIdRef = useRef(null);
-  const orderedRef = useRef(ordered);
-  const executeDropRef = useRef(null);
-  orderedRef.current = ordered;
-
   useEffect(() => {
     setOrdered(getSavedOrder(accounts));
   }, [accounts]);
 
-  const total = accounts.filter(a => a.in_total).reduce((s, a) => {
-    if (a.currency === BASE_CUR) return s + a.balance;
-    return s + (a.avg_rate ? a.balance * a.avg_rate : 0);
-  }, 0);
+  const total = calcTotalBalance(accounts);
 
-  const executeDrop = useCallback(() => {
-    const fromId = dragIdRef.current;
-    const toId = dragOverIdRef.current;
-    dragIdRef.current = null;
-    dragOverIdRef.current = null;
-    setDragId(null);
-    setDragOverId(null);
-    if (!fromId || !toId || fromId === toId) return;
-    const curr = orderedRef.current;
-    const fi = curr.findIndex(a => a.id === fromId);
-    const ti = curr.findIndex(a => a.id === toId);
-    if (fi < 0 || ti < 0) return;
-    const next = [...curr];
-    const [moved] = next.splice(fi, 1);
-    next.splice(ti, 0, moved);
-    setOrdered(next);
-    localStorage.setItem("accountOrder", JSON.stringify(next.map(a => a.id)));
+  const handleAccReorder = useCallback((reordered) => {
+    setOrdered(reordered);
+    localStorage.setItem("accountOrder", JSON.stringify(reordered.map(a => a.id)));
   }, []);
 
-  executeDropRef.current = executeDrop;
-
-  const getDragHandlers = useCallback(id => ({
-    onPointerDown: e => {
-      e.stopPropagation();
-      dragIdRef.current = id;
-      setDragId(id);
-      const onMove = moveEvent => {
-        moveEvent.preventDefault();
-        const el = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
-        const overId = el?.closest('[data-accid]')?.dataset.accid || null;
-        if (overId !== dragOverIdRef.current) {
-          dragOverIdRef.current = overId;
-          setDragOverId(overId);
-        }
-      };
-      const onUp = () => {
-        executeDropRef.current();
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-      };
-      document.addEventListener('pointermove', onMove, { passive: false });
-      document.addEventListener('pointerup', onUp);
-    },
-  }), []);
+  const { dragId, dragOverId, getDragHandlers } = useDragReorder({
+    items: ordered, onReorder: handleAccReorder, dataAttr: "accid",
+  });
 
   return (
     <div style={{ paddingBottom:80 }}>
       <div style={{ position:"sticky", top:0, zIndex:10, background:C.monHeader, padding:"14px 16px", textAlign:"center", backdropFilter:"blur(16px)" }}>
-        <p style={{ margin:"0 0 4px", fontSize:12, color:C.dim }}>Total balance</p>
+        <p style={{ margin:"0 0 4px", fontSize:12, color:C.dim }}>Общий баланс</p>
         <p style={{ margin:0, fontSize:32, fontWeight:800, color:"#fff", letterSpacing:-1 }}>{fmtBal(total, BASE_CUR)}</p>
         <div style={{ display:"flex", justifyContent:"center", gap:24, marginTop:16, marginBottom:8 }}>
-          {[["transfer","Transfer",()=>navigate("transfer")],["clock","History",()=>navigate("trHistory")]].map(([ic,l,fn]) => (
+          {[["transfer","Перевод",()=>navigate("transfer")],["clock","История",()=>navigate("trHistory")]].map(([ic,l,fn]) => (
             <button key={l} onClick={fn} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, background:"none", border:"none", cursor:"pointer" }}>
               <div style={{ width:52, height:52, borderRadius:26, background:C.greenDim, display:"flex", alignItems:"center", justifyContent:"center" }}><Ico n={ic} s={22} c={C.green}/></div>
               <span style={{ fontSize:11, color:C.mid }}>{l}</span>
@@ -87,6 +40,17 @@ export function MoneyAccountsSection({ data, navigate }) {
           ))}
         </div>
       </div>
+
+      {accounts.length === 0 && (
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 24px", gap:16 }}>
+          <div style={{ width:64, height:64, borderRadius:20, background:C.monCard, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <Ico n="wallet" s={28} c={C.dim}/>
+          </div>
+          <p style={{ margin:0, fontSize:16, fontWeight:600, color:C.mid, textAlign:"center" }}>Нет счетов</p>
+          <p style={{ margin:0, fontSize:13, color:C.dim, textAlign:"center" }}>Добавьте первый счёт, чтобы начать отслеживать финансы</p>
+          <button onClick={() => navigate("addAcc")} style={{ marginTop:8, padding:"13px 28px", borderRadius:30, background:C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>+ Добавить счёт</button>
+        </div>
+      )}
 
       <div style={{ padding:"16px" }}>
         {ACC_PURPOSES.map(p => {
@@ -121,13 +85,13 @@ export function MoneyAccountsSection({ data, navigate }) {
                     <p style={{ margin:0, fontSize:15, fontWeight:600, color:"#fff" }}>{acc.name}</p>
                     {acc.currency !== BASE_CUR && acc.avg_rate != null && (
                       <p style={{ margin:"2px 0 0", fontSize:11, color:C.dim }}>
-                        Avg rate: 1 {acc.currency} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate,2)}
+                        Средний курс: 1 {acc.currency} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate,2)}
                       </p>
                     )}
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     {!acc.in_total && <Ico n="eyeOff" s={14} c={C.dim}/>}
-                    <p style={{ margin:0, fontSize:16, fontWeight:700, color: acc.balance < 0 ? "#f87171" : "#fff" }}>{fmtBal(acc.balance, acc.currency)}</p>
+                    <p style={{ margin:0, fontSize:16, fontWeight:700, color: acc.balance < 0 ? C.errorLight : "#fff" }}>{fmtBal(acc.balance, acc.currency)}</p>
                   </div>
                 </div>
               ))}
@@ -145,4 +109,4 @@ export function MoneyAccountsSection({ data, navigate }) {
       </button>
     </div>
   );
-}
+});
