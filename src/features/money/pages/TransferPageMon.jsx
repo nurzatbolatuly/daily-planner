@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { C } from "../../../constants/theme";
-import { todayStr } from "../../../utils/date";
+import { todayStr, localDate } from "../../../utils/date";
 import { avgRateFn } from "../../../utils/format";
 import { supaRpc, supa, supabase } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
@@ -23,7 +23,7 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
     if (!edit?.fee) return;
     supabase.from("transactions").select("category_id")
       .eq("account_id", edit.from_id).eq("amount", edit.fee)
-      .eq("date", edit.date).eq("type", "expense")
+      .eq("date", localDate(edit.created_at)).eq("type", "expense")
       .eq("note", "Комиссия за перевод")
       .then(({ data }) => { if (data?.[0]?.category_id) setFeeCatId(data[0].category_id); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -50,7 +50,6 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
       to_currency:   toAcc?.currency,
       rate:          parseFloat(rate) || null,
       fee:           feeAmt,
-      date:          edit?.date || todayStr(),
       note,
     };
 
@@ -68,7 +67,7 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
             .select("id")
             .eq("account_id", edit.from_id)
             .eq("amount", edit.fee)
-            .eq("date", edit.date)
+            .eq("date", localDate(edit.created_at))
             .eq("type", "expense")
             .eq("note", "Комиссия за перевод");
           if (oldFeeTxs?.length > 0) {
@@ -148,7 +147,7 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
           const feeTx = {
             id: crypto.randomUUID(), type: "expense", amount: feeAmt,
             currency: fromAcc.currency, category_id: feeCatId || null,
-            account_id: fromId, date: tr.date, note: "Комиссия за перевод",
+            account_id: fromId, date: localDate(edit.created_at), note: "Комиссия за перевод",
           };
           await supaRpc("save_tx", {
             p_tx: feeTx, p_account_id: fromId, p_new_balance: newFromBal - feeAmt,
@@ -173,7 +172,7 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
           const feeTx = {
             id: crypto.randomUUID(), type: "expense", amount: feeAmt,
             currency: fromAcc.currency, category_id: feeCatId || null,
-            account_id: fromId, date: tr.date, note: "Комиссия за перевод",
+            account_id: fromId, date: todayStr(), note: "Комиссия за перевод",
           };
           await supaRpc("save_tx", {
             p_tx: feeTx, p_account_id: fromId, p_new_balance: newFromBal - feeAmt,

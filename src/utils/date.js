@@ -1,9 +1,10 @@
 export const pad = n => String(n).padStart(2, "0");
 
-export const todayStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-};
+export const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+export const todayStr = () => dateStr(new Date());
+
+export const localDate = isoStr => dateStr(new Date(isoStr));
 
 export const addDays = (s, n) => {
   const d = new Date(s);

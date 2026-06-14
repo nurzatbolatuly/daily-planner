@@ -49,8 +49,8 @@ export default function MoneyManagerSection() {
     if (name === "editCat")    return <CatPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d} catType={d?.catType}/>;
     if (name === "addRec")     return <RecPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack}/>;
     if (name === "editRec")    return <RecPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack} edit={d}/>;
-    if (name === "addPlan")    return <PlanRowPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} month={d?.month}/>;
-    if (name === "editPlan")   return <PlanRowPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d}/>;
+    if (name === "addPlan")    return <PlanRowPageMon expCats={data.expCats} incCats={data.incCats} accounts={data.accounts} onBack={goBack} month={d?.month} prefillCatId={d?.cat_id} prefillAccId={d?.acc_id} prefillType={d?.type}/>;
+    if (name === "editPlan")   return <PlanRowPageMon expCats={data.expCats} incCats={data.incCats} accounts={data.accounts} onBack={goBack} edit={d}/>;
     if (name === "addTrip")    return <TripEditPageMon onBack={goBackToTrips}/>;
     if (name === "editTrip")   return <TripEditPageMon onBack={goBackToTrips} edit={d}/>;
     if (name === "tripDetail") return <TripDetailPageMon plan={d} accounts={data.accounts} navigate={navigate} onBack={goBack}/>;

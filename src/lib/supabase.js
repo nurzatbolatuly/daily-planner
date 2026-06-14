@@ -9,8 +9,12 @@ export const supa = {
     let q = supabase.from(table).select("*");
     if (filters) {
       for (const part of filters.split("&")) {
-        const m = part.match(/^order=(\w+)\.(asc|desc)$/);
-        if (m) q = q.order(m[1], { ascending: m[2] === "asc" });
+        const m = part.match(/^order=(\w+)\.(asc|desc)(?:\.(nullslast|nullsfirst))?$/);
+        if (m) {
+          const opts = { ascending: m[2] === "asc" };
+          if (m[3]) opts.nullsFirst = m[3] === "nullsfirst";
+          q = q.order(m[1], opts);
+        }
       }
     }
     const { data, error } = await q;

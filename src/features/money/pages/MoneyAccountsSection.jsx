@@ -3,6 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { getSym, fmtAmt, fmtBal } from "../../../utils/format";
 import { getSavedOrder } from "../../../utils/accountOrder";
+import { ACC_PURPOSES } from "../../../constants/money";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 
@@ -88,40 +89,52 @@ export function MoneyAccountsSection({ data, navigate }) {
       </div>
 
       <div style={{ padding:"16px" }}>
-        {ordered.map(acc => (
-          <div
-            key={acc.id}
-            data-accid={acc.id}
-            onClick={() => navigate("editAcc", acc)}
-            style={{
-              display:"flex", alignItems:"center", gap:12, padding:"16px 14px",
-              borderRadius:16, marginBottom:10, background:C.monCard, cursor:"pointer",
-              opacity: dragId === acc.id ? 0.4 : 1,
-              transform: dragOverId === acc.id && dragId !== acc.id ? "scaleX(1.01)" : "none",
-              transition: "opacity 0.15s, transform 0.1s",
-              border: `1px solid ${dragOverId === acc.id && dragId !== acc.id ? "rgba(76,175,80,0.4)" : "transparent"}`,
-            }}
-          >
-            <div
-              {...getDragHandlers(acc.id)}
-              style={{ color:"rgba(255,255,255,0.2)", cursor:"grab", flexShrink:0, touchAction:"none", padding:"4px 2px", userSelect:"none" }}
-              onClick={e => e.stopPropagation()}
-            >
-              <Ico n="drag" s={18}/>
+        {ACC_PURPOSES.map(p => {
+          const group = ordered.filter(a => (a.purpose || "daily") === p.key);
+          if (group.length === 0) return null;
+          return (
+            <div key={p.key}>
+              <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:C.dim, textTransform:"uppercase", letterSpacing:1 }}>{p.label}</p>
+              {group.map(acc => (
+                <div
+                  key={acc.id}
+                  data-accid={acc.id}
+                  onClick={() => navigate("editAcc", acc)}
+                  style={{
+                    display:"flex", alignItems:"center", gap:12, padding:"16px 14px",
+                    borderRadius:16, marginBottom:10, background:C.monCard, cursor:"pointer",
+                    opacity: dragId === acc.id ? 0.4 : 1,
+                    transform: dragOverId === acc.id && dragId !== acc.id ? "scaleX(1.01)" : "none",
+                    transition: "opacity 0.15s, transform 0.1s",
+                    border: `1px solid ${dragOverId === acc.id && dragId !== acc.id ? "rgba(76,175,80,0.4)" : "transparent"}`,
+                  }}
+                >
+                  <div
+                    {...getDragHandlers(acc.id)}
+                    style={{ color:"rgba(255,255,255,0.2)", cursor:"grab", flexShrink:0, touchAction:"none", padding:"4px 2px", userSelect:"none" }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <Ico n="drag" s={18}/>
+                  </div>
+                  <CatIcon k={acc.icon} size={50} color={acc.color}/>
+                  <div style={{ flex:1 }}>
+                    <p style={{ margin:0, fontSize:15, fontWeight:600, color:"#fff" }}>{acc.name}</p>
+                    {acc.currency !== BASE_CUR && acc.avg_rate != null && (
+                      <p style={{ margin:"2px 0 0", fontSize:11, color:C.dim }}>
+                        Avg rate: 1 {acc.currency} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate,2)}
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    {!acc.in_total && <Ico n="eyeOff" s={14} c={C.dim}/>}
+                    <p style={{ margin:0, fontSize:16, fontWeight:700, color: acc.balance < 0 ? "#f87171" : "#fff" }}>{fmtBal(acc.balance, acc.currency)}</p>
+                  </div>
+                </div>
+              ))}
+              <div style={{ height:8 }}/>
             </div>
-            <CatIcon k={acc.icon} size={50} color={acc.color}/>
-            <div style={{ flex:1 }}>
-              <p style={{ margin:0, fontSize:15, fontWeight:600, color:"#fff" }}>{acc.name}</p>
-              {acc.currency !== BASE_CUR && acc.avg_rate != null && (
-                <p style={{ margin:"2px 0 0", fontSize:11, color:C.dim }}>
-                  Avg rate: 1 {acc.currency} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate,2)}
-                </p>
-              )}
-              {!acc.in_total && <p style={{ margin:0, fontSize:11, color:C.dim }}>Not in total</p>}
-            </div>
-            <p style={{ margin:0, fontSize:16, fontWeight:700, color: acc.balance < 0 ? "#f87171" : "#fff" }}>{fmtBal(acc.balance, acc.currency)}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <button

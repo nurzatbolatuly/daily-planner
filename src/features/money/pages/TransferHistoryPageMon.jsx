@@ -3,16 +3,13 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { fmtM } from "../../../utils/format";
 import { getSavedOrder } from "../../../utils/accountOrder";
+import { localDate } from "../../../utils/date";
 import { supa, supabase } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 
 const MONTHS   = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const MONTHS_S = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-function fmtDateStr(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-}
 
 function fmtGroupDate(dateStr) {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -22,9 +19,9 @@ function fmtGroupDate(dateStr) {
 function getPeriodFilter(period, offset, now) {
   if (period === "day") {
     const d = new Date(now); d.setDate(d.getDate() + offset);
-    const str = fmtDateStr(d);
+    const str = localDate(d);
     const label = offset === 0 ? "Today" : offset === -1 ? "Yesterday" : str;
-    return { fn: t => t.date === str, label };
+    return { fn: t => localDate(t.created_at) === str, label };
   }
   if (period === "week") {
     const mon = new Date(now);
@@ -33,17 +30,17 @@ function getPeriodFilter(period, offset, now) {
     mon.setHours(0, 0, 0, 0);
     const sun = new Date(mon); sun.setDate(mon.getDate() + 6); sun.setHours(23, 59, 59, 999);
     const fmt = d => `${d.getDate()} ${MONTHS_S[d.getMonth()]}`;
-    return { fn: t => { const d = new Date(t.date); return d >= mon && d <= sun; }, label: `${fmt(mon)} – ${fmt(sun)}` };
+    return { fn: t => { const d = new Date(t.created_at); return d >= mon && d <= sun; }, label: `${fmt(mon)} – ${fmt(sun)}` };
   }
   if (period === "month") {
     const total = now.getFullYear() * 12 + now.getMonth() + offset;
     const y = Math.floor(total / 12);
     const m = total % 12;
-    return { fn: t => { const d = new Date(t.date); return d.getFullYear() === y && d.getMonth() === m; }, label: `${MONTHS[m]} ${y}` };
+    return { fn: t => { const d = new Date(t.created_at); return d.getFullYear() === y && d.getMonth() === m; }, label: `${MONTHS[m]} ${y}` };
   }
   if (period === "year") {
     const y = now.getFullYear() + offset;
-    return { fn: t => new Date(t.date).getFullYear() === y, label: String(y) };
+    return { fn: t => new Date(t.created_at).getFullYear() === y, label: String(y) };
   }
   return { fn: () => true, label: "All time" };
 }
@@ -92,7 +89,7 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onBack }
       await supa.delete("transfers", `id=eq.${t.id}`);
       if (t.fee > 0) {
         const { data: feeTxs } = await supabase.from("transactions").select("id")
-          .eq("account_id", t.from_id).eq("amount", t.fee).eq("date", t.date)
+          .eq("account_id", t.from_id).eq("amount", t.fee).eq("date", localDate(t.created_at))
           .eq("type", "expense").eq("note", "Комиссия за перевод");
         if (feeTxs?.length > 0)
           await supabase.from("transactions").delete().eq("id", feeTxs[0].id);
@@ -118,12 +115,6 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onBack }
   // ── DETAIL VIEW ─────────────────────────────────────────────────────────────
   if (detailT) {
     const t      = transfers.find(tr => tr.id === detailT.id) ?? detailT;
-    const from   = accounts.find(a => a.id === t.from_id);
-    const to     = accounts.find(a => a.id === t.to_id);
-    const toAmt  = t.to_amt || t.amount;
-    const toCur  = t.to_currency || t.from_currency;
-    const diffCur = t.from_currency !== toCur;
-    const foreignCur = t.from_currency !== BASE_CUR ? t.from_currency : toCur;
 
     const lbl = (text) => (
       <p style={{ margin:"0 0 8px", fontSize:12, color:C.dim, fontWeight:500 }}>{text}</p>
@@ -137,6 +128,39 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onBack }
         <span style={{ fontSize:15, fontWeight:600, color:"#fff" }}>{acc?.name ?? "—"}</span>
       </div>
     );
+
+    // Balance adjustment — read-only view
+    if (t.is_adjustment) {
+      const adjAcc = accounts.find(a => a.id === t.from_id);
+      const delta  = t.to_amt ?? t.amount;
+      const isPos  = delta >= 0;
+      return (
+        <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
+          <div style={{ background:C.monHeader, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
+            <button onClick={() => setDetailT(null)} style={{ background:"none", border:"none", cursor:"pointer", color:C.main, display:"flex" }}><Ico n="back" s={22}/></button>
+            <span style={{ flex:1, fontSize:17, fontWeight:600, color:"#fff" }}>Balance adjustment</span>
+            <div style={{ width:30 }}/>
+          </div>
+          <div style={{ flex:1, overflowY:"auto", padding:"20px 16px 40px" }}>
+            {lbl("Account")}
+            {accRow(adjAcc)}
+            {lbl("Amount")}
+            <p style={{ margin:"0 0 20px", fontSize:26, fontWeight:700, color: isPos ? "#34d399" : "#f87171" }}>
+              {isPos ? "+" : "−"}{fmtM(Math.abs(delta), t.from_currency)}
+            </p>
+            {lbl("Date")}
+            <p style={{ margin:0, fontSize:16, fontWeight:600, color:"#fff" }}>{fmtGroupDate(localDate(t.created_at))}</p>
+          </div>
+        </div>
+      );
+    }
+
+    const from   = accounts.find(a => a.id === t.from_id);
+    const to     = accounts.find(a => a.id === t.to_id);
+    const toAmt  = t.to_amt ?? t.amount;
+    const toCur  = t.to_currency || t.from_currency;
+    const diffCur = t.from_currency !== toCur;
+    const foreignCur = t.from_currency !== BASE_CUR ? t.from_currency : toCur;
 
     return (
       <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
@@ -174,7 +198,7 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onBack }
           </>}
 
           {lbl("Date")}
-          <p style={{ margin:0, fontSize:16, fontWeight:600, color:"#fff" }}>{fmtGroupDate(t.date)}</p>
+          <p style={{ margin:0, fontSize:16, fontWeight:600, color:"#fff" }}>{fmtGroupDate(localDate(t.created_at))}</p>
         </div>
 
         <div style={{ position:"fixed", bottom:0, left:0, right:0, padding:"12px 16px calc(16px + env(safe-area-inset-bottom, 0px))", background:C.monBg, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
@@ -193,9 +217,12 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onBack }
 
   // ── LIST VIEW ────────────────────────────────────────────────────────────────
   const selAccList = orderedAccounts.filter(a => selAccIds.has(a.id));
-  const sortedFiltered = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+  const sortedFiltered = [...filtered].sort((a, b) =>
+    (b.created_at || "").localeCompare(a.created_at || "")
+  );
   const grouped = sortedFiltered.reduce((acc, t) => {
-    (acc[t.date] = acc[t.date] || []).push(t);
+    const key = localDate(t.created_at);
+    (acc[key] = acc[key] || []).push(t);
     return acc;
   }, {});
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
@@ -250,19 +277,39 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onBack }
           <div key={date}>
             <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:600, color:C.dim }}>{fmtGroupDate(date)}</p>
             {grouped[date].map(t => {
+              if (t.is_adjustment) {
+                const adjAcc = accounts.find(a => a.id === t.from_id);
+                const delta  = t.to_amt ?? t.amount;
+                const isPos  = delta >= 0;
+                return (
+                  <div key={t.id} onClick={() => setDetailT(t)} style={{ background:C.monCard, borderRadius:14, padding:"12px 14px", marginBottom:8, cursor:"pointer" }}>
+                    <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                      <div style={{ flexShrink:0, opacity:0.35 }}><Ico n="edit" s={14} c={C.mid}/></div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                          <span style={{ fontSize:13, fontWeight:500, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{adjAcc?.name ?? "—"}</span>
+                          <span style={{ fontSize:13, fontWeight:600, color: isPos ? "#34d399" : "#f87171", flexShrink:0, marginLeft:8 }}>
+                            {isPos ? "+" : "−"}{fmtM(Math.abs(delta), t.from_currency)}
+                          </span>
+                        </div>
+                        <span style={{ fontSize:12, color:C.dim }}>Balance adjustment</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               const from  = accounts.find(a => a.id === t.from_id);
               const to    = accounts.find(a => a.id === t.to_id);
-              const toAmt = t.to_amt || t.amount;
+              const toAmt = t.to_amt ?? t.amount;
               const toCur = t.to_currency || t.from_currency;
               const diffCur = t.from_currency !== toCur;
               return (
                 <div key={t.id} onClick={() => setDetailT(t)} style={{ background:C.monCard, borderRadius:14, padding:"12px 14px", marginBottom:8, cursor:"pointer" }}>
                   <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                    {/* Arrow - centered vertically between the two account rows */}
                     <div style={{ flexShrink:0, display:"flex", alignItems:"center" }}>
                       <ArrowDown/>
                     </div>
-                    {/* Accounts + amounts */}
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
                         <div style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
@@ -280,7 +327,7 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onBack }
                   </div>
                   {(t.note || t.fee > 0) && (
                     <div style={{ display:"flex", gap:6, fontSize:12, color:C.dim, marginTop:4, paddingLeft:24 }}>
-                      {t.note && <span style={{ flex:1,  fontSize:14,overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.note}</span>}
+                      {t.note && <span style={{ flex:1, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.note}</span>}
                       {t.note && t.fee > 0 && <span>·</span>}
                       {t.fee > 0 && <span style={{ color:"#f87171", flexShrink:0 }}>{fmtM(t.fee, t.from_currency)}</span>}
                     </div>

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { ACC_ICONS } from "../../../constants/icons";
+import { ACC_PURPOSES } from "../../../constants/money";
 import { getSym, fmtAmt } from "../../../utils/format";
-import { todayStr } from "../../../utils/date";
 import { supa, supaUpsert, supabase } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
@@ -19,6 +19,7 @@ export function AccPage({ onBack, edit }) {
   const [cur, setCur] = useState(edit?.currency || BASE_CUR);
   const [bal, setBal] = useState(edit?.balance != null ? String(edit.balance) : "");
   const [inTotal, setInTotal] = useState(edit?.in_total !== false);
+  const [purpose, setPurpose] = useState(edit?.purpose || "daily");
   const [avgRate, setAvgRate] = useState(edit?.avg_rate ? String(edit.avg_rate) : "");
   const [showCur, setShowCur] = useState(false);
   const [errors, setErrors] = useState({});
@@ -33,21 +34,22 @@ export function AccPage({ onBack, edit }) {
     setErrors(e); if (Object.keys(e).length > 0) return;
     setSaving(true);
     const newBal = parseFloat(bal) || 0;
-    const acc = { id: edit?.id || crypto.randomUUID(), name: name.trim(), icon, color, currency: cur, balance: newBal, in_total: inTotal, avg_rate: parseFloat(avgRate) || null };
+    const acc = { id: edit?.id || crypto.randomUUID(), name: name.trim(), icon, color, currency: cur, balance: newBal, in_total: inTotal, avg_rate: parseFloat(avgRate) || null, purpose };
     try {
       await supaUpsert("accounts", acc);
       if (isEdit) {
         const diff = newBal - edit.balance;
         if (diff !== 0) {
-          await supabase.from("transactions").insert({
+          await supabase.from("transfers").insert({
             id: crypto.randomUUID(),
-            type: diff > 0 ? "income" : "expense",
+            from_id: acc.id,
+            to_id: null,
             amount: Math.abs(diff),
-            currency: acc.currency,
-            account_id: acc.id,
-            date: todayStr(),
+            to_amt: diff,
+            from_currency: acc.currency,
+            to_currency: acc.currency,
             note: "Balance adjustment",
-            category_id: null,
+            is_adjustment: true,
           });
         }
       }
@@ -102,19 +104,19 @@ export function AccPage({ onBack, edit }) {
         </div>
         {(isEdit ? edit.currency : cur) !== BASE_CUR && (
           <div style={{ marginBottom:16 }}>
-            <FieldLabel>Курс (1 {isEdit ? edit.currency : cur} = ? ₸)</FieldLabel>
+            <FieldLabel>Rate (1 {isEdit ? edit.currency : cur} = ? ₸)</FieldLabel>
             <div style={{ display:"flex", alignItems:"center", gap:10, borderBottom:"1px solid rgba(255,255,255,0.2)", paddingBottom:8 }}>
               <input
                 value={avgRate}
                 onChange={e => setAvgRate(e.target.value)}
                 type="number"
-                placeholder="напр. 478"
+                placeholder="e.g. 478"
                 style={{ flex:1, background:"none", border:"none", outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0" }}
               />
               <span style={{ fontSize:16, fontWeight:700, color:C.dim }}>₸</span>
             </div>
             <p style={{ margin:"6px 0 0", fontSize:11, color:C.dim }}>
-              Используется для расчёта общего баланса в ₸. Обновляется автоматически при переводах.
+              Used for total balance calculation. Updated automatically on transfers.
             </p>
           </div>
         )}
@@ -122,6 +124,20 @@ export function AccPage({ onBack, edit }) {
           <FieldLabel error={errors.name}>Name</FieldLabel>
           <input value={name} onChange={e => { setName(e.target.value); setErrors(p => ({...p, name:""})); }} placeholder="Account name" style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${errors.name?"rgba(244,67,54,0.5)":"rgba(255,255,255,0.2)"}`, outline:"none", color:"#fff", fontSize:18, padding:"4px 0", boxSizing:"border-box" }}/>
           {errors.name && <p style={{ color:C.red, fontSize:12, marginTop:4 }}>{errors.name}</p>}
+        </div>
+        <div style={{ marginBottom:16 }}>
+          <FieldLabel>Purpose</FieldLabel>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+            {ACC_PURPOSES.map(p => (
+              <button
+                key={p.key}
+                onClick={() => setPurpose(p.key)}
+                style={{ padding:"10px 4px", borderRadius:10, border:`1px solid ${purpose===p.key ? C.green : C.border}`, background: purpose===p.key ? "rgba(76,175,80,0.15)" : "transparent", color: purpose===p.key ? C.green : C.dim, fontSize:13, fontWeight:600, cursor:"pointer" }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div style={{ marginBottom:16 }}>
           <FieldLabel>Icon</FieldLabel>
