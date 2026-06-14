@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { C } from "../../constants/theme";
 import { TIME_OF_DAY, WEEKDAYS } from "../../constants/planner";
 import { RU_MON_GEN } from "../../constants/locale";
@@ -15,7 +15,12 @@ export default function PlannerTaskForm({ initialDate, initialTask, colorLabels,
   const [isRoutine, setIsRoutine] = useState(false);
   const [routineDays, setRoutineDays] = useState([]);
 
-  // Понедельник недели, к которой относится выбранная дата (без сдвига часового пояса).
+  // Lock body scroll while modal is open (prevents background rubber-band on iOS)
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   const weekMondayOf = (dateStr) => {
     const [y, m, dd] = (dateStr || todayStr()).split("-").map(Number);
     const anchor = new Date(y, m - 1, dd);
@@ -43,23 +48,32 @@ export default function PlannerTaskForm({ initialDate, initialTask, colorLabels,
   };
 
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", background:"rgba(0,0,0,0.6)", backdropFilter:"blur(4px)" }} onClick={onClose}>
-      <div style={{ width:"100%", maxWidth:480, borderRadius:"24px 24px 0 0", background:"#1a1a2e", borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 20px calc(32px + env(safe-area-inset-bottom, 0px))", boxShadow:"0 -20px 60px rgba(0,0,0,0.4)", maxHeight:"calc(92dvh - env(safe-area-inset-top, 0px))", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
+    <div
+      style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", background:"rgba(0,0,0,0.6)", backdropFilter:"blur(4px)" }}
+      onClick={onClose}
+      onTouchMove={e => e.preventDefault()}
+    >
+      <div
+        style={{ width:"100%", maxWidth:480, borderRadius:"24px 24px 0 0", background:"#1a1a2e", borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 20px calc(32px + env(safe-area-inset-bottom, 0px))", boxShadow:"0 -20px 60px rgba(0,0,0,0.4)", maxHeight:"85dvh", overflowY:"auto", overscrollBehavior:"contain" }}
+        onClick={e => e.stopPropagation()}
+        onTouchMove={e => e.stopPropagation()}
+      >
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <h3 style={{ margin:0, fontSize:16, fontWeight:600, color:"rgba(255,255,255,0.9)" }}>{initialTask?"Редактировать":"Новая задача"}</h3>
           <button onClick={onClose} style={{ color:"rgba(255,255,255,0.4)", background:"none", border:"none", cursor:"pointer", display:"flex" }}><Ico n="x" s={18}/></button>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Название задачи" autoFocus style={{ borderRadius:12, padding:"12px 16px", fontSize:14, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.9)", outline:"none" }}/>
-          <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Заметка" rows={2} style={{ borderRadius:12, padding:"12px 16px", fontSize:14, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.9)", outline:"none", resize:"none" }}/>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          {/* font-size: 16px on all inputs — prevents iOS auto-zoom on focus */}
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Название задачи" autoFocus style={{ borderRadius:12, padding:"12px 16px", fontSize:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.9)", outline:"none" }}/>
+          <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Заметка" rows={2} style={{ borderRadius:12, padding:"12px 16px", fontSize:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.9)", outline:"none", resize:"none" }}/>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <div>
               <p style={{ margin:"0 0 6px", fontSize:12, color:C.dim }}>Дата</p>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width:"100%", borderRadius:10, padding:"10px 12px", fontSize:13, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.8)", outline:"none", colorScheme:"dark", boxSizing:"border-box" }}/>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width:"100%", borderRadius:10, padding:"10px 12px", fontSize:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.8)", outline:"none", colorScheme:"dark", boxSizing:"border-box" }}/>
             </div>
             <div>
               <p style={{ margin:"0 0 6px", fontSize:12, color:C.dim }}>Время</p>
-              <input type="time" value={time} onChange={e => { setTime(e.target.value); if(e.target.value) setTimeOfDay(null); }} style={{ width:"100%", borderRadius:10, padding:"10px 12px", fontSize:13, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.8)", outline:"none", colorScheme:"dark", boxSizing:"border-box" }}/>
+              <input type="time" value={time} onChange={e => { setTime(e.target.value); if(e.target.value) setTimeOfDay(null); }} style={{ width:"100%", borderRadius:10, padding:"10px 12px", fontSize:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.8)", outline:"none", colorScheme:"dark", boxSizing:"border-box" }}/>
             </div>
           </div>
           {!time && (

@@ -12,17 +12,40 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
   const [pressing, setPressing] = useState(false);
   const timerRef = useRef(null);
   const menuRef = useRef(null);
+  const touchStartRef = useRef(null);
+  const didScrollRef = useRef(false);
   const colorCfg = colorLabels.find(c => c.id===task.color) || colorLabels[0];
   const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.active;
   const isDim = statusCfg.dim;
 
-  const startPress = () => {
+  const startPress = (e) => {
+    didScrollRef.current = false;
+    if (e.touches) {
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
     setPressing(true); onPressingChange(true);
     timerRef.current = setTimeout(() => { setShowMenu(true); setPressing(false); onPressingChange(false); }, 500);
   };
+
+  const handleTouchMove = (e) => {
+    if (!touchStartRef.current) return;
+    const dx = Math.abs(e.touches[0].clientX - touchStartRef.current.x);
+    const dy = Math.abs(e.touches[0].clientY - touchStartRef.current.y);
+    if (dx > 8 || dy > 8) {
+      didScrollRef.current = true;
+      endPress();
+    }
+  };
+
   const endPress = () => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    touchStartRef.current = null;
     setPressing(false); onPressingChange(false);
+  };
+
+  const handleClick = () => {
+    if (showMenu || didScrollRef.current) return;
+    setShowDetail(true);
   };
 
   useEffect(() => {
@@ -36,8 +59,8 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
     <>
       <div className={pressing?"lp-glow":""} style={{ position:"relative", borderRadius:16, border:isDim?"1px solid rgba(255,255,255,0.05)":pressing?"1px solid rgba(99,102,241,0.5)":"1px solid rgba(255,255,255,0.1)", background:isDim?"rgba(255,255,255,0.03)":pressing?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.06)", opacity:isDim?0.45:(isAnyPressing&&!pressing)?0.35:1, transform:pressing?"scale(1.025)":"scale(1)", transition:"opacity 0.2s,transform 0.15s,background 0.15s", cursor:"pointer", userSelect:"none" }}
            onMouseDown={startPress} onMouseUp={endPress} onMouseLeave={endPress}
-           onTouchStart={startPress} onTouchEnd={endPress}
-           onClick={() => { if (!showMenu) setShowDetail(true); }}>
+           onTouchStart={startPress} onTouchMove={handleTouchMove} onTouchEnd={endPress}
+           onClick={handleClick}>
         {task.color!=="none" && !isDim && (
           <div style={{ position:"absolute", left:0, top:12, bottom:12, width:3, borderRadius:2, background:colorCfg.hex, opacity:0.75 }}/>
         )}
@@ -69,8 +92,8 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
 
       {/* Context menu */}
       {showMenu && (
-        <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)" }} onClick={() => setShowMenu(false)}>
-          <div ref={menuRef} style={{ width:"100%", maxWidth:480, marginLeft:16, marginRight:16, marginBottom:"calc(32px + env(safe-area-inset-bottom, 0px))", borderRadius:24, background:"#1a1a2e", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }} onClick={e => e.stopPropagation()}>
+        <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", cursor:"pointer" }} onClick={() => setShowMenu(false)}>
+          <div ref={menuRef} style={{ width:"100%", maxWidth:480, marginLeft:16, marginRight:16, marginBottom:"calc(32px + env(safe-area-inset-bottom, 0px))", borderRadius:24, background:"#1a1a2e", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.5)", cursor:"default" }} onClick={e => e.stopPropagation()}>
             <div style={{ padding:"16px 20px", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
               <p style={{ margin:0, fontSize:14, fontWeight:600, color:"rgba(255,255,255,0.9)" }}>{task.title}</p>
             </div>
@@ -103,8 +126,8 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
 
       {/* Detail modal */}
       {showDetail && (
-        <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.6)", backdropFilter:"blur(4px)", padding:16 }} onClick={() => setShowDetail(false)}>
-          <div style={{ width:"100%", maxWidth:400, borderRadius:24, background:"#1a1a2e", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden" }} onClick={e => e.stopPropagation()}>
+        <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.6)", backdropFilter:"blur(4px)", padding:16, cursor:"pointer" }} onClick={() => setShowDetail(false)}>
+          <div style={{ width:"100%", maxWidth:400, borderRadius:24, background:"#1a1a2e", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", cursor:"default" }} onClick={e => e.stopPropagation()}>
             <div style={{ padding:"20px 24px 16px" }}>
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12 }}>
                 <h3 style={{ margin:0, fontSize:16, fontWeight:600, color:"rgba(255,255,255,0.95)" }}>{task.title}</h3>

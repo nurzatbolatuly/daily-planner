@@ -22,6 +22,7 @@ export default function PlannerSection({ navigate }) {
   const [showTimeline, setShowTimeline] = useState(false);
   const [dragId, setDragId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
+  const [ghostPos, setGhostPos] = useState(null);
   const [anyPressing, setAnyPressing] = useState(false);
   const [toast, setToast] = useState(null);
   const carouselRef = useRef(null);
@@ -153,10 +154,13 @@ export default function PlannerSection({ navigate }) {
   const getDragHandlers = useCallback(id => ({
     onPointerDown: e => {
       e.stopPropagation();
+      if (navigator.vibrate) navigator.vibrate(40);
       dragIdRef.current = id;
       setDragId(id);
+      setGhostPos({ x: e.clientX, y: e.clientY });
       const onMove = moveEvent => {
         moveEvent.preventDefault();
+        setGhostPos({ x: moveEvent.clientX, y: moveEvent.clientY });
         const el = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
         const overId = el?.closest('[data-taskid]')?.dataset.taskid || null;
         if (overId !== dragOverIdRef.current) {
@@ -165,6 +169,7 @@ export default function PlannerSection({ navigate }) {
         }
       };
       const onUp = () => {
+        setGhostPos(null);
         executeDropRef.current();
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
@@ -296,6 +301,16 @@ export default function PlannerSection({ navigate }) {
       <button onClick={() => setShowForm(true)} style={{ position:"fixed", bottom:"calc(20px + env(safe-area-inset-bottom, 0px))", right:20, width:56, height:56, borderRadius:20, background:"#6366f1", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 8px 24px rgba(99,102,241,0.4)", zIndex:20 }}>
         <Ico n="plus" s={24} c="#fff"/>
       </button>
+
+      {/* Drag ghost — follows pointer, gives tactile "card in hand" feel */}
+      {ghostPos && dragId && (() => {
+        const t = currentTasks.find(t => t.id === dragId);
+        return t ? (
+          <div style={{ position:"fixed", left:ghostPos.x, top:ghostPos.y, transform:"translate(-50%,-50%) rotate(2deg)", zIndex:1000, pointerEvents:"none", background:"rgba(26,26,46,0.96)", border:"1px solid rgba(99,102,241,0.7)", borderRadius:12, padding:"10px 14px", fontSize:14, fontWeight:500, color:"rgba(255,255,255,0.9)", boxShadow:"0 16px 48px rgba(0,0,0,0.7)", maxWidth:220, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+            {t.title}
+          </div>
+        ) : null;
+      })()}
 
       {showForm && <PlannerTaskForm initialDate={currentDay} colorLabels={colorLabels} onSave={saveTask} onClose={() => setShowForm(false)}/>}
       {showCalendar && <CalendarPicker mode="single" value={currentKey} onChange={v => { setCurrentDay(new Date(v)); setShowCalendar(false); }} onClose={() => setShowCalendar(false)}/>}
