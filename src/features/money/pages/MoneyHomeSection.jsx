@@ -3,7 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { pad, todayStr } from "../../../utils/date";
-import { getSym, fmtAmt, fmtM, toBase, fmtDateShort, ratesFromAccounts } from "../../../utils/format";
+import { getSym, fmtAmt, fmtBal, toBase, fmtDateShort, ratesFromAccounts } from "../../../utils/format";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 import { CalendarPicker } from "../../../components/CalendarPicker";
@@ -79,7 +79,7 @@ export function MoneyHomeSection({ data, navigate }) {
               <span style={{ fontSize:15, fontWeight:600, color:"#fff" }}>{selAcc?selAcc.name:"Total"}</span>
               <Ico n="chevD" s={14} c={C.mid}/>
             </button>
-            <p style={{ margin:"2px 0 0", fontSize:32, fontWeight:800, color:"#fff", letterSpacing:-1 }}>{sym}{fmtAmt(totalBal,0)}</p>
+            <p style={{ margin:"2px 0 0", fontSize:32, fontWeight:800, color:"#fff", letterSpacing:-1 }}>{fmtBal(totalBal, BASE_CUR)}</p>
           </div>
           <button onClick={exportCSV} style={{ background:"none", border:"none", cursor:"pointer", color:C.mid, padding:4, display:"flex" }}><Ico n="report" s={22} c={C.mid}/></button>
         </div>
@@ -112,17 +112,18 @@ export function MoneyHomeSection({ data, navigate }) {
         {catData.map(c => {
           const pct = grandTotal > 0 ? Math.round(c.val/grandTotal*100) : 0;
           const pl = monthPlans.find(p => p.cat_id === c.id && p.type === txType);
+          const planInBase = pl ? toBase(pl.plan, pl.plan_currency || BASE_CUR, rates) : 0;
           return (
             <div key={c.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderTop:`1px solid ${C.border}` }}>
               <CatIcon k={c.icon} size={42} color={c.color}/>
               <div style={{ flex:1 }}>
                 <p style={{ margin:0, fontSize:14, fontWeight:500, color:C.main }}>{c.name}</p>
-                {pl && <div style={{ marginTop:3, height:3, borderRadius:2, background:"rgba(255,255,255,0.08)" }}><div style={{ height:3, borderRadius:2, width:`${Math.min(c.val/pl.plan*100,100)}%`, background:c.val>pl.plan?"#f87171":c.color }}/></div>}
+                {pl && <div style={{ marginTop:3, height:3, borderRadius:2, background:"rgba(255,255,255,0.08)" }}><div style={{ height:3, borderRadius:2, width:`${Math.min(c.val/planInBase*100,100)}%`, background:c.val>planInBase?"#f87171":c.color }}/></div>}
               </div>
               <span style={{ fontSize:13, color:C.dim, marginRight:6 }}>{pct}%</span>
               <div style={{ textAlign:"right" }}>
                 <p style={{ margin:0, fontSize:14, fontWeight:600, color:C.main }}>{sym}{fmtAmt(c.val,0)}</p>
-                {pl && <p style={{ margin:0, fontSize:10, color:C.dim }}>of {sym}{fmtAmt(pl.plan,0)}</p>}
+                {pl && <p style={{ margin:0, fontSize:10, color:C.dim }}>of {getSym(pl.plan_currency || BASE_CUR)}{fmtAmt(pl.plan,0)}</p>}
               </div>
             </div>
           );
@@ -173,7 +174,7 @@ export function MoneyHomeSection({ data, navigate }) {
             {[{id:null,name:"Total — all accounts",icon:"other",color:C.green},...accounts].map(a => (
               <div key={String(a.id)} onClick={() => { setSelAccId(a.id); setShowAccPicker(false); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 12px", borderRadius:12, marginBottom:6, cursor:"pointer", background:selAccId===a.id?"rgba(76,175,80,0.1)":"rgba(255,255,255,0.03)", border:`1px solid ${selAccId===a.id?"rgba(76,175,80,0.4)":C.border}` }}>
                 <CatIcon k={a.icon||"other"} size={40} color={a.color||C.green}/>
-                <div style={{ flex:1 }}><p style={{ margin:0, fontSize:14, color:"#fff" }}>{a.name}</p>{a.id&&<p style={{ margin:0, fontSize:12, color:C.dim }}>{fmtM(a.balance,a.currency)}</p>}</div>
+                <div style={{ flex:1 }}><p style={{ margin:0, fontSize:14, color:"#fff" }}>{a.name}</p>{a.id&&<p style={{ margin:0, fontSize:12, color: a.balance < 0 ? "#f87171" : C.dim }}>{fmtBal(a.balance,a.currency)}</p>}</div>
                 <div style={{ width:22, height:22, borderRadius:11, border:`2px solid ${selAccId===a.id?C.green:"rgba(255,255,255,0.2)"}`, display:"flex", alignItems:"center", justifyContent:"center" }}>{selAccId===a.id && <div style={{ width:10, height:10, borderRadius:5, background:C.green }}/>}</div>
               </div>
             ))}

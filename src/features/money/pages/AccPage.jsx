@@ -3,7 +3,8 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { ACC_ICONS } from "../../../constants/icons";
 import { getSym, fmtAmt } from "../../../utils/format";
-import { supa, supaUpsert } from "../../../lib/supabase";
+import { todayStr } from "../../../utils/date";
+import { supa, supaUpsert, supabase } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { CatIcon } from "../../../components/CatIcon";
@@ -31,8 +32,27 @@ export function AccPage({ onBack, edit }) {
     const e = {}; if (!name.trim()) e.name = "Enter name";
     setErrors(e); if (Object.keys(e).length > 0) return;
     setSaving(true);
-    const acc = { id: edit?.id || crypto.randomUUID(), name: name.trim(), icon, color, currency: cur, balance: parseFloat(bal)||0, in_total: inTotal, avg_rate: parseFloat(avgRate) || null };
-    try { await supaUpsert("accounts", acc); onBack(true); } catch(e) { console.error(e); setSaving(false); }
+    const newBal = parseFloat(bal) || 0;
+    const acc = { id: edit?.id || crypto.randomUUID(), name: name.trim(), icon, color, currency: cur, balance: newBal, in_total: inTotal, avg_rate: parseFloat(avgRate) || null };
+    try {
+      await supaUpsert("accounts", acc);
+      if (isEdit) {
+        const diff = newBal - edit.balance;
+        if (diff !== 0) {
+          await supabase.from("transactions").insert({
+            id: crypto.randomUUID(),
+            type: diff > 0 ? "income" : "expense",
+            amount: Math.abs(diff),
+            currency: acc.currency,
+            account_id: acc.id,
+            date: todayStr(),
+            note: "Balance adjustment",
+            category_id: null,
+          });
+        }
+      }
+      onBack(true);
+    } catch(e) { console.error(e); setSaving(false); }
   };
 
   return (

@@ -1,22 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { getSym, fmtAmt, fmtM } from "../../../utils/format";
+import { getSym, fmtAmt, fmtBal } from "../../../utils/format";
+import { getSavedOrder } from "../../../utils/accountOrder";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
-
-function getSavedOrder(accounts) {
-  try {
-    const ids = JSON.parse(localStorage.getItem("accountOrder") || "null");
-    if (!ids) return accounts;
-    return [...accounts].sort((a, b) => {
-      const ai = ids.indexOf(a.id), bi = ids.indexOf(b.id);
-      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-    });
-  } catch {
-    return accounts;
-  }
-}
 
 export function MoneyAccountsSection({ data, navigate }) {
   const { accounts } = data;
@@ -34,7 +22,6 @@ export function MoneyAccountsSection({ data, navigate }) {
     setOrdered(getSavedOrder(accounts));
   }, [accounts]);
 
-  const sym = getSym(BASE_CUR);
   const total = accounts.filter(a => a.in_total).reduce((s, a) => {
     if (a.currency === BASE_CUR) return s + a.balance;
     return s + (a.avg_rate ? a.balance * a.avg_rate : 0);
@@ -89,7 +76,7 @@ export function MoneyAccountsSection({ data, navigate }) {
     <div style={{ paddingBottom:80 }}>
       <div style={{ position:"sticky", top:0, zIndex:10, background:C.monHeader, padding:"14px 16px", textAlign:"center", backdropFilter:"blur(16px)" }}>
         <p style={{ margin:"0 0 4px", fontSize:12, color:C.dim }}>Total balance</p>
-        <p style={{ margin:0, fontSize:32, fontWeight:800, color:"#fff", letterSpacing:-1 }}>{sym}{fmtAmt(total,0)}</p>
+        <p style={{ margin:0, fontSize:32, fontWeight:800, color:"#fff", letterSpacing:-1 }}>{fmtBal(total, BASE_CUR)}</p>
         <div style={{ display:"flex", justifyContent:"center", gap:24, marginTop:16, marginBottom:8 }}>
           {[["transfer","Transfer",()=>navigate("transfer")],["clock","History",()=>navigate("trHistory")]].map(([ic,l,fn]) => (
             <button key={l} onClick={fn} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, background:"none", border:"none", cursor:"pointer" }}>
@@ -132,7 +119,7 @@ export function MoneyAccountsSection({ data, navigate }) {
               )}
               {!acc.in_total && <p style={{ margin:0, fontSize:11, color:C.dim }}>Not in total</p>}
             </div>
-            <p style={{ margin:0, fontSize:16, fontWeight:700, color:"#fff" }}>{fmtM(acc.balance, acc.currency)}</p>
+            <p style={{ margin:0, fontSize:16, fontWeight:700, color: acc.balance < 0 ? "#f87171" : "#fff" }}>{fmtBal(acc.balance, acc.currency)}</p>
           </div>
         ))}
       </div>

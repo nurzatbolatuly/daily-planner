@@ -15,7 +15,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit }) {
   const [amt, setAmt] = useState(edit?.amount ? String(edit.amount) : "");
   const [cur, setCur] = useState(edit?.currency || BASE_CUR);
   const [cat, setCat] = useState(edit?.category_id || "");
-  const [accId, setAccId] = useState(edit?.account_id || accounts[0]?.id || "");
+  const [accId, setAccId] = useState(edit?.account_id || "");
   const [date, setDate] = useState(edit?.date || todayStr());
   const [note, setNote] = useState(edit?.note || "");
   const [showCur, setShowCur] = useState(false);
@@ -23,6 +23,34 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit }) {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const cats = type === "expense" ? expCats : incCats;
+
+  if (edit?.note === "Balance adjustment") {
+    return (
+      <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
+        <div style={{ background:C.monHeader, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
+          <button onClick={() => onBack(false)} style={{ background:"none", border:"none", cursor:"pointer", color:"#fff", display:"flex" }}><Ico n="back" s={22}/></button>
+          <span style={{ flex:1, fontSize:17, fontWeight:600, color:"#fff", textAlign:"center", marginRight:34 }}>Balance Adjustment</span>
+        </div>
+        <div style={{ flex:1, padding:"24px 16px" }}>
+          <div style={{ background:C.monCard, borderRadius:16, padding:"20px 18px", marginBottom:16 }}>
+            <p style={{ margin:"0 0 16px", fontSize:13, color:C.dim }}>This record was created automatically when the account balance was changed manually.</p>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <span style={{ fontSize:14, color:C.dim }}>Change</span>
+              <span style={{ fontSize:20, fontWeight:700, color: edit.type === "income" ? C.green : "#f87171" }}>
+                {edit.type === "income" ? "+" : "−"}{edit.amount.toLocaleString("ru-RU")} {edit.currency}
+              </span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <span style={{ fontSize:14, color:C.dim }}>Date</span>
+              <span style={{ fontSize:14, color:"#fff" }}>{edit.date}</span>
+            </div>
+            <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"12px 0" }}/>
+            <p style={{ margin:0, fontSize:12, color:C.dim, textAlign:"center" }}>Cannot be edited or deleted</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showCur) return <CurrencyPage value={cur} onSelect={v => { setCur(v); setShowCur(false); }} onBack={() => setShowCur(false)}/>;
 

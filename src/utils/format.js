@@ -10,6 +10,14 @@ export const fmtAmtAuto = n => fmtAmt(n, Number.isInteger(Number(n)||0) ? 0 : 2)
 
 export const fmtM = (n, code) => `${getSym(code)}${fmtAmt(n)}`;
 
+// Для отображения баланса счёта — сохраняет знак минус при отрицательных значениях.
+export const fmtBal = (n, code, dec = 0) => {
+  const num = Number(n) || 0;
+  const sym = getSym(code);
+  const abs = Math.abs(num).toLocaleString("ru-RU", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  return num < 0 ? `-${sym}${abs}` : `${sym}${abs}`;
+};
+
 export const toBase = (amt, from, rates = {}) => from === BASE_CUR ? amt : amt * (rates[from] || 1);
 
 // Карта курсов { currency: rateToBase } из avg_rate счетов.

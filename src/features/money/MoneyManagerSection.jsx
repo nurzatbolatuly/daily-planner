@@ -42,8 +42,9 @@ export default function MoneyManagerSection() {
     if (name === "editTx")     return <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d}/>;
     if (name === "addAcc")     return <AccPage onBack={goBack}/>;
     if (name === "editAcc")    return <AccPage onBack={goBack} edit={d}/>;
-    if (name === "transfer")   return <TransferPageMon accounts={data.accounts} onBack={goBack}/>;
-    if (name === "trHistory")  return <TransferHistoryPageMon transfers={data.transfers} accounts={data.accounts} dispatch={data} onBack={() => goBack(true)}/>;
+    if (name === "transfer")   return <TransferPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack}/>;
+    if (name === "trHistory")  return <TransferHistoryPageMon transfers={data.transfers} accounts={data.accounts} navigate={navigate} onBack={() => goBack(true)}/>;
+    if (name === "editTransfer") return <TransferPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack} edit={d}/>;
     if (name === "addCat")     return <CatPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} catType={d?.catType}/>;
     if (name === "editCat")    return <CatPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d} catType={d?.catType}/>;
     if (name === "addRec")     return <RecPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack}/>;
