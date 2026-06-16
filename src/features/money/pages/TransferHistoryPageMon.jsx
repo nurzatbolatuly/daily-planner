@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { fmtM } from "../../../utils/format";
+import { fmtM, fmtAmt, getSym, isCommodity } from "../../../utils/format";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { localDate } from "../../../utils/date";
 import { supabase, supaRpc } from "../../../lib/supabase";
@@ -50,6 +50,89 @@ const ArrowDown = () => (
     <path d="M12 5v14M5 15l7 7 7-7"/>
   </svg>
 );
+
+// Баннер аналитики сделки из сохранённого снимка (transfer.analytics)
+function StoredDealBanner({ analytics, fromCurrency, toCurrency }) {
+  if (!analytics) return null;
+  const { has_sell, has_buy, from_avg_rate, implied_sell_rate, sell_pnl,
+          implied_buy_rate, to_avg_before, new_to_avg_rate } = analytics;
+  if (!has_sell && !has_buy) return null;
+
+  const fromSym  = getSym(fromCurrency);
+  const toSym    = getSym(toCurrency);
+  const fromIsCom = isCommodity(fromCurrency);
+  const toIsCom   = isCommodity(toCurrency);
+
+  const sellDiff   = has_sell ? implied_sell_rate - from_avg_rate : 0;
+  const sellPct    = has_sell && from_avg_rate > 0 ? (sellDiff / from_avg_rate * 100) : 0;
+  const sellProfit = sellDiff >= 0;
+  const sellColor  = sellProfit ? C.green : C.red;
+  const sellBg     = sellProfit ? "rgba(76,175,80,0.10)" : "rgba(244,67,54,0.10)";
+  const sellBorder = sellProfit ? "rgba(76,175,80,0.30)" : "rgba(244,67,54,0.30)";
+
+  const hasRefComp = (to_avg_before || 0) > 0;
+  const buyDiff    = hasRefComp ? implied_buy_rate - to_avg_before : 0;
+  const buyPct     = hasRefComp && to_avg_before > 0 ? (buyDiff / to_avg_before * 100) : 0;
+  const buyBetter  = buyDiff < 0;
+  const buyNeutral = !hasRefComp || Math.abs(buyPct) < 0.5;
+  const buyColor   = buyNeutral ? C.mid : (buyBetter ? C.green : C.red);
+  const buyBg      = buyNeutral ? "rgba(255,255,255,0.04)" : (buyBetter ? "rgba(76,175,80,0.07)" : "rgba(244,67,54,0.07)");
+  const buyBorder  = buyNeutral ? "rgba(255,255,255,0.10)" : (buyBetter ? "rgba(76,175,80,0.20)" : "rgba(244,67,54,0.20)");
+
+  return (
+    <div style={{ marginBottom:20 }}>
+      {has_sell && (
+        <div style={{ background:sellBg, border:`1px solid ${sellBorder}`, borderRadius: has_buy ? "14px 14px 0 0" : 14, padding:"12px 14px" }}>
+          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:C.dim, textTransform:"uppercase", letterSpacing:0.8 }}>
+            {fromIsCom ? "Продажа металла" : `Продажа ${fromCurrency}`}
+          </p>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+            <span style={{ fontSize:12, color:C.dim }}>Средняя покупки</span>
+            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(from_avg_rate, 0)} ₸/{fromSym}</span>
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+            <span style={{ fontSize:12, color:C.dim }}>Цена продажи</span>
+            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(implied_sell_rate, 0)} ₸/{fromSym}</span>
+          </div>
+          <div style={{ height:1, background:"rgba(255,255,255,0.08)", marginBottom:8 }}/>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontSize:13, fontWeight:600, color:sellColor }}>
+              {sellProfit ? "Прибыль" : "Убыток"} {sellProfit ? "+" : ""}{fmtAmt(sellDiff, 0)} ₸/{fromSym} ({sellPct >= 0 ? "+" : ""}{fmtAmt(Math.abs(sellPct), 1)}%)
+            </span>
+            <span style={{ fontSize:14, fontWeight:700, color:sellColor }}>
+              {sellProfit ? "+" : "-"}{fmtAmt(Math.abs(sell_pnl), 0)} ₸
+            </span>
+          </div>
+        </div>
+      )}
+      {has_buy && (
+        <div style={{ background:buyBg, border:`1px solid ${buyBorder}`, borderTop: has_sell ? "none" : undefined, borderRadius: has_sell ? "0 0 14px 14px" : 14, padding:"12px 14px" }}>
+          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:C.dim, textTransform:"uppercase", letterSpacing:0.8 }}>
+            {toIsCom ? "Покупка металла" : `Покупка ${toCurrency}`}
+          </p>
+          {hasRefComp && (
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+              <span style={{ fontSize:12, color:C.dim }}>Ср. цена до</span>
+              <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(to_avg_before, 0)} ₸/{toSym}</span>
+            </div>
+          )}
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+            <span style={{ fontSize:12, color:C.dim }}>Цена входа</span>
+            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(implied_buy_rate, 0)} ₸/{toSym}</span>
+          </div>
+          <div style={{ height:1, background:"rgba(255,255,255,0.08)", marginBottom:8 }}/>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontSize:12, color:C.dim }}>Новая средняя</span>
+            <span style={{ fontSize:13, fontWeight:700, color:buyColor }}>
+              {fmtAmt(new_to_avg_rate, 0)} ₸/{toSym}
+              {!buyNeutral && <> ({buyPct >= 0 ? "+" : ""}{fmtAmt(Math.abs(buyPct), 1)}%)</>}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload, onBack }) {
   const [period,        setPeriod]        = useState("month");
@@ -100,6 +183,9 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
       let   prevToRate  = null;
       if (to && t.rate && to.avg_rate && prevToBal > 0)
         prevToRate = Math.round((to.avg_rate * to.balance - toAmt * t.rate) / prevToBal * 100) / 100;
+
+      // Удаляем FX транзакцию (не влияет на баланс, поэтому до RPC)
+      await supabase.from("transactions").delete().eq("transfer_id", t.id);
 
       await supaRpc("cancel_transfer", {
         p_id:          t.id,
@@ -206,7 +292,15 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
           </>}
 
           {lbl("Дата")}
-          <p style={{ margin:0, fontSize:16, fontWeight:600, color:"#fff" }}>{fmtGroupDate(localDate(t.created_at))}</p>
+          <p style={{ margin:"0 0 20px", fontSize:16, fontWeight:600, color:"#fff" }}>{fmtGroupDate(localDate(t.created_at))}</p>
+
+          {t.analytics && (
+            <StoredDealBanner
+              analytics={t.analytics}
+              fromCurrency={t.from_currency}
+              toCurrency={t.to_currency || t.from_currency}
+            />
+          )}
         </div>
 
         <div style={{ position:"fixed", bottom:0, left:0, right:0, padding:"12px 16px calc(16px + env(safe-area-inset-bottom, 0px))", background:C.monBg, borderTop:"1px solid rgba(255,255,255,0.06)" }}>

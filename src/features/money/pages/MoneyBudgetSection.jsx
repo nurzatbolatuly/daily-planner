@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from "react";
+import { useState, useMemo, useEffect, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
@@ -9,6 +9,7 @@ import { exportPlansXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 import { CalendarPicker } from "../../../components/CalendarPicker";
+import { NumInput } from "../../../components/NumInput";
 import { GoalListPage } from "./GoalListPage";
 
 function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, toggle, navigate, planMonthKey, sym, rates }) {
@@ -91,16 +92,44 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
 
   const [planMonth, setPlanMonth]   = useState(new Date().getMonth());
   const [planYear,  setPlanYear]    = useState(new Date().getFullYear());
-  const [expanded,  setExpanded]    = useState({});
+  const [expanded,   setExpanded]   = useState({});
   const [activePill, setActivePill] = useState("expense");
-  const [showCal,   setShowCal]     = useState(false);
+  const [showCal,    setShowCal]    = useState(false);
+  const [monthRates, setMonthRates] = useState({});
+  const [rateInputs, setRateInputs] = useState({});
+  const [ratesOpen,  setRatesOpen]  = useState(false);
 
   const toggle = key => setExpanded(p => ({ ...p, [key]: !p[key] }));
   const sym    = getSym(BASE_CUR);
-  const rates  = useMemo(() => ratesFromAccounts(accounts), [accounts]);
 
   const planMonthKey = `${planYear}-${pad(planMonth + 1)}`;
-  const monthRows    = monthPlans.filter(p => p.month === planMonthKey);
+
+  useEffect(() => {
+    try { setMonthRates(JSON.parse(localStorage.getItem(`mon.rates.${planMonthKey}`)) || {}); } catch { setMonthRates({}); }
+    setRateInputs({});
+  }, [planMonthKey]);
+
+  const accountRates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
+  const rates = useMemo(() => ({ ...accountRates, ...monthRates }), [accountRates, monthRates]);
+
+  const applyMonthRate = (cur, val) => {
+    const rate = parseFloat(val);
+    if (!rate || rate <= 0) return;
+    const newRates = { ...monthRates, [cur]: rate };
+    setMonthRates(newRates);
+    localStorage.setItem(`mon.rates.${planMonthKey}`, JSON.stringify(newRates));
+    setRateInputs(p => { const n = {...p}; delete n[cur]; return n; });
+  };
+
+  const resetMonthRate = (cur) => {
+    const newRates = {...monthRates};
+    delete newRates[cur];
+    setMonthRates(newRates);
+    localStorage.setItem(`mon.rates.${planMonthKey}`, JSON.stringify(newRates));
+    setRateInputs(p => { const n = {...p}; delete n[cur]; return n; });
+  };
+
+  const monthRows = monthPlans.filter(p => p.month === planMonthKey);
 
   const { txsM, transfersM } = useMemo(() => ({
     txsM: transactions.filter(t => {
@@ -154,6 +183,16 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
 
   const freeAmt    = totalPlanInc - totalActExp - totalActSav;
   const overBudget = totalActExp + totalActSav > totalPlanInc;
+
+  const usedPlanCurrencies = useMemo(() => {
+    const curs = new Set();
+    [...expRows, ...incRows, ...savingsRows].forEach(r => {
+      if (r.planCurrency && r.planCurrency !== BASE_CUR && r.plan > 0) curs.add(r.planCurrency);
+    });
+    return [...curs];
+  }, [expRows, incRows, savingsRows]);
+
+  const missingCount = usedPlanCurrencies.filter(c => !rates[c]).length;
 
   const prevM = () => {
     if (planMonth === 0) { setPlanMonth(11); setPlanYear(y => y - 1); }
@@ -250,6 +289,78 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
             )}
           </div>
 
+          {/* Rates panel — shown only when plans use non-KZT currencies */}
+          {usedPlanCurrencies.length > 0 && (
+            <div style={{ background: C.monCard, borderRadius: 16, marginBottom: 14, overflow: "hidden" }}>
+              <div
+                onClick={() => setRatesOpen(p => !p)}
+                style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 14px", cursor:"pointer" }}
+              >
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:13, fontWeight:600, color:"#fff" }}>Курсы валют</span>
+                  {missingCount > 0 && (
+                    <span style={{ fontSize:11, color:C.amber, background:"rgba(245,158,11,0.15)", padding:"2px 8px", borderRadius:10 }}>
+                      {missingCount} без курса
+                    </span>
+                  )}
+                </div>
+                <Ico n={ratesOpen ? "chevU" : "chevD"} s={16} c={C.dim}/>
+              </div>
+              {ratesOpen && (
+                <div style={{ padding:"0 14px 14px", borderTop:`1px solid ${C.border}`, paddingTop:12 }}>
+                  <p style={{ margin:"0 0 10px", fontSize:12, color:C.dim, lineHeight:1.4 }}>
+                    Курсы для конвертации плановых сумм в ₸. Ручной курс перекрывает курс из счёта.
+                  </p>
+                  {usedPlanCurrencies.map(cur => {
+                    const accRate = accountRates[cur];
+                    const manRate = monthRates[cur];
+                    const isMissing = !accRate && !manRate;
+                    const inputVal = rateInputs[cur] ?? (manRate ? String(manRate) : "");
+                    const isDirty  = inputVal !== "" && parseFloat(inputVal) !== manRate;
+                    return (
+                      <div key={cur} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                        <div style={{ width:44, textAlign:"center", padding:"4px 0", borderRadius:8, background:"rgba(255,255,255,0.06)", flexShrink:0 }}>
+                          <span style={{ fontSize:12, fontWeight:700, color:C.main }}>{cur}</span>
+                        </div>
+                        <NumInput
+                          value={inputVal}
+                          onChange={v => setRateInputs(p => ({...p, [cur]: v}))}
+                          placeholder={accRate ? String(Math.round(accRate)) : "0"}
+                          style={{ flex:1, background:"rgba(255,255,255,0.06)", border:`1px solid ${isMissing ? "rgba(245,158,11,0.45)" : C.border}`, borderRadius:8, padding:"6px 8px", color:"#fff", fontSize:13, outline:"none" }}
+                        />
+                        <span style={{ fontSize:12, color:C.dim, flexShrink:0 }}>₸/{getSym(cur)}</span>
+                        {isDirty && (
+                          <button
+                            onClick={() => applyMonthRate(cur, inputVal)}
+                            style={{ background:"rgba(76,175,80,0.2)", border:"1px solid rgba(76,175,80,0.4)", borderRadius:8, padding:"5px 10px", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}
+                          >
+                            OK
+                          </button>
+                        )}
+                        {!inputVal && accRate && !manRate && (
+                          <span style={{ fontSize:11, color:C.dim, flexShrink:0, whiteSpace:"nowrap" }}>из счёта</span>
+                        )}
+                        {manRate && !isDirty && (
+                          <button
+                            onClick={() => resetMonthRate(cur)}
+                            style={{ background:"none", border:"none", cursor:"pointer", padding:4, display:"flex", flexShrink:0 }}
+                          >
+                            <Ico n="x" s={14} c="rgba(244,67,54,0.5)"/>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {missingCount > 0 && (
+                    <p style={{ margin:"6px 0 0", fontSize:11, color:C.amber }}>
+                      Валюты без курса конвертируются 1:1
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Pill-switcher */}
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {[
@@ -298,9 +409,10 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
             <p style={{ textAlign: "center", padding: "40px 0", color: C.dim, fontSize: 14 }}>Нет планов поездок</p>
           )}
           {tripPlans.map(tp => {
-            const allExp = (tp.days || []).flatMap(d => d.expenses || []);
-            const total  = allExp.reduce((s, e) => s + toBase(e.amount, e.currency, rates), 0);
-            const paid   = allExp.reduce((s, e) => s + toBase(e.paidAmount || 0, e.currency, rates), 0);
+            const allExp  = (tp.days || []).flatMap(d => d.expenses || []);
+            const tpRates = { ...accountRates, ...(tp.rates || {}) };
+            const total   = allExp.reduce((s, e) => s + toBase(e.amount, e.currency, tpRates), 0);
+            const paid    = allExp.reduce((s, e) => s + toBase(e.paidAmount || 0, e.currency, tpRates), 0);
             return (
               <div key={tp.id} onClick={() => navigate("tripDetail", tp)}
                 style={{ background: C.monCard, borderRadius: 16, padding: "16px", marginBottom: 12, cursor: "pointer" }}>

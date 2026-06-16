@@ -24,10 +24,11 @@ export function CatsListPageMon({ expCats, incCats, dispatch, navigate, onBack }
       .map(c => c.id === a.id ? { ...a, sort_order: bo }
               : c.id === b.id ? { ...b, sort_order: ao } : c)
       .sort((x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0));
+    const snapshot = cats;
     setCats(next);
     try {
       await supaUpsert(table, [{ ...a, sort_order: bo }, { ...b, sort_order: ao }]);
-    } catch (e) { console.error(e); dispatch.reload(); }
+    } catch (e) { console.error(e); setCats(snapshot); }
   };
 
   return (

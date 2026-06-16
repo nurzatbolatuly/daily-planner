@@ -19,7 +19,7 @@ export function useMoneyData() {
   const load = useCallback(async () => {
     try {
       const [acc, txs, trs, ec, ic, mp, tp, rec, gl, gt] = await Promise.all([
-        supa.select("accounts"),
+        supa.select("accounts", "order=created_at.asc"),
         supa.select("transactions", "order=created_at.desc"),
         supa.select("transfers", "order=created_at.desc"),
         supa.select("exp_categories", "order=sort_order.asc"),

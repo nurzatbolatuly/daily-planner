@@ -22,7 +22,8 @@ export function AccPage({ onBack, edit }) {
   const [color, setColor] = useState(edit?.color || C.green);
   const [cur, setCur] = useState(edit?.currency || BASE_CUR);
   const [bal, setBal] = useState(edit?.balance != null ? String(edit.balance) : "");
-  const [inTotal, setInTotal] = useState(edit?.in_total !== false);
+  const [inTotal,      setInTotal]      = useState(edit?.in_total !== false);
+  const [isFxAccount, setIsFxAccount] = useState(edit?.is_fx_account || false);
   const [purpose, setPurpose] = useState(edit?.purpose || "daily");
   const [avgRate, setAvgRate] = useState(edit?.avg_rate ? String(edit.avg_rate) : "");
   const [showCur, setShowCur] = useState(false);
@@ -46,6 +47,7 @@ export function AccPage({ onBack, edit }) {
       balance: newBal, in_total: inTotal,
       avg_rate: parseFloat(avgRate) || null,
       purpose,
+      is_fx_account: isFxAccount,
     };
     const diff = isEdit ? newBal - edit.balance : 0;
     const adj = (isEdit && diff !== 0) ? {
@@ -161,9 +163,19 @@ export function AccPage({ onBack, edit }) {
           </div>
         </div>
         <div style={{ marginBottom:20 }}><FieldLabel>Цвет</FieldLabel><ColorPickerComp value={color} onChange={setColor}/></div>
-        <div style={{ padding:"14px 16px", borderRadius:12, background:C.monCard, marginBottom:24 }}>
+        <div style={{ padding:"14px 16px", borderRadius:12, background:C.monCard, marginBottom: activeCur === BASE_CUR ? 12 : 24 }}>
           <Toggle value={!inTotal} onChange={v => setInTotal(!v)} label="Исключить из общего баланса"/>
         </div>
+        {activeCur === BASE_CUR && (
+          <div style={{ padding:"14px 16px", borderRadius:12, background:C.monCard, marginBottom:24 }}>
+            <Toggle value={isFxAccount} onChange={setIsFxAccount} label="Счёт курсовых разниц"/>
+            {isFxAccount && (
+              <p style={{ margin:"8px 0 0", fontSize:11, color:C.dim }}>
+                Сюда автоматически записываются доходы и расходы от курсовых разниц при переводах между валютами.
+              </p>
+            )}
+          </div>
+        )}
         {saveError && <p style={{ color:C.errorLight, fontSize:13, textAlign:"center", marginBottom:8 }}>{saveError}</p>}
         <button onClick={save} disabled={saving}
           style={{ width:"100%", padding:"15px", borderRadius:30, background:saving?C.savingDisabled:C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>

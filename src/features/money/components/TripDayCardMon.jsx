@@ -8,7 +8,7 @@ import { RU_MONTHS } from "../../../constants/locale";
 import { Ico } from "../../../components/Ico";
 import { TripExpenseFormMon } from "./TripExpenseFormMon";
 
-export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {} }) {
+export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {}, onAddRate }) {
   const [collapsed, setCollapsed] = useState(day.date < todayStr());
   const [editExpId, setEditExpId] = useState(null);
   const [addingExp, setAddingExp] = useState(false);
@@ -87,7 +87,7 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {} })
           <div style={{ marginBottom:8 }}>
             <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:600, color:C.dim, textTransform:"uppercase", letterSpacing:1 }}>Расходы</p>
             {day.expenses.map(exp => {
-              if (editExpId === exp.id) return <TripExpenseFormMon key={exp.id} exp={exp} onSave={saveExp} onCancel={() => setEditExpId(null)}/>;
+              if (editExpId === exp.id) return <TripExpenseFormMon key={exp.id} exp={exp} onSave={saveExp} onCancel={() => setEditExpId(null)} rates={rates} onAddRate={onAddRate}/>;
               const stColor = exp.status==="paid" ? C.green : exp.status==="partial" ? C.amber : "rgba(255,255,255,0.3)";
               return (
                 <div key={exp.id} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", borderRadius:10, background:"rgba(255,255,255,0.04)", marginBottom:4, border:`1px solid ${C.border}` }}>
@@ -114,7 +114,7 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {} })
           </div>
 
           {addingExp
-            ? <TripExpenseFormMon onSave={saveExp} onCancel={() => setAddingExp(false)}/>
+            ? <TripExpenseFormMon onSave={saveExp} onCancel={() => setAddingExp(false)} rates={rates} onAddRate={onAddRate}/>
             : (
               <div style={{ display:"flex", gap:8 }}>
                 <button onClick={() => setAddingExp(true)} style={{ flex:1, padding:"9px", borderRadius:10, background:"rgba(76,175,80,0.1)", border:"1px solid rgba(76,175,80,0.3)", color:C.green, fontSize:13, cursor:"pointer", fontWeight:600 }}>+ Добавить расход</button>

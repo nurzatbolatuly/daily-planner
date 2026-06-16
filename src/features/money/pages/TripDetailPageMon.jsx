@@ -11,12 +11,13 @@ import { TripDayCardMon } from "../components/TripDayCardMon";
 
 export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
   const [days, setDays] = useState(plan.days || []);
+  const [tripRates, setTripRates] = useState(plan.rates || {});
   const sym = getSym(BASE_CUR);
-  const rates = ratesFromAccounts(accounts);
 
-  // Локальный стейт обновляем сразу, запись в БД дебаунсим (раньше supa.update
-  // всего jsonb-массива летел на каждый символ). pendingRef хранит несохранённые
-  // дни, flush() сбрасывает их в БД — вызывается перед уходом со страницы.
+  const accountRates = ratesFromAccounts(accounts);
+  // Trip-specific rates override account rates (user explicitly set them for this trip)
+  const rates = { ...accountRates, ...tripRates };
+
   const timerRef = useRef(null);
   const pendingRef = useRef(null);
   const flush = () => {
@@ -32,9 +33,14 @@ export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
       return nd;
     });
   };
-  // Подстраховка: сбросить несохранённое при размонтировании.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => () => flush(), []);
+
+  const handleAddRate = (cur, rate) => {
+    const newRates = { ...tripRates, [cur]: rate };
+    setTripRates(newRates);
+    supa.update("trip_plans", { rates: newRates }, `id=eq.${plan.id}`).catch(e => console.error(e));
+  };
 
   const back = () => { flush(); onBack(true); };
 
@@ -43,8 +49,6 @@ export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
   const totalPaid = allExp.reduce((s,e) => s + toBase(e.paidAmount || 0, e.currency, rates), 0);
   const byCat = {};
   allExp.forEach(e => { if (!byCat[e.cat]) byCat[e.cat] = 0; byCat[e.cat] += toBase(e.amount, e.currency, rates); });
-  // Свод по каждой использованной валюте в её родной валюте (без toBase — валюты не складываем).
-  // Ключи = только валюты, встретившиеся в расходах (вкл. ₸, если есть расходы в ₸).
   const byCurFull = {};
   allExp.forEach(e => {
     const c = e.currency;
@@ -69,7 +73,7 @@ export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
         onBack={back}
         right={
           <div style={{ display:"flex", gap:4 }}>
-            <button onClick={() => { flush(); navigate("editTrip", { ...plan, days }); }} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", padding:6 }}><Ico n="edit" s={20} c={C.mid}/></button>
+            <button onClick={() => { flush(); navigate("editTrip", { ...plan, days, rates: tripRates }); }} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", padding:6 }}><Ico n="edit" s={20} c={C.mid}/></button>
             <button onClick={exportCSV} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", padding:6 }}><Ico n="download" s={20} c={C.mid}/></button>
           </div>
         }
@@ -114,7 +118,15 @@ export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
           )}
         </div>
         {days.map((day,i) => (
-          <TripDayCardMon key={day.date} day={day} dayIndex={i} onUpdate={d => saveDay(i,d)} prevDay={i>0?days[i-1]:null} rates={rates}/>
+          <TripDayCardMon
+            key={day.date}
+            day={day}
+            dayIndex={i}
+            onUpdate={d => saveDay(i,d)}
+            prevDay={i>0?days[i-1]:null}
+            rates={rates}
+            onAddRate={handleAddRate}
+          />
         ))}
       </div>
     </div>

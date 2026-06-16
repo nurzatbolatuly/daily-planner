@@ -111,7 +111,7 @@ function DealAnalysisBanner({ fromAcc, toAcc, impliedSellRate, impliedBuyRate, r
   );
 }
 
-export function TransferPageMon({ accounts, expCats, goals = [], transactions = [], onBack, edit }) {
+export function TransferPageMon({ accounts, expCats, goals = [], transactions = [], fxAccount, onBack, edit }) {
   const [fromId,   setFromId]   = useState(edit?.from_id || accounts[0]?.id || "");
   const [toId,     setToId]     = useState(edit?.to_id   || accounts[1]?.id || "");
   const [amt,      setAmt]      = useState(edit ? String(edit.amount) : "");
@@ -202,6 +202,22 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
     const newAmt   = parseFloat(amt);
     const newToAmt = diffCur ? effectiveToAmt : newAmt;
 
+    // Снимок аналитики для записи в transfers.analytics и FX транзакции
+    const hasSellSnap = !fromIsKzt && (fromAcc?.avg_rate > 0) && (impliedSellRate > 0);
+    const hasBuySnap  = !toIsKzt && (impliedBuyRate != null) && (newToAvgRate != null) && effectiveToAmt > 0;
+    const sellDiffSnap = hasSellSnap ? impliedSellRate - fromAcc.avg_rate : 0;
+    const pnlKzt       = hasSellSnap ? Math.round(sellDiffSnap * amtNum) : 0;
+    const analyticsData = (hasSellSnap || hasBuySnap) ? {
+      has_sell:          hasSellSnap,
+      has_buy:           hasBuySnap,
+      from_avg_rate:     fromAcc?.avg_rate || null,
+      implied_sell_rate: impliedSellRate,
+      sell_pnl:          pnlKzt,
+      implied_buy_rate:  impliedBuyRate,
+      to_avg_before:     toAcc?.avg_rate || null,
+      new_to_avg_rate:   newToAvgRate,
+    } : null;
+
     const fromRateToKztSave = fromIsKzt ? 1
       : fromIsCom ? (fromAcc.avg_rate || 0)
       : (fromAcc.avg_rate || rateNum || 0);
@@ -291,6 +307,9 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
         account_id: fromId, date: localDate(edit.created_at), note: FEE_TX_NOTE,
       } : null;
 
+      // Удаляем старую FX транзакцию этого перевода перед пересохранением
+      await supabase.from("transactions").delete().eq("transfer_id", edit.id);
+
       await supaRpc("edit_transfer", {
         p_tr: tr,
         p_from_id: fromId,       p_from_balance:    newFromBal,
@@ -303,6 +322,25 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
         p_old_fee_tx_id:         oldFeeTxId,
         p_fee_tx:                feeTx,
       });
+
+      // Обновляем снимок аналитики
+      if (analyticsData) {
+        await supabase.from("transfers").update({ analytics: analyticsData }).eq("id", tr.id);
+      }
+      // Создаём новую FX транзакцию с обновлёнными значениями
+      if (fxAccount && hasSellSnap && pnlKzt !== 0) {
+        await supabase.from("transactions").insert({
+          id:          crypto.randomUUID(),
+          type:        pnlKzt > 0 ? "income" : "expense",
+          amount:      Math.abs(pnlKzt),
+          currency:    BASE_CUR,
+          account_id:  fxAccount.id,
+          date:        todayStr(),
+          note:        `${fromAcc.currency}→${toAcc.currency}: курсовая ${pnlKzt > 0 ? "прибыль" : "убыток"}`,
+          category_id: null,
+          transfer_id: tr.id,
+        });
+      }
 
     } else {
       // ── CREATE ─────────────────────────────────────────────────────────────
@@ -331,6 +369,25 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
           p_tr: tr,
           p_from_id: fromId, p_from_balance: baseFromBal,
           p_to_id:   toId,   p_to_balance:   newToBal,   p_to_avg_rate: newAvgRate,
+        });
+      }
+
+      // Сохраняем снимок аналитики в запись перевода
+      if (analyticsData) {
+        await supabase.from("transfers").update({ analytics: analyticsData }).eq("id", tr.id);
+      }
+      // Записываем FX транзакцию в счёт курсовых разниц (не влияет на баланс)
+      if (fxAccount && hasSellSnap && pnlKzt !== 0) {
+        await supabase.from("transactions").insert({
+          id:          crypto.randomUUID(),
+          type:        pnlKzt > 0 ? "income" : "expense",
+          amount:      Math.abs(pnlKzt),
+          currency:    BASE_CUR,
+          account_id:  fxAccount.id,
+          date:        todayStr(),
+          note:        `${fromAcc.currency}→${toAcc.currency}: курсовая ${pnlKzt > 0 ? "прибыль" : "убыток"}`,
+          category_id: null,
+          transfer_id: tr.id,
         });
       }
     }

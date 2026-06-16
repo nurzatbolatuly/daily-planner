@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { TRIP_CATS, TRIP_LABELS } from "../../../constants/money";
+import { isCommodity } from "../../../utils/format";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
 import { Toggle } from "../../../components/Toggle";
 import { CurrencyPage } from "../../../components/CurrencyPage";
 
-export function TripExpenseFormMon({ exp, onSave, onCancel }) {
+export function TripExpenseFormMon({ exp, onSave, onCancel, rates = {}, onAddRate }) {
   const [label, setLabel] = useState(exp?.label || "");
   const [cat, setCat] = useState(exp?.cat || "transport");
   const [amt, setAmt] = useState(exp?.amount ? String(exp.amount) : "");
@@ -18,6 +19,11 @@ export function TripExpenseFormMon({ exp, onSave, onCancel }) {
   const [note, setNote] = useState(exp?.note || "");
   const [showCur, setShowCur] = useState(false);
   const [errors, setErrors] = useState({});
+  const [missingRate, setMissingRate] = useState("");
+
+  useEffect(() => { setMissingRate(""); }, [cur]);
+
+  const isMissingRate = cur !== BASE_CUR && !isCommodity(cur) && rates[cur] === undefined;
 
   if (showCur) return <CurrencyPage value={cur} onSelect={v => { setCur(v); setShowCur(false); }} onBack={() => setShowCur(false)}/>;
 
@@ -58,6 +64,32 @@ export function TripExpenseFormMon({ exp, onSave, onCancel }) {
         <NumInput value={amt} onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }} placeholder="0" style={{ flex:1, background:"none", border:"none", outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0" }}/>
         <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", color:C.green, fontSize:16, fontWeight:700, cursor:"pointer", flexShrink:0 }}>{cur} ▾</button>
       </div>
+
+      {isMissingRate && (
+        <div style={{ background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:10, padding:"10px 12px", marginBottom:12 }}>
+          <p style={{ margin:"0 0 8px", fontSize:12, color:C.amber }}>
+            Нет курса для {cur} — итоги в ₸ будут неверными
+          </p>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <NumInput
+              value={missingRate}
+              onChange={setMissingRate}
+              placeholder="Введи курс"
+              style={{ flex:1, background:"none", border:"none", borderBottom:"1px solid rgba(245,158,11,0.4)", color:"#fff", fontSize:15, outline:"none", padding:"2px 0" }}
+            />
+            <span style={{ color:C.dim, fontSize:13, flexShrink:0 }}>₸ / {cur}</span>
+            {parseFloat(missingRate) > 0 && (
+              <button
+                onClick={() => { onAddRate?.(cur, parseFloat(missingRate)); setMissingRate(""); }}
+                style={{ background:"rgba(245,158,11,0.25)", border:"1px solid rgba(245,158,11,0.5)", borderRadius:8, padding:"5px 12px", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}
+              >
+                OK
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <FieldLabel>Статус оплаты</FieldLabel>
       <div style={{ display:"flex", gap:6, marginBottom:12 }}>
         {[["unpaid","Не оплачено"],["paid","Оплачено"],["partial","Частично"]].map(([v,l]) => (
