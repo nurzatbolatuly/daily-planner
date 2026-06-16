@@ -86,7 +86,7 @@ export function AccPage({ onBack, edit }) {
           <div>
             <p style={{ margin:0, fontSize:18, fontWeight:700, color:"#fff" }}>{name||"Счёт"}</p>
             <p style={{ margin:0, fontSize:14, color:C.green }}>
-              {isCom ? `${fmtAmt(parseFloat(bal)||0, 3)} г` : `${getSym(cur)}${fmtAmt(parseFloat(bal)||0)}`}
+              {isCom ? `${fmtAmt(parseFloat(bal)||0, 2)} г` : `${getSym(cur)}${fmtAmt(parseFloat(bal)||0)}`}
             </p>
           </div>
         </div>

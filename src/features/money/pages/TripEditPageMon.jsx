@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { todayStr, addDays, daysBetween } from "../../../utils/date";
 import { supaUpsert, supa } from "../../../lib/supabase";
+import { useSave } from "../../../hooks/useSave";
 import { Ico } from "../../../components/Ico";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { CalendarPicker } from "../../../components/CalendarPicker";
+import { ConfirmSheet } from "../../../components/ConfirmSheet";
 
 export function TripEditPageMon({ onBack, edit }) {
   const [name, setName] = useState(edit?.name || "");
@@ -13,6 +15,12 @@ export function TripEditPageMon({ onBack, edit }) {
   const [endDate, setEndDate] = useState(edit?.end_date || addDays(todayStr(), 3));
   const [showCal, setShowCal] = useState(false);
   const [errors, setErrors] = useState({});
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const saveRef = useRef(null);
+  const deleteRef = useRef(null);
+  const { save: execSave, saving, saveError } = useSave(() => saveRef.current(), { errorMsg: "Не удалось сохранить поездку" });
+  const { save: execDelete, saving: deleting, saveError: deleteError } = useSave(() => deleteRef.current(), { errorMsg: "Не удалось удалить поездку" });
 
   const genDays = (sd, ed) => Array.from(
     { length: daysBetween(sd, ed) + 1 },
@@ -23,11 +31,7 @@ export function TripEditPageMon({ onBack, edit }) {
     }
   );
 
-  const save = async () => {
-    const errs = {};
-    if (!name.trim()) errs.name = "Введите название поездки";
-    setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+  saveRef.current = async () => {
     const plan = {
       id: edit?.id || crypto.randomUUID(),
       name: name.trim(),
@@ -35,10 +39,21 @@ export function TripEditPageMon({ onBack, edit }) {
       end_date: endDate,
       days: genDays(startDate, endDate),
     };
-    try {
-      await supaUpsert("trip_plans", plan);
-      onBack(true);
-    } catch(err) { console.error(err); }
+    await supaUpsert("trip_plans", plan);
+    onBack(true);
+  };
+
+  deleteRef.current = async () => {
+    await supa.delete("trip_plans", `id=eq.${edit.id}`);
+    onBack(true);
+  };
+
+  const save = () => {
+    const errs = {};
+    if (!name.trim()) errs.name = "Введите название поездки";
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    execSave();
   };
 
   return (
@@ -61,17 +76,32 @@ export function TripEditPageMon({ onBack, edit }) {
           <span style={{ fontSize:14, color:"#fff" }}>{endDate}</span>
           <span style={{ marginLeft:"auto", fontSize:12, color:C.dim }}>{daysBetween(startDate, endDate)+1} дн.</span>
         </div>
-        <button onClick={save} style={{ width:"100%", padding:"15px", borderRadius:30, background:C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>Сохранить поездку</button>
+        {saveError && <p style={{ color:C.red, fontSize:13, marginBottom:12 }}>{saveError}</p>}
+        <button onClick={save} disabled={saving} style={{ width:"100%", padding:"15px", borderRadius:30, background:C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:saving?"default":"pointer", opacity:saving?0.6:1 }}>
+          {saving ? "Сохранение…" : "Сохранить поездку"}
+        </button>
         {edit && (
-          <button
-            onClick={async () => { await supa.delete("trip_plans", `id=eq.${edit.id}`); onBack(true); }}
-            style={{ width:"100%", marginTop:10, padding:"14px", borderRadius:30, background:"rgba(244,67,54,0.1)", border:"1px solid rgba(244,67,54,0.3)", color:C.red, fontSize:15, fontWeight:600, cursor:"pointer" }}
-          >
-            Удалить поездку
-          </button>
+          <>
+            {deleteError && <p style={{ color:C.red, fontSize:13, marginTop:8 }}>{deleteError}</p>}
+            <button
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleting}
+              style={{ width:"100%", marginTop:10, padding:"14px", borderRadius:30, background:"rgba(244,67,54,0.1)", border:"1px solid rgba(244,67,54,0.3)", color:C.red, fontSize:15, fontWeight:600, cursor:"pointer", opacity:deleting?0.6:1 }}
+            >
+              Удалить поездку
+            </button>
+          </>
         )}
       </div>
       {showCal && <CalendarPicker mode="range" confirmable value={startDate} valueEnd={endDate} onChange={setStartDate} onChangeEnd={setEndDate} onClose={() => setShowCal(false)}/>}
+      <ConfirmSheet
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => { setConfirmDelete(false); execDelete(); }}
+        title="Удалить поездку?"
+        message={`«${name}» и все её данные будут удалены безвозвратно.`}
+        confirmLabel="Удалить"
+      />
     </div>
   );
 }

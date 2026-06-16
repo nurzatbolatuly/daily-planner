@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { C } from "../../../constants/theme";
-import { getSym, fmtAmt, fmtDateShort } from "../../../utils/format";
+import { fmtDateShort, fmtM } from "../../../utils/format";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 
@@ -41,7 +41,7 @@ export function CatTxsPageMon({ cat, txs, periodLabel, txType, accounts, navigat
                     <p style={{ margin: 0, fontSize: 12, color: C.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{acc?.name || "—"}{tx.note ? ` · ${tx.note}` : ""}</p>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: txType === "income" ? C.emerald : "#fff" }}>{txType === "income" ? "+" : ""}{getSym(tx.currency)}{fmtAmt(tx.amount)}</p>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: txType === "income" ? C.emerald : "#fff" }}>{txType === "income" ? "+" : ""}{fmtM(tx.amount, tx.currency)}</p>
                   </div>
                 </div>
               );

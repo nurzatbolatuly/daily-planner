@@ -51,7 +51,7 @@ const ArrowDown = () => (
   </svg>
 );
 
-export function TransferHistoryPageMon({ transfers, accounts, navigate, onBack }) {
+export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload, onBack }) {
   const [period,        setPeriod]        = useState("month");
   const [periodOffset,  setPeriodOffset]  = useState(0);
   const [selAccIds,     setSelAccIds]     = useState(new Set());
@@ -115,7 +115,8 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onBack }
       await supabase.from("goal_topups").delete().eq("transfer_id", t.id);
 
       setConfirmCancel(false);
-      onBack();
+      setDetailT(null);
+      onReload();
     } catch(err) { console.error(err); }
   };
 

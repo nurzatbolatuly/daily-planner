@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { getSym, fmtAmt } from "../../../utils/format";
 import { supaUpsert, supa } from "../../../lib/supabase";
+import { useSave } from "../../../hooks/useSave";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { Ico } from "../../../components/Ico";
 import { NumInput } from "../../../components/NumInput";
@@ -11,6 +12,7 @@ import { FieldLabel } from "../../../components/FieldLabel";
 import { CatIcon } from "../../../components/CatIcon";
 import { CategoryPicker } from "../../../components/CategoryPicker";
 import { CurrencyPage } from "../../../components/CurrencyPage";
+import { ConfirmSheet } from "../../../components/ConfirmSheet";
 
 export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, month, prefillCatId, prefillAccId, prefillType }) {
   const [type,    setType]    = useState(edit?.type || prefillType || "expense");
@@ -24,6 +26,12 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
   });
   const [showCur, setShowCur] = useState(false);
   const [errors,  setErrors]  = useState({});
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const saveRef = useRef(null);
+  const deleteRef = useRef(null);
+  const { save: execSave, saving, saveError } = useSave(() => saveRef.current(), { errorMsg: "Не удалось сохранить план" });
+  const { save: execDelete, saving: deleting, saveError: deleteError } = useSave(() => deleteRef.current(), { errorMsg: "Не удалось удалить план" });
 
   if (showCur) return <CurrencyPage value={planCur} onSelect={v => { setPlanCur(v); setShowCur(false); }} onBack={() => setShowCur(false)}/>;
 
@@ -36,16 +44,10 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
   const addItem = () => setItems(prev => [...prev, { id: crypto.randomUUID(), label: "", amount: "" }]);
   const delItem = (id) => setItems(prev => prev.length === 1 ? prev : prev.filter(it => it.id !== id));
 
-  const save = async () => {
-    const errs = {};
-    if (type === "savings" && !accId) errs.acc = "Выберите счёт";
-    if (type !== "savings" && !catId)  errs.cat = "Выберите категорию";
+  saveRef.current = async () => {
     const cleanItems = items
       .map(it => ({ id: it.id, label: it.label.trim(), amount: parseFloat(it.amount) || 0 }))
       .filter(it => it.amount > 0);
-    if (!cleanItems.length) errs.items = "Добавьте хотя бы одну статью с суммой";
-    setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
     const p = {
       id:            edit?.id || crypto.randomUUID(),
       cat_id:        type !== "savings" ? catId : null,
@@ -56,10 +58,26 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
       month:         edit?.month || month,
       items:         cleanItems,
     };
-    try {
-      await supaUpsert("month_plans", p);
-      onBack(true);
-    } catch(err) { console.error(err); }
+    await supaUpsert("month_plans", p);
+    onBack(true);
+  };
+
+  deleteRef.current = async () => {
+    await supa.delete("month_plans", `id=eq.${edit.id}`);
+    onBack(true);
+  };
+
+  const save = () => {
+    const errs = {};
+    if (type === "savings" && !accId) errs.acc = "Выберите счёт";
+    if (type !== "savings" && !catId)  errs.cat = "Выберите категорию";
+    const cleanItems = items
+      .map(it => ({ id: it.id, label: it.label.trim(), amount: parseFloat(it.amount) || 0 }))
+      .filter(it => it.amount > 0);
+    if (!cleanItems.length) errs.items = "Добавьте хотя бы одну статью с суммой";
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    execSave();
   };
 
   const inputBox = { background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, borderRadius:8, padding:"9px 12px", color:"#fff", fontSize:14, outline:"none", boxSizing:"border-box" };
@@ -135,16 +153,31 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
           </>
         )}
 
-        <button onClick={save} style={{ width:"100%", padding:"15px", borderRadius:30, background:C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>Сохранить</button>
+        {saveError && <p style={{ color:C.red, fontSize:13, marginBottom:12 }}>{saveError}</p>}
+        <button onClick={save} disabled={saving} style={{ width:"100%", padding:"15px", borderRadius:30, background:C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:saving?"default":"pointer", opacity:saving?0.6:1 }}>
+          {saving ? "Сохранение…" : "Сохранить"}
+        </button>
         {edit && (
-          <button
-            onClick={async () => { if (!window.confirm("Удалить эту статью плана?")) return; await supa.delete("month_plans", `id=eq.${edit.id}`); onBack(true); }}
-            style={{ width:"100%", marginTop:10, padding:"14px", borderRadius:30, background:"rgba(244,67,54,0.1)", border:"1px solid rgba(244,67,54,0.3)", color:C.red, fontSize:15, fontWeight:600, cursor:"pointer" }}
-          >
-            Удалить
-          </button>
+          <>
+            {deleteError && <p style={{ color:C.red, fontSize:13, marginTop:8 }}>{deleteError}</p>}
+            <button
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleting}
+              style={{ width:"100%", marginTop:10, padding:"14px", borderRadius:30, background:"rgba(244,67,54,0.1)", border:"1px solid rgba(244,67,54,0.3)", color:C.red, fontSize:15, fontWeight:600, cursor:"pointer", opacity:deleting?0.6:1 }}
+            >
+              Удалить
+            </button>
+          </>
         )}
       </div>
+      <ConfirmSheet
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => { setConfirmDelete(false); execDelete(); }}
+        title="Удалить статью плана?"
+        message="Эта статья бюджетного плана будет удалена безвозвратно."
+        confirmLabel="Удалить"
+      />
     </div>
   );
 }

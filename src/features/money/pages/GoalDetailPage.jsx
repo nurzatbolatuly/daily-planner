@@ -1,13 +1,12 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MON_GEN } from "../../../constants/locale";
 import { daysBetween, todayStr, monthKey, pad } from "../../../utils/date";
-import { getSym, fmtAmt, toBase, ratesFromAccounts } from "../../../utils/format";
-import { supabase, supaUpsert } from "../../../lib/supabase";
+import { getSym, fmtAmt, fmtBal, toBase, ratesFromAccounts } from "../../../utils/format";
+import { supaUpsert } from "../../../lib/supabase";
 import { PageHeader } from "../../../components/PageHeader";
 import { Ico } from "../../../components/Ico";
-import { Spinner } from "../../../components/Spinner";
 import { CatIcon } from "../../../components/CatIcon";
 import { NumInput } from "../../../components/NumInput";
 
@@ -22,52 +21,29 @@ function fmtDeadline(s) {
   return `${d} ${RU_MON_GEN[m - 1]} ${y} г.`;
 }
 
-export function GoalDetailPage({ goal: initialGoal, accounts, transactions = [], navigate, onBack }) {
-  const [localGoal, setLocalGoal]         = useState(initialGoal);
-  const [topups, setTopups]               = useState([]);
-  const [loadingTopups, setLoadingTopups] = useState(true);
-  const [editingCurVal, setEditingCurVal] = useState(false);
-  const [curValInput, setCurValInput]     = useState(String(initialGoal.current_value || 0));
+export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, transactions = [], navigate, onBack }) {
+  const [curValueOverride, setCurValueOverride] = useState(null);
+  const [editingCurVal, setEditingCurVal]       = useState(false);
+  const [curValInput, setCurValInput]           = useState(String(initialGoal.current_value || 0));
 
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
-  const sym   = getSym(localGoal.currency || BASE_CUR);
+  const sym   = getSym(initialGoal.currency || BASE_CUR);
 
-  useEffect(() => {
-    let cancelled = false;
-    supabase.from("goals").select("*").eq("id", initialGoal.id).single()
-      .then(({ data }) => {
-        if (!cancelled && data) {
-          setLocalGoal(data);
-          setCurValInput(String(data.current_value || 0));
-        }
-      });
-    return () => { cancelled = true; };
-  }, [initialGoal.id]);
-
-  useEffect(() => {
-    let cancelled = false;
-    supabase
-      .from("goal_topups").select("*")
-      .eq("goal_id", initialGoal.id)
-      .order("date", { ascending: false })
-      .then(({ data }) => {
-        if (!cancelled) { setTopups(data || []); setLoadingTopups(false); }
-      });
-    return () => { cancelled = true; };
-  }, [initialGoal.id]);
-
-  const totalSaved = useMemo(
-    () => topups.reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0),
-    [topups, rates]
+  const topups = useMemo(
+    () => goalTopups.filter(t => t.goal_id === initialGoal.id).sort((a, b) => b.date.localeCompare(a.date)),
+    [goalTopups, initialGoal.id]
   );
-  const targetBase     = toBase(localGoal.target, localGoal.currency, rates);
-  const pct            = targetBase > 0 ? Math.min(totalSaved / targetBase, 1) : 0;
-  const remaining      = Math.max(targetBase - totalSaved, 0);
-  const monthsLeft     = localGoal.deadline ? Math.max(daysBetween(todayStr(), localGoal.deadline) / 30, 1) : null;
-  const monthlyNeeded  = monthsLeft && remaining > 0 ? remaining / monthsLeft : null;
+
+  const currentValue  = curValueOverride ?? (initialGoal.current_value || 0);
+  const totalSaved    = useMemo(() => topups.reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0), [topups, rates]);
+  const targetBase    = toBase(initialGoal.target, initialGoal.currency, rates);
+  const pct           = targetBase > 0 ? Math.min(totalSaved / targetBase, 1) : 0;
+  const remaining     = Math.max(targetBase - totalSaved, 0);
+  const monthsLeft    = initialGoal.deadline ? Math.max(daysBetween(todayStr(), initialGoal.deadline) / 30, 1) : null;
+  const monthlyNeeded = monthsLeft && remaining > 0 ? remaining / monthsLeft : null;
 
   const safetyNetRec = useMemo(() => {
-    if (localGoal.type !== "safety_net") return null;
+    if (initialGoal.type !== "safety_net") return null;
     const now = new Date();
     const months3 = [0, 1, 2].map(i => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -78,33 +54,33 @@ export function GoalDetailPage({ goal: initialGoal, accounts, transactions = [],
       .reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0);
     const avgMonthlyExp = totalExp / 3;
     return { avgMonthlyExp, recommendedTarget: avgMonthlyExp * 3 };
-  }, [localGoal.type, transactions, rates]);
+  }, [initialGoal.type, transactions, rates]);
 
   const roiData = useMemo(() => {
-    if (localGoal.type !== "investment") return null;
+    if (initialGoal.type !== "investment") return null;
     const invested   = topups.reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0);
-    const currentVal = toBase(localGoal.current_value || 0, localGoal.currency, rates);
+    const currentVal = toBase(currentValue, initialGoal.currency, rates);
     const gain       = currentVal - invested;
     const roiPct     = invested > 0 ? gain / invested * 100 : 0;
     const lastTopup  = topups[topups.length - 1];
     const mHeld      = lastTopup ? daysBetween(lastTopup.date, todayStr()) / 30 : 0;
     const annualized = mHeld > 0 ? (Math.pow(1 + roiPct / 100, 12 / mHeld) - 1) * 100 : 0;
     return { invested, currentVal, gain, roiPct, annualized };
-  }, [localGoal, topups, rates]);
+  }, [initialGoal, topups, rates, currentValue]);
 
   const saveCurVal = async () => {
     const v = parseFloat(curValInput) || 0;
-    await supaUpsert("goals", { ...localGoal, current_value: v });
-    setLocalGoal(g => ({ ...g, current_value: v }));
+    await supaUpsert("goals", { ...initialGoal, current_value: v });
+    setCurValueOverride(v);
     setEditingCurVal(false);
   };
 
   return (
     <div style={{ minHeight: "calc(100dvh - var(--app-header-h))", background: C.monBg, color: "#fff", display: "flex", flexDirection: "column" }}>
       <PageHeader
-        title={localGoal.name} onBack={() => onBack(false)}
+        title={initialGoal.name} onBack={() => onBack(false)}
         right={
-          <button onClick={() => navigate("editGoal", localGoal)}
+          <button onClick={() => navigate("editGoal", initialGoal)}
             style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}>
             <Ico n="edit" s={20} c={C.mid}/>
           </button>
@@ -116,14 +92,14 @@ export function GoalDetailPage({ goal: initialGoal, accounts, transactions = [],
         {/* Progress card */}
         <div style={{ background: C.monCard, borderRadius: 16, padding: "16px", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-            <CatIcon k={localGoal.icon || "target"} size={44} color={localGoal.color || C.blue}/>
+            <CatIcon k={initialGoal.icon || "target"} size={44} color={initialGoal.color || C.blue}/>
             <div>
               <p style={{ margin: 0, fontSize: 11, color: C.dim }}>Накоплено</p>
               <p style={{ margin: "2px 0 0", fontSize: 22, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
                 {sym}{fmtAmt(totalSaved, 0)}
               </p>
               <p style={{ margin: "2px 0 0", fontSize: 12, color: C.dim }}>
-                из {sym}{fmtAmt(localGoal.target, 0)}
+                из {sym}{fmtAmt(initialGoal.target, 0)}
               </p>
             </div>
           </div>
@@ -131,10 +107,10 @@ export function GoalDetailPage({ goal: initialGoal, accounts, transactions = [],
           <div style={{ marginBottom: remaining === 0 && totalSaved > 0 ? 10 : 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
               <span style={{ fontSize: 11, color: C.dim }}>Прогресс</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: localGoal.color || C.blue }}>{Math.round(pct * 100)}%</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: initialGoal.color || C.blue }}>{Math.round(pct * 100)}%</span>
             </div>
             <div style={{ height: 8, borderRadius: 4, background: "rgba(255,255,255,0.08)" }}>
-              <div style={{ height: 8, borderRadius: 4, width: `${pct * 100}%`, background: localGoal.color || C.blue, transition: "width 0.5s ease" }}/>
+              <div style={{ height: 8, borderRadius: 4, width: `${pct * 100}%`, background: initialGoal.color || C.blue, transition: "width 0.5s ease" }}/>
             </div>
           </div>
 
@@ -142,12 +118,11 @@ export function GoalDetailPage({ goal: initialGoal, accounts, transactions = [],
             <p style={{ margin: "10px 0 0", fontSize: 13, fontWeight: 700, color: C.emerald }}>Цель достигнута!</p>
           )}
 
-          {/* Deadline */}
-          {localGoal.deadline && (
+          {initialGoal.deadline && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>
               <Ico n="calendar" s={13} c={C.dim}/>
               <span style={{ fontSize: 12, color: C.dim }}>Дедлайн: </span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{fmtDeadline(localGoal.deadline)}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{fmtDeadline(initialGoal.deadline)}</span>
             </div>
           )}
 
@@ -198,7 +173,7 @@ export function GoalDetailPage({ goal: initialGoal, accounts, transactions = [],
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ fontSize: 12, color: C.main }}>{sym}{fmtAmt(roiData.currentVal, 0)}</span>
                     <button
-                      onClick={() => { setCurValInput(String(localGoal.current_value || 0)); setEditingCurVal(true); }}
+                      onClick={() => { setCurValInput(String(currentValue)); setEditingCurVal(true); }}
                       style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}>
                       <Ico n="edit" s={14} c={C.dim}/>
                     </button>
@@ -222,14 +197,14 @@ export function GoalDetailPage({ goal: initialGoal, accounts, transactions = [],
         {/* Calculator */}
         <GoalCalculator
           sym={sym}
-          defaultAmt={localGoal.target}
+          defaultAmt={initialGoal.target}
           monthsLeft={monthsLeft}
-          color={localGoal.color || C.blue}
+          color={initialGoal.color || C.blue}
         />
 
         {/* Linked account banner */}
-        {localGoal.account_id && (() => {
-          const linkedAcc = accounts.find(a => a.id === localGoal.account_id);
+        {initialGoal.account_id && (() => {
+          const linkedAcc = accounts.find(a => a.id === initialGoal.account_id);
           if (!linkedAcc) return null;
           return (
             <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.18)", borderRadius: 14, padding: "12px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
@@ -238,7 +213,7 @@ export function GoalDetailPage({ goal: initialGoal, accounts, transactions = [],
                 <p style={{ margin: 0, fontSize: 11, color: C.dim }}>Привязанный счёт</p>
                 <p style={{ margin: "2px 0 0", fontSize: 14, fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{linkedAcc.name}</p>
                 <p style={{ margin: "2px 0 0", fontSize: 11, color: C.dim }}>
-                  {getSym(linkedAcc.currency)}{fmtAmt(linkedAcc.balance, 0)} · переводы сюда = пополнение цели
+                  {fmtBal(linkedAcc.balance, linkedAcc.currency)} · переводы сюда = пополнение цели
                 </p>
               </div>
             </div>
@@ -248,9 +223,7 @@ export function GoalDetailPage({ goal: initialGoal, accounts, transactions = [],
         {/* Topup history */}
         <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, color: C.dim }}>История пополнений</p>
 
-        {loadingTopups ? (
-          <div style={{ textAlign: "center", padding: 24 }}><Spinner color={C.blue}/></div>
-        ) : topups.length === 0 ? (
+        {topups.length === 0 ? (
           <p style={{ textAlign: "center", padding: "24px 0", color: C.dim, fontSize: 13 }}>Нет пополнений</p>
         ) : (
           topups.map(t => (
@@ -259,7 +232,7 @@ export function GoalDetailPage({ goal: initialGoal, accounts, transactions = [],
               <span style={{ fontSize: 13, color: C.dim, width: 38, flexShrink: 0 }}>{fmtDate(t.date)}</span>
               <div style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
                 <span style={{ fontSize: 14, color: C.main }}>
-                  {getSym(t.currency || "KZT")}{fmtAmt(t.amount, 0)}
+                  {fmtBal(t.amount, t.currency || "KZT")}
                 </span>
                 {t.note && <p style={{ margin: "2px 0 0", fontSize: 12, color: C.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.note}</p>}
               </div>
@@ -301,7 +274,6 @@ function GoalCalculator({ sym, defaultAmt, monthsLeft, color }) {
 
   return (
     <div style={{ background: C.monCard, borderRadius: 16, padding: "12px 14px", marginBottom: 14 }}>
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: C.dim }}>Калькулятор</span>
         <button
@@ -316,9 +288,7 @@ function GoalCalculator({ sym, defaultAmt, monthsLeft, color }) {
         </button>
       </div>
 
-      {/* Inputs row */}
       <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-        {/* Amount */}
         <div style={{ flex: 2 }}>
           <p style={{ margin: "0 0 4px", fontSize: 10, color: C.dim }}>Сумма</p>
           <NumInput value={amt} onChange={setAmt} style={inputStyle}/>
@@ -326,7 +296,6 @@ function GoalCalculator({ sym, defaultAmt, monthsLeft, color }) {
 
         <span style={{ color: C.dim, fontSize: 18, paddingBottom: 10, flexShrink: 0 }}>÷</span>
 
-        {/* Secondary: months or monthly payment */}
         <div style={{ flex: 1.5 }}>
           <p style={{ margin: "0 0 4px", fontSize: 10, color: C.dim }}>
             {dir === "month" ? "Месяцев" : "Плат./мес"}
@@ -336,7 +305,6 @@ function GoalCalculator({ sym, defaultAmt, monthsLeft, color }) {
 
         <span style={{ color: C.dim, fontSize: 16, paddingBottom: 10, flexShrink: 0 }}>=</span>
 
-        {/* Result */}
         <div style={{ flex: 1.8, textAlign: "right", paddingBottom: 2 }}>
           <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: color, lineHeight: 1.15 }}>
             {isFinite(result) && result > 0

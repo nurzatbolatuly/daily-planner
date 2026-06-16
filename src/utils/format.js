@@ -8,22 +8,23 @@ export const isCommodity = code => COMMODITY_CURRENCIES.includes(code);
 
 export const fmtGrams = n => {
   const num = Number(n) || 0;
-  const abs = Math.abs(num).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+  const abs = Math.abs(num).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).replace(',', '.');
   return num < 0 ? `-${abs} г` : `${abs} г`;
 };
 
-export const fmtAmt = (n, dec = 2) => Math.abs(Number(n)||0).toLocaleString("ru-RU", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+export const fmtAmt = (n, dec = 2) => Math.abs(Number(n)||0).toLocaleString("ru-RU", { minimumFractionDigits: dec, maximumFractionDigits: dec }).replace(',', '.');
 
 // Целое число — без копеек, дробное — с .00 (показываем копейки только если есть остаток).
 export const fmtAmtAuto = n => fmtAmt(n, Number.isInteger(Number(n)||0) ? 0 : 2);
 
-export const fmtM = (n, code) => `${getSym(code)}${fmtAmt(n)}`;
+export const fmtM = (n, code) => isCommodity(code) ? fmtGrams(n) : `${getSym(code)}${fmtAmt(n)}`;
 
 // Для отображения баланса счёта — сохраняет знак минус при отрицательных значениях.
 export const fmtBal = (n, code, dec = 0) => {
+  if (isCommodity(code)) return fmtGrams(n);
   const num = Number(n) || 0;
   const sym = getSym(code);
-  const abs = Math.abs(num).toLocaleString("ru-RU", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  const abs = Math.abs(num).toLocaleString("ru-RU", { minimumFractionDigits: dec, maximumFractionDigits: dec }).replace(',', '.');
   return num < 0 ? `-${sym}${abs}` : `${sym}${abs}`;
 };
 
