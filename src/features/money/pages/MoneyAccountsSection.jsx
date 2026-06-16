@@ -54,7 +54,7 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
       {accounts.length === 0 && (
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 24px", gap:16 }}>
           <div style={{ width:64, height:64, borderRadius:20, background:C.monCard, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <Ico n="wallet" s={28} c={C.dim}/>
+            <CatIcon k="wallet" size={28} color={C.dim}/>
           </div>
           <p style={{ margin:0, fontSize:16, fontWeight:600, color:C.mid, textAlign:"center" }}>Нет счетов</p>
           <p style={{ margin:0, fontSize:13, color:C.dim, textAlign:"center" }}>Добавьте первый счёт, чтобы начать отслеживать финансы</p>

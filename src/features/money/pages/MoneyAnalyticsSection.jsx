@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { RU_MONTHS, RU_MONTHS_S, RU_MON_GEN, RU_MON_SHORT } from "../../../constants/locale";
+import { RU_MONTHS, RU_MONTHS_S, RU_MON_GEN } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad, monthKey, localDate, daysBetween, todayStr } from "../../../utils/date";
 import { getSym, fmtAmt, toBase, ratesFromAccounts } from "../../../utils/format";
@@ -38,7 +38,7 @@ function LineChart({ monthlyData, selectedMonth, onSelect }) {
         ))}
         {monthlyData.map((d, i) => (
           <text key={i} x={toX(i)} y={H - 4} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.3)">
-            {RU_MON_SHORT[parseInt(d.mk.split("-")[1]) - 1]}
+            {RU_MONTHS_S[parseInt(d.mk.split("-")[1]) - 1]}
           </text>
         ))}
       </svg>
