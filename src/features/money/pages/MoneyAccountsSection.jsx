@@ -102,7 +102,7 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
                     ) : (
                       acc.currency !== BASE_CUR && acc.avg_rate != null && (
                         <p style={{ margin:"2px 0 0", fontSize:12, color:C.dim }}>
-                          Средний курс: 1 {acc.currency} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate, 2)}
+                          Средний курс: 1 {getSym(acc.currency)} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate, 2)}
                         </p>
                       )
                     )}
