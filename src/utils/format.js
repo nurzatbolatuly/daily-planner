@@ -1,8 +1,16 @@
-import { BASE_CUR, ALL_CURR } from "../constants/currencies";
+import { BASE_CUR, ALL_CURR, COMMODITY_CURRENCIES } from "../constants/currencies";
 import { RU_MON_GEN, RU_DAYS_FULL } from "../constants/locale";
 import { pad, todayStr, monthKey } from "./date";
 
 export const getSym = code => ALL_CURR.find(c => c.code === code)?.sym || code;
+
+export const isCommodity = code => COMMODITY_CURRENCIES.includes(code);
+
+export const fmtGrams = n => {
+  const num = Number(n) || 0;
+  const abs = Math.abs(num).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+  return num < 0 ? `-${abs} г` : `${abs} г`;
+};
 
 export const fmtAmt = (n, dec = 2) => Math.abs(Number(n)||0).toLocaleString("ru-RU", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 

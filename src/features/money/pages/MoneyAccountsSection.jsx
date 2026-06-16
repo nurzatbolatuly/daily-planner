@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { getSym, fmtAmt, fmtBal, calcTotalBalance } from "../../../utils/format";
+import { getSym, fmtAmt, fmtBal, fmtGrams, isCommodity, calcTotalBalance } from "../../../utils/format";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { ACC_PURPOSES } from "../../../constants/money";
 import { useDragReorder } from "../../../hooks/useDragReorder";
@@ -93,15 +93,28 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
                   <CatIcon k={acc.icon} size={50} color={acc.color}/>
                   <div style={{ flex:1 }}>
                     <p style={{ margin:0, fontSize:15, fontWeight:600, color:"#fff" }}>{acc.name}</p>
-                    {acc.currency !== BASE_CUR && acc.avg_rate != null && (
-                      <p style={{ margin:"2px 0 0", fontSize:11, color:C.dim }}>
-                        Средний курс: 1 {acc.currency} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate,2)}
-                      </p>
+                    {isCommodity(acc.currency) ? (
+                      acc.avg_rate != null && (
+                        <p style={{ margin:"2px 0 0", fontSize:12, color:C.dim }}>
+                          {fmtGrams(acc.balance)} · ср. {fmtAmt(acc.avg_rate, 0)} ₸/г
+                        </p>
+                      )
+                    ) : (
+                      acc.currency !== BASE_CUR && acc.avg_rate != null && (
+                        <p style={{ margin:"2px 0 0", fontSize:12, color:C.dim }}>
+                          Средний курс: 1 {acc.currency} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate, 2)}
+                        </p>
+                      )
                     )}
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     {!acc.in_total && <Ico n="eyeOff" s={14} c={C.dim}/>}
-                    <p style={{ margin:0, fontSize:16, fontWeight:700, color: acc.balance < 0 ? C.errorLight : "#fff" }}>{fmtBal(acc.balance, acc.currency)}</p>
+                    <p style={{ margin:0, fontSize:16, fontWeight:700, color: acc.balance < 0 ? C.errorLight : "#fff" }}>
+                      {isCommodity(acc.currency) && acc.avg_rate
+                        ? fmtBal(acc.balance * acc.avg_rate, BASE_CUR, 0)
+                        : fmtBal(acc.balance, acc.currency)
+                      }
+                    </p>
                   </div>
                 </div>
               ))}

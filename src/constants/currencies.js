@@ -6,7 +6,14 @@ export const MAIN_CURR = [
   {code:"EUR",sym:"€",name:"Евро"},
 ];
 
-export const ALL_CURR = [...MAIN_CURR,
+export const METAL_CURR = [
+  {code:"XAU",sym:"г",name:"Золото (Au)"},
+  {code:"XAG",sym:"г",name:"Серебро (Ag)"},
+];
+
+export const COMMODITY_CURRENCIES = METAL_CURR.map(m => m.code);
+
+export const ALL_CURR = [...MAIN_CURR, ...METAL_CURR,
   {code:"RUB",sym:"₽",name:"Российский рубль"},{code:"GBP",sym:"£",name:"Британский фунт"},
   {code:"CHF",sym:"Fr",name:"Швейцарский франк"},{code:"JPY",sym:"¥",name:"Японская иена"},
   {code:"AED",sym:"د.إ",name:"Дирхам ОАЭ"},{code:"TRY",sym:"₺",name:"Турецкая лира"},

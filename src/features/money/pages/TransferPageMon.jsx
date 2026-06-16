@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { todayStr, localDate } from "../../../utils/date";
-import { avgRateFn } from "../../../utils/format";
+import { avgRateFn, fmtAmt, isCommodity } from "../../../utils/format";
 import { supaRpc, supabase, supaUpsert } from "../../../lib/supabase";
 import { FEE_TX_NOTE } from "../../../constants/money";
 import { useSave } from "../../../hooks/useSave";
@@ -10,6 +10,40 @@ import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
 import { AccSelect } from "../../../components/AccSelect";
 import { CatIcon } from "../../../components/CatIcon";
+
+function PnlBanner({ avgRate, sellRate, grams, metalCode }) {
+  const diff = sellRate - avgRate;
+  const pct  = avgRate > 0 ? (diff / avgRate * 100) : 0;
+  const total = diff * grams;
+  const profit = diff >= 0;
+  const color  = profit ? C.green : C.red;
+  const bgColor = profit ? "rgba(76,175,80,0.1)" : "rgba(244,67,54,0.1)";
+  const border  = profit ? "rgba(76,175,80,0.3)" : "rgba(244,67,54,0.3)";
+
+  return (
+    <div style={{ padding:"12px 14px", borderRadius:12, background:bgColor, border:`1px solid ${border}`, marginBottom:16 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+        <span style={{ fontSize:12, color:C.dim }}>Средняя цена покупки</span>
+        <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(avgRate, 0)} ₸/г</span>
+      </div>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+        <span style={{ fontSize:12, color:C.dim }}>Цена продажи</span>
+        <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(sellRate, 0)} ₸/г</span>
+      </div>
+      <div style={{ height:1, background:"rgba(255,255,255,0.08)", marginBottom:8 }}/>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <span style={{ fontSize:13, fontWeight:600, color }}>
+          {profit ? "Прибыль" : "Убыток"} · {profit ? "+" : "-"}{fmtAmt(Math.abs(diff), 0)} ₸/г ({profit ? "+" : "-"}{fmtAmt(Math.abs(pct), 1)}%)
+        </span>
+        {grams > 0 && (
+          <span style={{ fontSize:14, fontWeight:700, color }}>
+            {profit ? "+" : "-"}{fmtAmt(Math.abs(total), 0)} ₸
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function TransferPageMon({ accounts, expCats, goals = [], onBack, edit }) {
   const [fromId,    setFromId]    = useState(edit?.from_id || accounts[0]?.id || "");
@@ -34,9 +68,11 @@ export function TransferPageMon({ accounts, expCats, goals = [], onBack, edit })
       .then(({ data }) => { if (data?.[0]?.category_id) setFeeCatId(data[0].category_id); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fromAcc  = accounts.find(a => a.id === fromId);
-  const toAcc    = accounts.find(a => a.id === toId);
-  const diffCur  = fromAcc?.currency !== toAcc?.currency;
+  const fromAcc   = accounts.find(a => a.id === fromId);
+  const toAcc     = accounts.find(a => a.id === toId);
+  const diffCur   = fromAcc?.currency !== toAcc?.currency;
+  const fromIsCom = isCommodity(fromAcc?.currency);
+  const toIsCom   = isCommodity(toAcc?.currency);
 
   // Async body — читается из saveRef чтобы useSave мог быть вызван unconditionally до early returns
   saveRef.current = async () => {
@@ -204,7 +240,9 @@ export function TransferPageMon({ accounts, expCats, goals = [], onBack, edit })
         <AccSelect accounts={accounts} value={toId}   onChange={v => { setToId(v);   setErrors(p => ({...p, to:""})); }}   label="Куда"   error={errors.to}/>
         {errors.to && <p style={{ color:C.errorLight, fontSize:12, marginTop:-10, marginBottom:12 }}>{errors.to}</p>}
 
-        <FieldLabel error={errors.amt}>Сумма ({fromAcc?.currency||""})</FieldLabel>
+        <FieldLabel error={errors.amt}>
+          {fromIsCom ? "Количество (г)" : `Сумма (${fromAcc?.currency || ""})`}
+        </FieldLabel>
         <div style={{ borderBottom:`1px solid ${errors.amt ? "rgba(244,67,54,0.5)" : C.border}`, marginBottom:errors.amt ? 4 : 16 }}>
           <NumInput value={amt} onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }} placeholder="0"
             style={{ width:"100%", background:"none", border:"none", outline:"none", color:errors.amt ? C.errorLight : "#fff", fontSize:28, fontWeight:700, padding:"4px 0", boxSizing:"border-box" }}/>
@@ -212,15 +250,25 @@ export function TransferPageMon({ accounts, expCats, goals = [], onBack, edit })
         {errors.amt && <p style={{ color:C.errorLight, fontSize:12, marginBottom:12 }}>{errors.amt}</p>}
 
         {diffCur && <>
-          <FieldLabel error={errors.toAmt}>Получить ({toAcc?.currency||""})</FieldLabel>
+          <FieldLabel error={errors.toAmt}>
+            {toIsCom ? "Получить (г)" : `Получить (${toAcc?.currency || ""})`}
+          </FieldLabel>
           <div style={{ borderBottom:`1px solid ${errors.toAmt ? "rgba(244,67,54,0.5)" : C.border}`, marginBottom:errors.toAmt ? 4 : 16 }}>
             <NumInput value={toAmt} onChange={v => { setToAmt(v); setErrors(p => ({...p, toAmt:""})); }} placeholder="0"
               style={{ width:"100%", background:"none", border:"none", outline:"none", color:errors.toAmt ? C.errorLight : "#fff", fontSize:28, fontWeight:700, padding:"4px 0", boxSizing:"border-box" }}/>
           </div>
           {errors.toAmt && <p style={{ color:C.errorLight, fontSize:12, marginBottom:12 }}>{errors.toAmt}</p>}
-          <FieldLabel>Курс обмена</FieldLabel>
-          <input value={rate} onChange={e => setRate(e.target.value)} type="number" placeholder="напр. 480"
+          <FieldLabel>{(fromIsCom || toIsCom) ? "Цена (₸/г)" : "Курс обмена"}</FieldLabel>
+          <NumInput value={rate} onChange={setRate} placeholder={fromIsCom || toIsCom ? "напр. 26000" : "напр. 480"}
             style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${C.border}`, outline:"none", color:"#fff", fontSize:18, padding:"4px 0", marginBottom:16, boxSizing:"border-box" }}/>
+          {fromIsCom && fromAcc?.avg_rate && parseFloat(rate) > 0 && (
+            <PnlBanner
+              avgRate={fromAcc.avg_rate}
+              sellRate={parseFloat(rate)}
+              grams={parseFloat(amt) || 0}
+              metalCode={fromAcc.currency}
+            />
+          )}
         </>}
 
         <FieldLabel>Комиссия</FieldLabel>

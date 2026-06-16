@@ -2,14 +2,12 @@ export const DEF_EXP = [
     {id: "c1", name: "Продукты", icon: "groceries", color: "#4caf50"},
     {id: "c2", name: "Транспорт", icon: "transport", color: "#1976d2"},
     {id: "c3", name: "Дом", icon: "home", color: "#388e3c"},
-    {id: "c4", name: "Коммунальные", icon: "amenities", color: "#1976d2"},
     {id: "c5", name: "Путешествия", icon: "travel", color: "#4caf50"},
     {id: "c6", name: "Кафе и рестораны", icon: "eating", color: "#f9a825"},
     {id: "c7", name: "Развлечения", icon: "entertainment", color: "#9c27b0"},
     {id: "c8", name: "Здоровье", icon: "health", color: "#f44336"},
     {id: "c9", name: "Одежда", icon: "clothes", color: "#e91e63"},
     {id: "c10", name: "Сервисы", icon: "services", color: "#f9a825"},
-    {id: "c11", name: "Топливо", icon: "fuel", color: "#795548"},
     {id: "c12", name: "Непредвиденное", icon: "unplanned", color: "#546e7a"},
 ];
 

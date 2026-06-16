@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
-import { BASE_CUR } from "../../../constants/currencies";
+import { BASE_CUR, COMMODITY_CURRENCIES } from "../../../constants/currencies";
 import { ACC_ICONS } from "../../../constants/icons";
 import { ACC_PURPOSES } from "../../../constants/money";
 import { getSym, fmtAmt } from "../../../utils/format";
@@ -29,6 +29,8 @@ export function AccPage({ onBack, edit }) {
   const [errors, setErrors] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isEdit = !!edit;
+  const activeCur = isEdit ? edit.currency : cur;
+  const isCom = COMMODITY_CURRENCIES.includes(activeCur);
 
   // Refs hold latest closures so useSave is called unconditionally before any early returns
   const saveRef = useRef(null);
@@ -81,10 +83,15 @@ export function AccPage({ onBack, edit }) {
       <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 100px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20, padding:"16px", borderRadius:16, background:C.monCard }}>
           <CatIcon k={icon} size={52} color={color}/>
-          <div><p style={{ margin:0, fontSize:18, fontWeight:700, color:"#fff" }}>{name||"Счёт"}</p><p style={{ margin:0, fontSize:14, color:C.green }}>{getSym(cur)}{fmtAmt(parseFloat(bal)||0)}</p></div>
+          <div>
+            <p style={{ margin:0, fontSize:18, fontWeight:700, color:"#fff" }}>{name||"Счёт"}</p>
+            <p style={{ margin:0, fontSize:14, color:C.green }}>
+              {isCom ? `${fmtAmt(parseFloat(bal)||0, 3)} г` : `${getSym(cur)}${fmtAmt(parseFloat(bal)||0)}`}
+            </p>
+          </div>
         </div>
         <div style={{ marginBottom:20 }}>
-          <FieldLabel>Баланс</FieldLabel>
+          <FieldLabel>{isCom ? "Количество (г)" : "Баланс"}</FieldLabel>
           <NumInput
             value={bal} onChange={setBal} placeholder="0"
             style={{ width:"100%", background:"none", border:"none", borderBottom:"1px solid rgba(255,255,255,0.2)", outline:"none", color:"#fff", fontSize:28, fontWeight:700, padding:"4px 0", marginBottom:12, boxSizing:"border-box" }}
@@ -110,16 +117,19 @@ export function AccPage({ onBack, edit }) {
             )
           }
         </div>
-        {(isEdit ? edit.currency : cur) !== BASE_CUR && (
+        {activeCur !== BASE_CUR && (
           <div style={{ marginBottom:16 }}>
-            <FieldLabel>Курс (1 {isEdit ? edit.currency : cur} = ? ₸)</FieldLabel>
+            <FieldLabel>{isCom ? "Средняя цена покупки (₸/г)" : `Курс (1 ${activeCur} = ? ₸)`}</FieldLabel>
             <div style={{ display:"flex", alignItems:"center", gap:10, borderBottom:"1px solid rgba(255,255,255,0.2)", paddingBottom:8 }}>
-              <input value={avgRate} onChange={e => setAvgRate(e.target.value)} type="number" placeholder="e.g. 478"
+              <NumInput value={avgRate} onChange={setAvgRate} placeholder={isCom ? "напр. 23000" : "напр. 478"}
                 style={{ flex:1, background:"none", border:"none", outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0" }}/>
-              <span style={{ fontSize:16, fontWeight:700, color:C.dim }}>₸</span>
+              <span style={{ fontSize:16, fontWeight:700, color:C.dim }}>₸{isCom ? "/г" : ""}</span>
             </div>
             <p style={{ margin:"6px 0 0", fontSize:11, color:C.dim }}>
-              Используется для расчёта общего баланса. Обновляется автоматически при переводах.
+              {isCom
+                ? "Средняя цена покупки за грамм. Обновляется автоматически при каждой покупке."
+                : "Используется для расчёта общего баланса. Обновляется автоматически при переводах."
+              }
             </p>
           </div>
         )}

@@ -24,7 +24,7 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
   const [selAccId, setSelAccId]       = useState(null);
   const [showAccPicker, setShowAccPicker] = useState(false);
   const [showCalendar, setShowCalendar]   = useState(false);
-  const [txFilter, setTxFilter]           = useState({ sortBy: "amount_desc", catId: null });
+  const [txFilter, setTxFilter]           = useState({ sortBy: "amount_desc", catIds: [] });
   const [showFilter, setShowFilter]       = useState(false);
 
   const sym   = getSym(BASE_CUR);
@@ -53,9 +53,9 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
 
   // Apply category filter from txFilter
   const filteredTypeTxs = useMemo(() => {
-    if (!txFilter.catId) return typeTxs;
-    return typeTxs.filter(t => t.category_id === txFilter.catId);
-  }, [typeTxs, txFilter.catId]);
+    if (!txFilter.catIds.length) return typeTxs;
+    return typeTxs.filter(t => txFilter.catIds.includes(t.category_id));
+  }, [typeTxs, txFilter.catIds]);
 
   const catData = useMemo(() => {
     const rows = cats
@@ -111,7 +111,7 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
   const periodLabel = period === "month" ? `${RU_MONTHS[viewMonth]} ${viewYear}` : period === "year" ? String(viewYear) : period === "day" ? "Сегодня" : period === "week" ? "Эта неделя" : rangeStart && rangeEnd ? `${rangeStart} — ${rangeEnd}` : "Период";
   const selAcc = accounts.find(a => a.id === selAccId);
 
-  const isFilterActive = !!(txFilter.catId || txFilter.sortBy !== "amount_desc");
+  const isFilterActive = !!(txFilter.catIds.length || txFilter.sortBy !== "amount_desc");
 
   const exportCSV = () => {
     exportTransactionsXLSX({ txs: typeTxs, catData, cats, accounts, txType, periodLabel, filename: "transactions.xlsx" });
@@ -197,6 +197,11 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
               style={{ display: "flex", alignItems: "center", gap: 4, background: isFilterActive ? "rgba(76,175,80,0.15)" : "none", border: isFilterActive ? `1px solid rgba(76,175,80,0.3)` : "1px solid transparent", borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: isFilterActive ? C.green : C.dim }}>
               <Ico n="filter" s={14} c={isFilterActive ? C.green : C.dim}/>
               <span style={{ fontSize: 11 }}>Фильтр</span>
+              {txFilter.catIds.length > 0 && (
+                <span style={{ fontSize: 10, fontWeight: 700, background: C.green, color: "#fff", borderRadius: 9, padding: "1px 6px", lineHeight: "14px" }}>
+                  {txFilter.catIds.length}
+                </span>
+              )}
             </button>
           </div>
         )}
@@ -276,23 +281,30 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
           </div>
         ))}
 
-        <p style={{ margin: "16px 0 8px", fontSize: 12, fontWeight: 700, color: C.dim }}>Категория</p>
+        <p style={{ margin: "16px 0 8px", fontSize: 12, fontWeight: 700, color: C.dim }}>Категории</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingBottom: 8 }}>
-          <button onClick={() => setTxFilter(f => ({ ...f, catId: null }))}
-            style={{ padding: "6px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: !txFilter.catId ? "rgba(76,175,80,0.2)" : "rgba(255,255,255,0.06)", color: !txFilter.catId ? C.green : C.dim }}>
+          <button onClick={() => setTxFilter(f => ({ ...f, catIds: [] }))}
+            style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${!txFilter.catIds.length ? "rgba(76,175,80,0.4)" : "transparent"}`, cursor: "pointer", fontSize: 12, fontWeight: 600, background: !txFilter.catIds.length ? "rgba(76,175,80,0.2)" : "rgba(255,255,255,0.06)", color: !txFilter.catIds.length ? C.green : C.dim }}>
             Все
           </button>
-          {cats.map(c => (
-            <button key={c.id} onClick={() => setTxFilter(f => ({ ...f, catId: f.catId === c.id ? null : c.id }))}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: txFilter.catId === c.id ? "rgba(76,175,80,0.2)" : "rgba(255,255,255,0.06)", color: txFilter.catId === c.id ? C.green : C.dim }}>
-              <CatIcon k={c.icon} size={18} color={txFilter.catId === c.id ? C.green : C.dim}/>
-              {c.name}
-            </button>
-          ))}
+          {cats.map(c => {
+            const sel = txFilter.catIds.includes(c.id);
+            return (
+              <button key={c.id} onClick={() => setTxFilter(f => ({
+                ...f,
+                catIds: f.catIds.includes(c.id) ? f.catIds.filter(id => id !== c.id) : [...f.catIds, c.id]
+              }))}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 20, border: `1px solid ${sel ? "rgba(76,175,80,0.4)" : "transparent"}`, cursor: "pointer", fontSize: 12, fontWeight: 600, background: sel ? "rgba(76,175,80,0.2)" : "rgba(255,255,255,0.06)", color: sel ? C.green : C.dim }}>
+                <CatIcon k={c.icon} size={18} color={sel ? c.color : C.dim}/>
+                {c.name}
+                {sel && <Ico n="check" s={12} c={C.green}/>}
+              </button>
+            );
+          })}
         </div>
 
         {isFilterActive && (
-          <button onClick={() => { setTxFilter({ sortBy: "amount_desc", catId: null }); setShowFilter(false); }}
+          <button onClick={() => { setTxFilter({ sortBy: "amount_desc", catIds: [] }); setShowFilter(false); }}
             style={{ width: "100%", marginTop: 12, padding: "12px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "none", color: C.mid, fontSize: 13, cursor: "pointer" }}>
             Сбросить фильтр
           </button>
