@@ -9,6 +9,7 @@ import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
+import { NumInput } from "../../../components/NumInput";
 import { CatIcon } from "../../../components/CatIcon";
 import { Toggle } from "../../../components/Toggle";
 import { ColorPickerComp } from "../../../components/ColorPickerComp";
@@ -84,8 +85,8 @@ export function AccPage({ onBack, edit }) {
         </div>
         <div style={{ marginBottom:20 }}>
           <FieldLabel>Баланс</FieldLabel>
-          <input
-            value={bal} onChange={e => setBal(e.target.value)} type="number" placeholder="0"
+          <NumInput
+            value={bal} onChange={setBal} placeholder="0"
             style={{ width:"100%", background:"none", border:"none", borderBottom:"1px solid rgba(255,255,255,0.2)", outline:"none", color:"#fff", fontSize:28, fontWeight:700, padding:"4px 0", marginBottom:12, boxSizing:"border-box" }}
           />
           {isEdit

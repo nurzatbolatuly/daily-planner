@@ -1,5 +1,6 @@
 import { BASE_CUR, ALL_CURR } from "../constants/currencies";
 import { RU_MON_GEN, RU_DAYS_FULL } from "../constants/locale";
+import { pad, todayStr, monthKey } from "./date";
 
 export const getSym = code => ALL_CURR.find(c => c.code === code)?.sym || code;
 
@@ -50,6 +51,30 @@ export const calcTotalBalance = (accounts = []) =>
 export function fmtDateFull(d) {
   const dt = new Date(d);
   return `${dt.getDate()} ${RU_MON_GEN[dt.getMonth()]}, ${RU_DAYS_FULL[dt.getDay()]}`;
+}
+
+export function calcCatDelta(transactions, expCats, accounts) {
+  const rates = ratesFromAccounts(accounts);
+  const now = new Date();
+  const curMk  = monthKey(todayStr());
+  const prevD  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMk = `${prevD.getFullYear()}-${pad(prevD.getMonth() + 1)}`;
+
+  const sumByCat = (mk) => {
+    const r = {};
+    transactions
+      .filter(t => t.type === "expense" && monthKey(t.date) === mk)
+      .forEach(t => { r[t.category_id] = (r[t.category_id] || 0) + toBase(t.amount, t.currency, rates); });
+    return r;
+  };
+
+  const cur = sumByCat(curMk), prev = sumByCat(prevMk);
+  const ids = [...new Set([...Object.keys(cur), ...Object.keys(prev)])];
+
+  return Object.fromEntries(ids.map(id => {
+    const c = cur[id] || 0, p = prev[id] || 0;
+    return [id, { curAmt: c, prevAmt: p, delta: p > 0 ? (c - p) / p * 100 : null }];
+  }));
 }
 
 export function fmtDateShort(s) {

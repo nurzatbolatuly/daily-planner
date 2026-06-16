@@ -111,6 +111,9 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onBack }
         p_fee_tx_id:    feeTxId,
       });
 
+      // Удаляем авто-пополнение цели, созданное этим переводом (если было)
+      await supabase.from("goal_topups").delete().eq("transfer_id", t.id);
+
       setConfirmCancel(false);
       onBack();
     } catch(err) { console.error(err); }

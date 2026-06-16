@@ -8,7 +8,8 @@ import { TransferPageMon } from "./pages/TransferPageMon";
 import { TransferHistoryPageMon } from "./pages/TransferHistoryPageMon";
 import { MoneyHomeSection } from "./pages/MoneyHomeSection";
 import { MoneyAccountsSection } from "./pages/MoneyAccountsSection";
-import { MoneyPlansSection } from "./pages/MoneyPlansSection";
+import { MoneyBudgetSection } from "./pages/MoneyBudgetSection";
+import { MoneyAnalyticsSection } from "./pages/MoneyAnalyticsSection";
 import { MoneyMenuPage } from "./pages/MoneyMenuPage";
 import { CatPageMon } from "./pages/CatPageMon";
 import { RecPageMon } from "./pages/RecPageMon";
@@ -18,16 +19,33 @@ import { TripDetailPageMon } from "./pages/TripDetailPageMon";
 import { CatsListPageMon } from "./pages/CatsListPageMon";
 import { RecListPageMon } from "./pages/RecListPageMon";
 import { CatTxsPageMon } from "./pages/CatTxsPageMon";
+import { GoalFormPage } from "./pages/GoalFormPage";
+import { GoalDetailPage } from "./pages/GoalDetailPage";
+import { GoalTopupPage } from "./pages/GoalTopupPage";
+
+const MON_TABS = [
+  { id: "home",      label: "Главная",   d: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10" },
+  { id: "accounts",  label: "Счета",     d: "M3 4h18v16H3zM3 10h18" },
+  { id: "budget",    label: "Бюджет",    d: "M18 20V10M12 20V4M6 20v-6" },
+  { id: "analytics", label: "Аналитика", d: "M3 3v18h18M7 16l4-4 4 4 4-8" },
+  { id: "menu",      label: "Меню",      d: "M3 12h18M3 6h18M3 18h18" },
+];
 
 export default function MoneyManagerSection() {
   const data = useMoneyData();
-  const [monTab, setMonTab] = useState(() => localStorage.getItem("mon.tab") || "home");
-  const [plansTab, setPlansTab] = useState(() => localStorage.getItem("mon.plansTab") || "month");
-  // Стек экранов: navigate — push, goBack — pop одного уровня. Текущий экран — вершина стека.
+
+  const [monTab, setMonTab] = useState(() => {
+    const t = localStorage.getItem("mon.tab") || "home";
+    return t === "plans" ? "budget" : t;
+  });
+  const [budgetTab, setBudgetTab] = useState(() => localStorage.getItem("mon.budgetTab") || "month");
+
   const [stack, setStack] = useState([]);
   const screen = stack[stack.length - 1] || null;
 
   const navRef = useRef(null);
+  const contentRef = useRef(null);
+
   useLayoutEffect(() => {
     const el = navRef.current;
     if (!el) return;
@@ -38,16 +56,26 @@ export default function MoneyManagerSection() {
     return () => ro.disconnect();
   }, []);
 
-  const setMonTabP  = useCallback((t) => { setMonTab(t);   localStorage.setItem("mon.tab", t); }, []);
-  const setPlansTabP = useCallback((t) => { setPlansTab(t); localStorage.setItem("mon.plansTab", t); }, []);
+  useLayoutEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [monTab]);
+
+  const setMonTabP    = useCallback((t) => { setMonTab(t);    localStorage.setItem("mon.tab",       t); }, []);
+  const setBudgetTabP = useCallback((t) => { setBudgetTab(t); localStorage.setItem("mon.budgetTab", t); }, []);
 
   const navigate = useCallback((name, d) => setStack(s => [...s, { name, data: d }]), []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const goBack = useCallback((reload = false) => { if (reload) data.reload(); setStack(s => s.slice(0, -1)); }, [data.reload]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const goBackToTrips = useCallback((reload = false) => { setPlansTabP("trips"); setMonTabP("plans"); if (reload) data.reload(); setStack([]); }, [setPlansTabP, setMonTabP, data.reload]);
+  const goBackToTrips = useCallback((reload = false) => { setBudgetTabP("trips"); setMonTabP("budget"); if (reload) data.reload(); setStack([]); }, [setBudgetTabP, setMonTabP, data.reload]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const goToGoalsList = useCallback(() => { setBudgetTabP("goals"); setMonTabP("budget"); data.reload(); setStack([]); }, [setBudgetTabP, setMonTabP, data.reload]);
 
-  if (data.loading) return <div style={{ background:C.monBg, minHeight:"calc(100dvh - var(--app-header-h))" }}><Spinner color={C.green}/></div>;
+  if (data.loading) return (
+    <div style={{ background: C.monBg, minHeight: "calc(100dvh - var(--app-header-h))" }}>
+      <Spinner color={C.green}/>
+    </div>
+  );
 
   // Декларативный роутер: каждый экран — функция (d) => JSX
   if (screen) {
@@ -57,9 +85,9 @@ export default function MoneyManagerSection() {
       editTx:       (d) => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d}/>,
       addAcc:       ()  => <AccPage onBack={goBack}/>,
       editAcc:      (d) => <AccPage onBack={goBack} edit={d}/>,
-      transfer:     ()  => <TransferPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack}/>,
+      transfer:     ()  => <TransferPageMon accounts={data.accounts} expCats={data.expCats} goals={data.goals} onBack={goBack}/>,
       trHistory:    ()  => <TransferHistoryPageMon transfers={data.transfers} accounts={data.accounts} navigate={navigate} onBack={goBack}/>,
-      editTransfer: (d) => <TransferPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack} edit={d}/>,
+      editTransfer: (d) => <TransferPageMon accounts={data.accounts} expCats={data.expCats} goals={data.goals} onBack={goBack} edit={d}/>,
       addCat:       (d) => <CatPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} catType={d?.catType}/>,
       editCat:      (d) => <CatPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d} catType={d?.catType}/>,
       addRec:       ()  => <RecPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack}/>,
@@ -72,35 +100,36 @@ export default function MoneyManagerSection() {
       menuCats:     ()  => <CatsListPageMon expCats={data.expCats} incCats={data.incCats} dispatch={data} navigate={navigate} onBack={() => goBack(false)}/>,
       menuRec:      ()  => <RecListPageMon recurring={data.recurring} accounts={data.accounts} expCats={data.expCats} navigate={navigate} onBack={() => goBack(false)}/>,
       catTxs:       (d) => <CatTxsPageMon cat={d.cat} txs={d.txs} periodLabel={d.periodLabel} txType={d.txType} accounts={data.accounts} navigate={navigate} onBack={() => goBack(false)}/>,
+      addGoal:      ()  => <GoalFormPage accounts={data.accounts} onBack={goBack}/>,
+      editGoal:     (d) => <GoalFormPage accounts={data.accounts} onBack={goBack} onDelete={goToGoalsList} edit={d}/>,
+      goalDetail:   (d) => <GoalDetailPage goal={d} accounts={data.accounts} transactions={data.transactions} navigate={navigate} onBack={goBack}/>,
+      addTopup:     (d) => <GoalTopupPage goal={d.goal} onBack={goBack}/>,
+      editTopup:    (d) => <GoalTopupPage goal={d.goal} onBack={goBack} edit={d.topup}/>,
     };
     const render = screenMap[name];
     if (render) return render(d);
   }
 
-  const MON_TABS = [
-    { id:"home",     d:"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10", label:"Главная" },
-    { id:"accounts", d:"M3 4h18v16H3zM3 10h18", label:"Счета" },
-    { id:"plans",    d:"M18 20V10M12 20V4M6 20v-6", label:"Планы" },
-    { id:"menu",     d:"M3 12h18M3 6h18M3 18h18", label:"Меню" },
-  ];
-
   return (
-    <div style={{ background:C.monBg, minHeight:"calc(100dvh - var(--app-header-h))", color:"#fff" }}>
-      {/* Scrollable content — height accounts for app header (CSS var) + bottom nav + iOS safe area */}
-      <div style={{ overflowY:"auto", height:"calc(100dvh - var(--app-header-h) - var(--mon-nav-h, 64px))" }}>
-        {monTab === "home"     && <MoneyHomeSection     data={data} navigate={navigate}/>}
-        {monTab === "accounts" && <MoneyAccountsSection data={data} navigate={navigate}/>}
-        {monTab === "plans"    && <MoneyPlansSection    data={data} navigate={navigate} plansTab={plansTab} setPlansTab={setPlansTabP}/>}
-        {monTab === "menu"     && <MoneyMenuPage        navigate={navigate}/>}
+    <div style={{ background: C.monBg, minHeight: "calc(100dvh - var(--app-header-h))", color: "#fff" }}>
+      <div ref={contentRef} style={{ overflowY: "auto", height: "calc(100dvh - var(--app-header-h) - var(--mon-nav-h, 64px))" }}>
+        {monTab === "home"      && <MoneyHomeSection      data={data} navigate={navigate} onGoToBudget={() => setMonTabP("budget")}/>}
+        {monTab === "accounts"  && <MoneyAccountsSection  data={data} navigate={navigate}/>}
+        {monTab === "budget"    && <MoneyBudgetSection    data={data} navigate={navigate} budgetTab={budgetTab} setBudgetTab={setBudgetTabP}/>}
+        {monTab === "analytics" && <MoneyAnalyticsSection data={data} navigate={navigate}/>}
+        {monTab === "menu"      && <MoneyMenuPage         navigate={navigate}/>}
       </div>
-      {/* Bottom nav — height grows with iOS safe area so buttons stay above home indicator */}
-      <div ref={navRef} style={{ position:"fixed", bottom:0, left:0, right:0, height:"calc(64px + env(safe-area-inset-bottom, 0px))", paddingBottom:"env(safe-area-inset-bottom, 0px)", background:C.monHeader, borderTop:"1px solid rgba(76,175,80,0.1)", display:"flex", zIndex:30 }}>
+
+      {/* Bottom nav */}
+      <div ref={navRef}
+        style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: "calc(60px + env(safe-area-inset-bottom, 0px))", paddingBottom: "env(safe-area-inset-bottom, 0px)", background: C.monHeader, borderTop: "1px solid rgba(76,175,80,0.1)", display: "flex", zIndex: 30 }}>
         {MON_TABS.map(t => (
-          <button key={t.id} onClick={() => { setMonTabP(t.id); setStack([]); }} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, background:"none", border:"none", cursor:"pointer", color:monTab===t.id?C.green:"rgba(255,255,255,0.3)" }}>
-            <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {t.d.split("M").filter(Boolean).map((p,i) => <path key={i} d={`M${p}`}/>)}
+          <button key={t.id} onClick={() => { setMonTabP(t.id); setStack([]); }}
+            style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, background: "none", border: "none", cursor: "pointer", color: monTab === t.id ? C.green : "rgba(255,255,255,0.3)", minWidth: 0 }}>
+            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {t.d.split("M").filter(Boolean).map((p, i) => <path key={i} d={`M${p}`}/>)}
             </svg>
-            <span style={{ fontSize:10, fontWeight:500 }}>{t.label}</span>
+            <span style={{ fontSize: 9, fontWeight: 500, lineHeight: 1 }}>{t.label}</span>
           </button>
         ))}
       </div>

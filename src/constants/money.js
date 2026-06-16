@@ -37,8 +37,8 @@ export const TRIP_LABELS = {
 
 export const ACC_PURPOSES = [
   { key: "daily",      label: "Ежедневные" },
-  { key: "reserve",    label: "Резерв" },
-  { key: "investment", label: "Инвестиции" },
+  { key: "reserve",    label: "Резервные" },
+  { key: "investment", label: "Инвестиционные" },
   { key: "savings",    label: "Накопления" },
   { key: "additional", label: "Дополнительные" },
 ];
@@ -46,5 +46,13 @@ export const ACC_PURPOSES = [
 export const SAVINGS_PURPOSES = ["investment", "savings", "reserve"];
 export const BALANCE_ADJUSTMENT_NOTE = "Balance adjustment";
 export const FEE_TX_NOTE = "Комиссия за перевод";
+
+export const GOAL_TYPES = [
+  { key: "custom",     label: "Цель" },
+  { key: "safety_net", label: "Подушка" },
+  { key: "purchase",   label: "Покупка" },
+  { key: "vacation",   label: "Отпуск" },
+  { key: "investment", label: "Инвестиции" },
+];
 
 export const PALETTE =["#4caf50", "#66bb6a", "#388e3c", "#1b5e20", "#f9a825", "#fbc02d", "#ff8f00", "#e65100", "#f44336", "#e53935", "#c62828", "#e91e63", "#c2185b", "#9c27b0", "#7b1fa2", "#673ab7", "#3f51b5", "#1976d2", "#0288d1", "#0097a7", "#00796b", "#5d4037", "#757575", "#546e7a", "#37474f", "#ffffff", "#000000", "#ff5722", "#795548", "#9e9e9e"];

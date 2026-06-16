@@ -5,6 +5,7 @@ import { getSym, fmtAmt } from "../../../utils/format";
 import { supaUpsert, supa } from "../../../lib/supabase";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { Ico } from "../../../components/Ico";
+import { NumInput } from "../../../components/NumInput";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { CatIcon } from "../../../components/CatIcon";
@@ -86,7 +87,7 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
         {items.map(it => (
           <div key={it.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
             <input value={it.label} onChange={e => setItem(it.id, { label:e.target.value })} placeholder={type === "savings" ? "Цель (напр. резервный фонд)" : "Статья (напр. продукты)"} style={{ ...inputBox, flex:1, minWidth:0 }}/>
-            <input value={it.amount} onChange={e => { setItem(it.id, { amount:e.target.value }); setErrors(p => ({...p, items:""})); }} type="number" placeholder="0" style={{ ...inputBox, width:92, fontWeight:600, textAlign:"right" }}/>
+            <NumInput value={it.amount} onChange={v => { setItem(it.id, { amount:v }); setErrors(p => ({...p, items:""})); }} placeholder="0" style={{ ...inputBox, width:110, fontWeight:600, textAlign:"right" }}/>
             <button onClick={() => delItem(it.id)} disabled={items.length===1} style={{ background:"none", border:"none", cursor:items.length===1?"default":"pointer", padding:4, display:"flex", opacity:items.length===1?0.3:1 }}>
               <Ico n="x" s={16} c="rgba(244,67,54,0.6)"/>
             </button>

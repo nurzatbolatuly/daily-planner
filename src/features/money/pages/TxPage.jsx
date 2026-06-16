@@ -7,6 +7,7 @@ import { supaRpc } from "../../../lib/supabase";
 import { BALANCE_ADJUSTMENT_NOTE } from "../../../constants/money";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
+import { NumInput } from "../../../components/NumInput";
 import { CategoryPicker } from "../../../components/CategoryPicker";
 import { CurrencyPage } from "../../../components/CurrencyPage";
 import { CalendarPicker } from "../../../components/CalendarPicker";
@@ -120,7 +121,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit }) {
       <div style={{ flex:1, overflowY:"auto", padding:"0 16px 80px" }}>
         <div style={{ textAlign:"center", padding:"24px 24px 16px" }}>
           <div style={{ display:"flex", alignItems:"baseline", justifyContent:"center", gap:16 }}>
-            <input value={amt} onChange={e => { setAmt(e.target.value); setErrors(p => ({...p, amt:""})); }} type="number" placeholder="0" style={{ background:"none", border:"none", outline:"none", color:errors.amt?C.red:"#fff", fontSize:38, fontWeight:700, textAlign:"center", width:"min(180px, 50%)" }}/>
+            <NumInput value={amt} onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }} placeholder="0" style={{ background:"none", border:"none", outline:"none", color:errors.amt?C.red:"#fff", fontSize:38, fontWeight:700, textAlign:"center", width:"min(180px, 50%)" }}/>
             <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", color:C.green, fontSize:22, fontWeight:700, cursor:"pointer" }}>{cur}</button>
           </div>
           <div style={{ height:1, background:errors.amt?"rgba(244,67,54,0.5)":"rgba(255,255,255,0.15)", margin:"8px 40px 0" }}/>

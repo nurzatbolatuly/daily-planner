@@ -71,7 +71,7 @@ export function TripEditPageMon({ onBack, edit }) {
           </button>
         )}
       </div>
-      {showCal && <CalendarPicker mode="range" value={startDate} valueEnd={endDate} onChange={setStartDate} onChangeEnd={setEndDate} onClose={() => setShowCal(false)}/>}
+      {showCal && <CalendarPicker mode="range" confirmable value={startDate} valueEnd={endDate} onChange={setStartDate} onChangeEnd={setEndDate} onClose={() => setShowCal(false)}/>}
     </div>
   );
 }

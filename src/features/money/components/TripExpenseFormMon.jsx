@@ -3,6 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { TRIP_CATS, TRIP_LABELS } from "../../../constants/money";
 import { FieldLabel } from "../../../components/FieldLabel";
+import { NumInput } from "../../../components/NumInput";
 import { Toggle } from "../../../components/Toggle";
 import { CurrencyPage } from "../../../components/CurrencyPage";
 
@@ -54,7 +55,7 @@ export function TripExpenseFormMon({ exp, onSave, onCancel }) {
       </div>
       <FieldLabel error={errors.amt}>Сумма</FieldLabel>
       <div style={{ display:"flex", alignItems:"center", gap:10, borderBottom:`1px solid ${errors.amt?"rgba(244,67,54,0.4)":C.border}`, marginBottom:12, paddingBottom:4 }}>
-        <input value={amt} onChange={e => { setAmt(e.target.value); setErrors(p => ({...p, amt:""})); }} type="number" placeholder="0" style={{ flex:1, background:"none", border:"none", outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0" }}/>
+        <NumInput value={amt} onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }} placeholder="0" style={{ flex:1, background:"none", border:"none", outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0" }}/>
         <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", color:C.green, fontSize:16, fontWeight:700, cursor:"pointer", flexShrink:0 }}>{cur} ▾</button>
       </div>
       <FieldLabel>Статус оплаты</FieldLabel>
@@ -68,7 +69,7 @@ export function TripExpenseFormMon({ exp, onSave, onCancel }) {
       {status==="partial" && (
         <div style={{ marginBottom:12 }}>
           <FieldLabel error={errors.paidAmt}>Уже оплачено ({cur})</FieldLabel>
-          <input value={paidAmt} onChange={e => { setPaidAmt(e.target.value); setErrors(p => ({...p, paidAmt:""})); }} type="number" placeholder="0" style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${errors.paidAmt?"rgba(244,67,54,0.4)":C.border}`, outline:"none", color:"#fff", fontSize:16, padding:"4px 0", boxSizing:"border-box" }}/>
+          <NumInput value={paidAmt} onChange={v => { setPaidAmt(v); setErrors(p => ({...p, paidAmt:""})); }} placeholder="0" style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${errors.paidAmt?"rgba(244,67,54,0.4)":C.border}`, outline:"none", color:"#fff", fontSize:16, padding:"4px 0", boxSizing:"border-box" }}/>
         </div>
       )}
       <div style={{ marginBottom:12 }}><Toggle value={isCash} onChange={setIsCash} label="Наличными"/></div>

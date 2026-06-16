@@ -2,15 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { todayStr, localDate } from "../../../utils/date";
 import { avgRateFn } from "../../../utils/format";
-import { supaRpc, supabase } from "../../../lib/supabase";
+import { supaRpc, supabase, supaUpsert } from "../../../lib/supabase";
 import { FEE_TX_NOTE } from "../../../constants/money";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
+import { NumInput } from "../../../components/NumInput";
 import { AccSelect } from "../../../components/AccSelect";
 import { CatIcon } from "../../../components/CatIcon";
 
-export function TransferPageMon({ accounts, expCats, onBack, edit }) {
+export function TransferPageMon({ accounts, expCats, goals = [], onBack, edit }) {
   const [fromId,    setFromId]    = useState(edit?.from_id || accounts[0]?.id || "");
   const [toId,      setToId]      = useState(edit?.to_id   || accounts[1]?.id || "");
   const [amt,       setAmt]       = useState(edit ? String(edit.amount) : "");
@@ -161,6 +162,25 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
       }
     }
 
+    // Авто-пополнение цели: если счёт-получатель привязан к цели
+    const linkedGoal = goals.find(g => g.account_id === toId);
+    if (edit) {
+      // При редактировании: удаляем старый авто-topup этого перевода (если был)
+      await supabase.from("goal_topups").delete().eq("transfer_id", edit.id);
+    }
+    if (linkedGoal) {
+      const topupRow = {
+        id:          crypto.randomUUID(),
+        goal_id:     linkedGoal.id,
+        amount:      newToAmt,
+        currency:    toAcc?.currency || tr.to_currency,
+        date:        edit ? localDate(edit.created_at) : todayStr(),
+        note:        `Перевод: ${fromAcc?.name || ""}`,
+        transfer_id: tr.id,
+      };
+      await supaUpsert("goal_topups", topupRow);
+    }
+
     onBack(true);
   };
 
@@ -186,7 +206,7 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
 
         <FieldLabel error={errors.amt}>Сумма ({fromAcc?.currency||""})</FieldLabel>
         <div style={{ borderBottom:`1px solid ${errors.amt ? "rgba(244,67,54,0.5)" : C.border}`, marginBottom:errors.amt ? 4 : 16 }}>
-          <input value={amt} onChange={e => { setAmt(e.target.value); setErrors(p => ({...p, amt:""})); }} type="number" placeholder="0"
+          <NumInput value={amt} onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }} placeholder="0"
             style={{ width:"100%", background:"none", border:"none", outline:"none", color:errors.amt ? C.errorLight : "#fff", fontSize:28, fontWeight:700, padding:"4px 0", boxSizing:"border-box" }}/>
         </div>
         {errors.amt && <p style={{ color:C.errorLight, fontSize:12, marginBottom:12 }}>{errors.amt}</p>}
@@ -194,7 +214,7 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
         {diffCur && <>
           <FieldLabel error={errors.toAmt}>Получить ({toAcc?.currency||""})</FieldLabel>
           <div style={{ borderBottom:`1px solid ${errors.toAmt ? "rgba(244,67,54,0.5)" : C.border}`, marginBottom:errors.toAmt ? 4 : 16 }}>
-            <input value={toAmt} onChange={e => { setToAmt(e.target.value); setErrors(p => ({...p, toAmt:""})); }} type="number" placeholder="0"
+            <NumInput value={toAmt} onChange={v => { setToAmt(v); setErrors(p => ({...p, toAmt:""})); }} placeholder="0"
               style={{ width:"100%", background:"none", border:"none", outline:"none", color:errors.toAmt ? C.errorLight : "#fff", fontSize:28, fontWeight:700, padding:"4px 0", boxSizing:"border-box" }}/>
           </div>
           {errors.toAmt && <p style={{ color:C.errorLight, fontSize:12, marginBottom:12 }}>{errors.toAmt}</p>}
@@ -204,7 +224,7 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
         </>}
 
         <FieldLabel>Комиссия</FieldLabel>
-        <input value={fee} onChange={e => { setFee(e.target.value); if (!e.target.value) setFeeCatId(""); }} type="number" placeholder="0"
+        <NumInput value={fee} onChange={v => { setFee(v); if (!v) setFeeCatId(""); }} placeholder="0"
           style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${C.border}`, outline:"none", color:"#fff", fontSize:18, padding:"4px 0", marginBottom:16, boxSizing:"border-box" }}/>
 
         {parseFloat(fee) > 0 && expCats?.length > 0 && !edit && (

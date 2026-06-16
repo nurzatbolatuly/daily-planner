@@ -5,6 +5,7 @@ import { EXP_ICONS, INC_ICONS } from "../../../constants/icons";
 import { supaUpsert, supa } from "../../../lib/supabase";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
+import { NumInput } from "../../../components/NumInput";
 import { CatIcon } from "../../../components/CatIcon";
 import { ColorPickerComp } from "../../../components/ColorPickerComp";
 import { CurrencyPage } from "../../../components/CurrencyPage";
@@ -74,10 +75,9 @@ export function CatPageMon({ expCats, incCats, onBack, edit, catType }) {
         <div style={{ marginBottom:16 }}>
           <FieldLabel>{catType === "expense" ? "Плановый расход" : "Плановый доход"}</FieldLabel>
           <div style={{ display:"flex", alignItems:"baseline", gap:10 }}>
-            <input
+            <NumInput
               value={plan}
-              onChange={e => setPlan(e.target.value)}
-              type="number"
+              onChange={setPlan}
               placeholder="0"
               style={{ width:120, background:"none", border:"none", borderBottom:"1px solid rgba(255,255,255,0.2)", outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0" }}
             />

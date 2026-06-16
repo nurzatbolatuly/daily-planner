@@ -3,6 +3,7 @@ import { C } from "../../../constants/theme";
 import { supaUpsert, supa } from "../../../lib/supabase";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
+import { NumInput } from "../../../components/NumInput";
 import { CategoryPicker } from "../../../components/CategoryPicker";
 import { AccSelect } from "../../../components/AccSelect";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
@@ -78,10 +79,9 @@ export function RecPageMon({ accounts, expCats, onBack, edit }) {
           </div>
           <div style={{ flex:2 }}>
             <FieldLabel error={errors.amt}>Сумма {selAcc ? `(${selAcc.currency})` : ""}</FieldLabel>
-            <input
-              type="number"
+            <NumInput
               value={amt}
-              onChange={e => { setAmt(e.target.value); setErrors(p => ({...p, amt:""})); }}
+              onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }}
               placeholder="0"
               style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${errors.amt?"rgba(244,67,54,0.5)":C.border}`, outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0", boxSizing:"border-box" }}
             />
