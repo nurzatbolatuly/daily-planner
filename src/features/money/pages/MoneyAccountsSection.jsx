@@ -110,8 +110,10 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     {!acc.in_total && <Ico n="eyeOff" s={14} c={C.dim}/>}
                     <p style={{ margin:0, fontSize:16, fontWeight:700, color: acc.balance < 0 ? C.errorLight : "#fff" }}>
-                      {isCommodity(acc.currency) && acc.avg_rate
-                        ? fmtBal(acc.balance * acc.avg_rate, BASE_CUR, 0)
+                      {isCommodity(acc.currency)
+                        ? (acc.avg_rate
+                            ? fmtBal(acc.balance * acc.avg_rate, BASE_CUR, 0)
+                            : fmtGrams(acc.balance))
                         : fmtBal(acc.balance, acc.currency)
                       }
                     </p>
