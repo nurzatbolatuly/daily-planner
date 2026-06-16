@@ -1,15 +1,14 @@
-import { useState, useMemo, useEffect, memo } from "react";
+import { useState, useMemo, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { pad, todayStr } from "../../../utils/date";
-import { getSym, fmtAmt, fmtBal, toBase, fmtDateShort, ratesFromAccounts, calcTotalBalance } from "../../../utils/format";
+import { getSym, fmtAmt, fmtBal, toBase, ratesFromAccounts, calcTotalBalance } from "../../../utils/format";
 import { exportTransactionsXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 import { CalendarPicker } from "../../../components/CalendarPicker";
 import { BottomSheet } from "../../../components/BottomSheet";
-import { CategoryPicker } from "../../../components/CategoryPicker";
 import { DonutChart } from "../components/DonutChart";
 
 export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate }) {
@@ -23,8 +22,6 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate 
   const [selAccId, setSelAccId] = useState(null);
   const [showAccPicker, setShowAccPicker] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [filterCats, setFilterCats] = useState([]);
-  const [showFilter, setShowFilter] = useState(false);
   const sym = getSym(BASE_CUR);
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
 
@@ -33,14 +30,11 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate 
     [accounts, selAccId]
   );
 
-  useEffect(() => { setFilterCats([]); }, [txType]);
-
   const cats = txType === "expense" ? expCats : incCats;
 
   const typeTxs = useMemo(() => {
     const filtered = transactions.filter(t => {
       if (selAccId && t.account_id !== selAccId) return false;
-      if (filterCats.length > 0 && !filterCats.includes(t.category_id)) return false;
       const d = new Date(t.date);
       if (period === "day") return t.date === todayStr();
       if (period === "week") { const w = new Date(); w.setDate(w.getDate()-7); return d >= w; }
@@ -50,7 +44,7 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate 
       return true;
     });
     return filtered.filter(t => t.type === txType);
-  }, [transactions, selAccId, filterCats, period, txType, viewMonth, viewYear, rangeStart, rangeEnd]);
+  }, [transactions, selAccId, period, txType, viewMonth, viewYear, rangeStart, rangeEnd]);
 
   const catData = useMemo(() =>
     cats.map(c => ({ ...c, val: typeTxs.filter(t => t.category_id === c.id).reduce((s,t) => s + toBase(t.amount, t.currency, rates), 0) }))
@@ -59,12 +53,6 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate 
   );
 
   const grandTotal = useMemo(() => catData.reduce((s,c) => s + c.val, 0), [catData]);
-
-  const { grouped, sortedDates } = useMemo(() => {
-    const g = {};
-    typeTxs.forEach(t => { if (!g[t.date]) g[t.date]=[]; g[t.date].push(t); });
-    return { grouped: g, sortedDates: Object.keys(g).sort((a,b) => b.localeCompare(a)) };
-  }, [typeTxs]);
 
   const prevP = () => { if(period==="month"){if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);}else setViewMonth(m=>m-1);}else setViewYear(y=>y-1); };
   const nextP = () => { if(period==="month"){if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);}else setViewMonth(m=>m+1);}else setViewYear(y=>y+1); };
@@ -129,55 +117,24 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate 
           const pl = monthPlans.find(p => p.cat_id === c.id && p.type === txType);
           const planInBase = pl ? toBase(pl.plan, pl.plan_currency || BASE_CUR, rates) : 0;
           return (
-            <div key={c.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderTop:`1px solid ${C.border}` }}>
+            <div key={c.id} onClick={() => navigate("catTxs", { cat:c, txs:typeTxs.filter(t => t.category_id===c.id), periodLabel, txType })} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderTop:`1px solid ${C.border}`, cursor:"pointer" }}>
               <CatIcon k={c.icon} size={42} color={c.color}/>
               <div style={{ flex:1 }}>
                 <p style={{ margin:0, fontSize:14, fontWeight:500, color:C.main }}>{c.name}</p>
                 {pl && <div style={{ marginTop:3, height:3, borderRadius:2, background:"rgba(255,255,255,0.08)" }}><div style={{ height:3, borderRadius:2, width:`${Math.min(c.val/planInBase*100,100)}%`, background:c.val>planInBase?C.errorLight:c.color }}/></div>}
               </div>
               <span style={{ fontSize:13, color:C.dim, marginRight:6 }}>{pct}%</span>
-              <div style={{ textAlign:"right" }}>
-                <p style={{ margin:0, fontSize:14, fontWeight:600, color:C.main }}>{sym}{fmtAmt(c.val,0)}</p>
-                {pl && <p style={{ margin:0, fontSize:10, color:C.dim }}>из {getSym(pl.plan_currency || BASE_CUR)}{fmtAmt(pl.plan,0)}</p>}
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <div style={{ textAlign:"right" }}>
+                  <p style={{ margin:0, fontSize:14, fontWeight:600, color:C.main }}>{sym}{fmtAmt(c.val,0)}</p>
+                  {pl && <p style={{ margin:0, fontSize:10, color:C.dim }}>из {getSym(pl.plan_currency || BASE_CUR)}{fmtAmt(pl.plan,0)}</p>}
+                </div>
+                <Ico n="chevR" s={16} c={C.dim}/>
               </div>
             </div>
           );
         })}
         {catData.length === 0 && <p style={{ textAlign:"center", padding:"24px", color:C.dim, fontSize:13 }}>Нет транзакций за этот период</p>}
-      </div>
-
-      {/* Filter button */}
-      <div style={{ padding:"10px 12px 0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <button onClick={() => setShowFilter(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:20, background:filterCats.length>0?C.greenDim:"rgba(255,255,255,0.06)", border:`1px solid ${filterCats.length>0?"rgba(76,175,80,0.4)":C.border}`, color:filterCats.length>0?C.green:C.mid, fontSize:13, cursor:"pointer" }}>
-          <Ico n="filter" s={15} c={filterCats.length>0?C.green:C.mid}/>
-          {filterCats.length>0?`Фильтры (${filterCats.length})`:"Фильтр"}
-        </button>
-        <span style={{ fontSize:13, fontWeight:600, color:C.mid }}>{sym}{fmtAmt(grandTotal,0)}</span>
-      </div>
-
-      {/* TX list */}
-      <div style={{ padding:"10px 12px 0" }}>
-        {sortedDates.map(date => (
-          <div key={date} style={{ marginBottom:12 }}>
-            <p style={{ fontSize:12, fontWeight:600, color:C.dim, margin:"0 0 6px" }}>{fmtDateShort(date)}</p>
-            {grouped[date].map(tx => {
-              const cat = cats.find(c => c.id === tx.category_id);
-              const acc = accounts.find(a => a.id === tx.account_id);
-              return (
-                <div key={tx.id} onClick={() => navigate("editTx", tx)} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:14, marginBottom:4, background:C.monCard, cursor:"pointer" }}>
-                  <CatIcon k={cat?.icon||"other"} size={44} color={cat?.color||"#607d8b"}/>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ margin:0, fontSize:14, fontWeight:500, color:C.main }}>{cat?.name||"—"}</p>
-                    <p style={{ margin:0, fontSize:12, color:C.dim, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{acc?.name||"—"}{tx.note?` · ${tx.note}`:""}</p>
-                  </div>
-                  <div style={{ textAlign:"right", flexShrink:0 }}>
-                    <p style={{ margin:0, fontSize:14, fontWeight:600, color:tx.type==="income"?C.emerald:"#fff" }}>{tx.type==="income"?"+":""}{getSym(tx.currency)}{fmtAmt(tx.amount)}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ))}
       </div>
 
       {/* Account picker */}
@@ -189,17 +146,6 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate 
             <div style={{ width:22, height:22, borderRadius:11, border:`2px solid ${selAccId===a.id?C.green:"rgba(255,255,255,0.2)"}`, display:"flex", alignItems:"center", justifyContent:"center" }}>{selAccId===a.id && <div style={{ width:10, height:10, borderRadius:5, background:C.green }}/>}</div>
           </div>
         ))}
-      </BottomSheet>
-
-      {/* Filter */}
-      <BottomSheet
-        open={showFilter}
-        onClose={() => setShowFilter(false)}
-        title="Фильтр по категории"
-        right={filterCats.length > 0 && <button onClick={() => setFilterCats([])} style={{ background:"none", border:"none", color:C.errorLight, fontSize:13, cursor:"pointer" }}>Сбросить</button>}
-      >
-        <CategoryPicker cats={cats} value={filterCats} onChange={setFilterCats} multi/>
-        <button onClick={() => setShowFilter(false)} style={{ width:"100%", marginTop:16, padding:"14px", borderRadius:30, background:C.green, border:"none", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer" }}>Применить</button>
       </BottomSheet>
 
       {showCalendar && (

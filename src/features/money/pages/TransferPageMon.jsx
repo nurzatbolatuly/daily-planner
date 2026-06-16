@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { todayStr, localDate } from "../../../utils/date";
 import { avgRateFn } from "../../../utils/format";
 import { supaRpc, supabase } from "../../../lib/supabase";
 import { FEE_TX_NOTE } from "../../../constants/money";
+import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { AccSelect } from "../../../components/AccSelect";
@@ -18,9 +19,10 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
   const [fee,       setFee]       = useState(edit?.fee     ? String(edit.fee)    : "");
   const [feeCatId,  setFeeCatId]  = useState("");
   const [note,      setNote]      = useState(edit?.note    || "");
-  const [saving,    setSaving]    = useState(false);
-  const [saveError, setSaveError] = useState(null);
   const [errors,    setErrors]    = useState({});
+
+  const saveRef = useRef(null);
+  const { save: execSave, saving, saveError } = useSave(() => saveRef.current(), { errorMsg: "Не удалось сохранить перевод" });
 
   useEffect(() => {
     if (!edit?.fee) return;
@@ -35,17 +37,8 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
   const toAcc    = accounts.find(a => a.id === toId);
   const diffCur  = fromAcc?.currency !== toAcc?.currency;
 
-  const save = async () => {
-    const errs = {};
-    if (!amt || parseFloat(amt) <= 0) errs.amt = "Введите сумму";
-    if (!fromId) errs.from = "Выберите счёт отправителя";
-    if (!toId)   errs.to   = "Выберите счёт получателя";
-    if (fromId && toId && fromId === toId) errs.to = "Нельзя переводить на тот же счёт";
-    if (diffCur && (!toAmt || parseFloat(toAmt) <= 0)) errs.toAmt = "Введите сумму получения";
-    setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
-    setSaving(true);
-
+  // Async body — читается из saveRef чтобы useSave мог быть вызван unconditionally до early returns
+  saveRef.current = async () => {
     const feeAmt   = parseFloat(fee)  || 0;
     const newAmt   = parseFloat(amt);
     const newToAmt = diffCur ? (parseFloat(toAmt) || 0) : newAmt;
@@ -63,114 +56,124 @@ export function TransferPageMon({ accounts, expCats, onBack, edit }) {
       note,
     };
 
-    try {
-      if (edit) {
-        // ── EDIT: всё атомарно через edit_transfer ───────────────────
-        const oldFromAcc = accounts.find(a => a.id === edit.from_id);
-        const oldToAcc   = accounts.find(a => a.id === edit.to_id);
-        const oldToAmt   = edit.to_amt || edit.amount;
-        const oldFee     = edit.fee || 0;
+    if (edit) {
+      // ── EDIT: всё атомарно через edit_transfer ───────────────────
+      const oldFromAcc = accounts.find(a => a.id === edit.from_id);
+      const oldToAcc   = accounts.find(a => a.id === edit.to_id);
+      const oldToAmt   = edit.to_amt || edit.amount;
+      const oldFee     = edit.fee || 0;
 
-        // Ищем ID старой fee-транзакции до RPC (нет в props)
-        let oldFeeTxId = null;
-        if (oldFee > 0) {
-          const { data: oldFeeTxs } = await supabase.from("transactions").select("id")
-            .eq("account_id", edit.from_id).eq("amount", oldFee)
-            .eq("date", localDate(edit.created_at)).eq("type", "expense")
-            .eq("note", FEE_TX_NOTE);
-          if (oldFeeTxs?.length > 0) oldFeeTxId = oldFeeTxs[0].id;
-        }
+      // Ищем ID старой fee-транзакции до RPC (нет в props)
+      let oldFeeTxId = null;
+      if (oldFee > 0) {
+        const { data: oldFeeTxs } = await supabase.from("transactions").select("id")
+          .eq("account_id", edit.from_id).eq("amount", oldFee)
+          .eq("date", localDate(edit.created_at)).eq("type", "expense")
+          .eq("note", FEE_TX_NOTE);
+        if (oldFeeTxs?.length > 0) oldFeeTxId = oldFeeTxs[0].id;
+      }
 
-        const sameFrom = fromId === edit.from_id;
-        const sameTo   = toId   === edit.to_id;
+      const sameFrom = fromId === edit.from_id;
+      const sameTo   = toId   === edit.to_id;
 
-        // p_from_balance включает вычет и нового amount, и новой комиссии
-        const newFromBal = sameFrom
-          ? oldFromAcc.balance + edit.amount + oldFee - newAmt - feeAmt
-          : fromAcc.balance - newAmt - feeAmt;
+      // p_from_balance включает вычет и нового amount, и новой комиссии
+      const newFromBal = sameFrom
+        ? oldFromAcc.balance + edit.amount + oldFee - newAmt - feeAmt
+        : fromAcc.balance - newAmt - feeAmt;
 
-        const preOldToBal = oldToAcc.balance - oldToAmt;
-        let newToBal, newToAvgRate = null;
+      const preOldToBal = oldToAcc.balance - oldToAmt;
+      let newToBal, newToAvgRate = null;
 
-        if (sameTo) {
-          newToBal = preOldToBal + newToAmt;
-          if (diffCur && parseFloat(rate)) {
-            let prevRate = oldToAcc.avg_rate;
-            if (edit.rate && oldToAcc.avg_rate && preOldToBal > 0)
-              prevRate = (oldToAcc.avg_rate * oldToAcc.balance - oldToAmt * edit.rate) / preOldToBal;
-            else if (edit.rate && preOldToBal <= 0)
-              prevRate = null;
-            const baseRate = prevRate != null ? prevRate : parseFloat(rate);
-            newToAvgRate = Math.round(avgRateFn(preOldToBal, baseRate, newToAmt, parseFloat(rate)) * 100) / 100;
-          }
-        } else {
-          newToBal = toAcc.balance + newToAmt;
-          if (diffCur && parseFloat(rate)) {
-            const baseRate = toAcc.avg_rate || parseFloat(rate);
-            newToAvgRate = Math.round(avgRateFn(toAcc.balance, baseRate, newToAmt, parseFloat(rate)) * 100) / 100;
-          }
-        }
-
-        // Восстановительные балансы для старых счетов при смене
-        const oldFromRestoredBal = !sameFrom ? oldFromAcc.balance + edit.amount + oldFee : null;
-        let oldToRestoredBal = null, oldToRestoredRate = null;
-        if (!sameTo) {
-          oldToRestoredBal = preOldToBal;
+      if (sameTo) {
+        newToBal = preOldToBal + newToAmt;
+        if (diffCur && parseFloat(rate)) {
+          let prevRate = oldToAcc.avg_rate;
           if (edit.rate && oldToAcc.avg_rate && preOldToBal > 0)
-            oldToRestoredRate = Math.round((oldToAcc.avg_rate * oldToAcc.balance - oldToAmt * edit.rate) / preOldToBal * 100) / 100;
+            prevRate = (oldToAcc.avg_rate * oldToAcc.balance - oldToAmt * edit.rate) / preOldToBal;
+          else if (edit.rate && preOldToBal <= 0)
+            prevRate = null;
+          const baseRate = prevRate != null ? prevRate : parseFloat(rate);
+          newToAvgRate = Math.round(avgRateFn(preOldToBal, baseRate, newToAmt, parseFloat(rate)) * 100) / 100;
         }
-
-        const feeTx = feeAmt > 0 ? {
-          id: crypto.randomUUID(), type: "expense", amount: feeAmt,
-          currency: fromAcc.currency, category_id: feeCatId || null,
-          account_id: fromId, date: localDate(edit.created_at), note: FEE_TX_NOTE,
-        } : null;
-
-        await supaRpc("edit_transfer", {
-          p_tr: tr,
-          p_from_id: fromId,    p_from_balance:    newFromBal,
-          p_to_id:   toId,      p_to_balance:      newToBal,  p_to_avg_rate:   newToAvgRate,
-          p_old_from_id:        sameFrom ? null : edit.from_id,
-          p_old_from_balance:   oldFromRestoredBal,
-          p_old_to_id:          sameTo ? null : edit.to_id,
-          p_old_to_balance:     oldToRestoredBal,
-          p_old_to_avg_rate:    oldToRestoredRate,
-          p_old_fee_tx_id:      oldFeeTxId,
-          p_fee_tx:             feeTx,
-        });
-
       } else {
-        // ── CREATE ───────────────────────────────────────────────────
-        const baseFromBal = fromAcc.balance - newAmt;
-        const newToBal    = toAcc.balance   + newToAmt;
-        let newAvgRate = null;
-        if (diffCur && rate) {
-          const oldRate = toAcc.avg_rate || parseFloat(rate);
-          newAvgRate = Math.round(avgRateFn(toAcc.balance, oldRate, newToAmt, parseFloat(rate)) * 100) / 100;
-        }
-        if (feeAmt > 0) {
-          const feeTx = {
-            id: crypto.randomUUID(), type: "expense", amount: feeAmt,
-            currency: fromAcc.currency, category_id: feeCatId || null,
-            account_id: fromId, date: todayStr(), note: FEE_TX_NOTE,
-          };
-          await supaRpc("save_transfer_with_fee", {
-            p_tr: tr,
-            p_from_id: fromId, p_from_balance: baseFromBal - feeAmt,
-            p_to_id:   toId,   p_to_balance:   newToBal,   p_to_avg_rate: newAvgRate,
-            p_fee_tx:  feeTx,
-          });
-        } else {
-          await supaRpc("save_transfer", {
-            p_tr: tr,
-            p_from_id: fromId, p_from_balance: baseFromBal,
-            p_to_id:   toId,   p_to_balance:   newToBal,   p_to_avg_rate: newAvgRate,
-          });
+        newToBal = toAcc.balance + newToAmt;
+        if (diffCur && parseFloat(rate)) {
+          const baseRate = toAcc.avg_rate || parseFloat(rate);
+          newToAvgRate = Math.round(avgRateFn(toAcc.balance, baseRate, newToAmt, parseFloat(rate)) * 100) / 100;
         }
       }
 
-      onBack(true);
-    } catch(err) { console.error(err); setSaveError("Не удалось сохранить перевод"); setSaving(false); }
+      // Восстановительные балансы для старых счетов при смене
+      const oldFromRestoredBal = !sameFrom ? oldFromAcc.balance + edit.amount + oldFee : null;
+      let oldToRestoredBal = null, oldToRestoredRate = null;
+      if (!sameTo) {
+        oldToRestoredBal = preOldToBal;
+        if (edit.rate && oldToAcc.avg_rate && preOldToBal > 0)
+          oldToRestoredRate = Math.round((oldToAcc.avg_rate * oldToAcc.balance - oldToAmt * edit.rate) / preOldToBal * 100) / 100;
+      }
+
+      const feeTx = feeAmt > 0 ? {
+        id: crypto.randomUUID(), type: "expense", amount: feeAmt,
+        currency: fromAcc.currency, category_id: feeCatId || null,
+        account_id: fromId, date: localDate(edit.created_at), note: FEE_TX_NOTE,
+      } : null;
+
+      await supaRpc("edit_transfer", {
+        p_tr: tr,
+        p_from_id: fromId,    p_from_balance:    newFromBal,
+        p_to_id:   toId,      p_to_balance:      newToBal,  p_to_avg_rate:   newToAvgRate,
+        p_old_from_id:        sameFrom ? null : edit.from_id,
+        p_old_from_balance:   oldFromRestoredBal,
+        p_old_to_id:          sameTo ? null : edit.to_id,
+        p_old_to_balance:     oldToRestoredBal,
+        p_old_to_avg_rate:    oldToRestoredRate,
+        p_old_fee_tx_id:      oldFeeTxId,
+        p_fee_tx:             feeTx,
+      });
+
+    } else {
+      // ── CREATE ───────────────────────────────────────────────────
+      const baseFromBal = fromAcc.balance - newAmt;
+      const newToBal    = toAcc.balance   + newToAmt;
+      let newAvgRate = null;
+      if (diffCur && rate) {
+        const oldRate = toAcc.avg_rate || parseFloat(rate);
+        newAvgRate = Math.round(avgRateFn(toAcc.balance, oldRate, newToAmt, parseFloat(rate)) * 100) / 100;
+      }
+      if (feeAmt > 0) {
+        const feeTx = {
+          id: crypto.randomUUID(), type: "expense", amount: feeAmt,
+          currency: fromAcc.currency, category_id: feeCatId || null,
+          account_id: fromId, date: todayStr(), note: FEE_TX_NOTE,
+        };
+        await supaRpc("save_transfer_with_fee", {
+          p_tr: tr,
+          p_from_id: fromId, p_from_balance: baseFromBal - feeAmt,
+          p_to_id:   toId,   p_to_balance:   newToBal,   p_to_avg_rate: newAvgRate,
+          p_fee_tx:  feeTx,
+        });
+      } else {
+        await supaRpc("save_transfer", {
+          p_tr: tr,
+          p_from_id: fromId, p_from_balance: baseFromBal,
+          p_to_id:   toId,   p_to_balance:   newToBal,   p_to_avg_rate: newAvgRate,
+        });
+      }
+    }
+
+    onBack(true);
+  };
+
+  const save = () => {
+    const errs = {};
+    if (!amt || parseFloat(amt) <= 0) errs.amt = "Введите сумму";
+    if (!fromId) errs.from = "Выберите счёт отправителя";
+    if (!toId)   errs.to   = "Выберите счёт получателя";
+    if (fromId && toId && fromId === toId) errs.to = "Нельзя переводить на тот же счёт";
+    if (diffCur && (!toAmt || parseFloat(toAmt) <= 0)) errs.toAmt = "Введите сумму получения";
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    execSave();
   };
 
   return (

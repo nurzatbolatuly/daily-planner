@@ -17,6 +17,7 @@ import { TripEditPageMon } from "./pages/TripEditPageMon";
 import { TripDetailPageMon } from "./pages/TripDetailPageMon";
 import { CatsListPageMon } from "./pages/CatsListPageMon";
 import { RecListPageMon } from "./pages/RecListPageMon";
+import { CatTxsPageMon } from "./pages/CatTxsPageMon";
 
 export default function MoneyManagerSection() {
   const data = useMoneyData();
@@ -68,9 +69,9 @@ export default function MoneyManagerSection() {
       addTrip:      ()  => <TripEditPageMon onBack={goBackToTrips}/>,
       editTrip:     (d) => <TripEditPageMon onBack={goBackToTrips} edit={d}/>,
       tripDetail:   (d) => <TripDetailPageMon plan={d} accounts={data.accounts} navigate={navigate} onBack={goBack}/>,
-      menu:         ()  => <MoneyMenuPage navigate={navigate} onBack={() => goBack(false)}/>,
       menuCats:     ()  => <CatsListPageMon expCats={data.expCats} incCats={data.incCats} dispatch={data} navigate={navigate} onBack={() => goBack(false)}/>,
       menuRec:      ()  => <RecListPageMon recurring={data.recurring} accounts={data.accounts} expCats={data.expCats} navigate={navigate} onBack={() => goBack(false)}/>,
+      catTxs:       (d) => <CatTxsPageMon cat={d.cat} txs={d.txs} periodLabel={d.periodLabel} txType={d.txType} accounts={data.accounts} navigate={navigate} onBack={() => goBack(false)}/>,
     };
     const render = screenMap[name];
     if (render) return render(d);
@@ -90,11 +91,12 @@ export default function MoneyManagerSection() {
         {monTab === "home"     && <MoneyHomeSection     data={data} navigate={navigate}/>}
         {monTab === "accounts" && <MoneyAccountsSection data={data} navigate={navigate}/>}
         {monTab === "plans"    && <MoneyPlansSection    data={data} navigate={navigate} plansTab={plansTab} setPlansTab={setPlansTabP}/>}
+        {monTab === "menu"     && <MoneyMenuPage        navigate={navigate}/>}
       </div>
       {/* Bottom nav — height grows with iOS safe area so buttons stay above home indicator */}
       <div ref={navRef} style={{ position:"fixed", bottom:0, left:0, right:0, height:"calc(64px + env(safe-area-inset-bottom, 0px))", paddingBottom:"env(safe-area-inset-bottom, 0px)", background:C.monHeader, borderTop:"1px solid rgba(76,175,80,0.1)", display:"flex", zIndex:30 }}>
         {MON_TABS.map(t => (
-          <button key={t.id} onClick={() => { if(t.id==="menu") navigate("menu"); else { setMonTabP(t.id); setStack([]); } }} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, background:"none", border:"none", cursor:"pointer", color:monTab===t.id&&t.id!=="menu"?C.green:"rgba(255,255,255,0.3)" }}>
+          <button key={t.id} onClick={() => { setMonTabP(t.id); setStack([]); }} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, background:"none", border:"none", cursor:"pointer", color:monTab===t.id?C.green:"rgba(255,255,255,0.3)" }}>
             <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               {t.d.split("M").filter(Boolean).map((p,i) => <path key={i} d={`M${p}`}/>)}
             </svg>

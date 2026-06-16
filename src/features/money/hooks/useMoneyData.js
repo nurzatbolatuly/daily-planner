@@ -48,8 +48,17 @@ export function useMoneyData() {
   const firingRef = useRef(false);
   useEffect(() => {
     if (firingRef.current || !recurring.length || !accounts.length) return;
-    const day = new Date().getDate(), mk = monthKey(todayStr());
-    const due = recurring.filter(r => r.day === day && r.last_fired !== mk && accounts.some(a => a.id === r.acc_id));
+    const today = new Date();
+    const currentDay = today.getDate();
+    // Длина текущего месяца — для дней 29/30/31, которых нет в коротких месяцах
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const mk = monthKey(todayStr());
+    // Catch-up: срабатывает если день платежа уже наступил (или прошёл) в этом месяце,
+    // но платёж ещё не был выполнен. День 31 в коротком месяце = последний день.
+    const due = recurring.filter(r => {
+      const effectiveDay = Math.min(r.day, daysInMonth);
+      return effectiveDay <= currentDay && r.last_fired !== mk && accounts.some(a => a.id === r.acc_id);
+    });
     if (!due.length) return;
     firingRef.current = true;
     (async () => {

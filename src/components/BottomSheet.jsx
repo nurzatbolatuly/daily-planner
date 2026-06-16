@@ -1,6 +1,13 @@
+import { useEffect } from "react";
 import { C } from "../constants/theme";
 
 export function BottomSheet({ open, onClose, title, right, children }) {
+  useEffect(() => {
+    if (!open) return;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
   if (!open) return null;
   return (
     <div

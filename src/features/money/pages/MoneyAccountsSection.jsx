@@ -13,6 +13,16 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
   const [ordered, setOrdered] = useState(() => getSavedOrder(accounts));
   useEffect(() => {
     setOrdered(getSavedOrder(accounts));
+    // Удаляем из localStorage id счетов, которых больше не существует
+    try {
+      const stored = JSON.parse(localStorage.getItem("accountOrder") || "null");
+      if (stored) {
+        const existingIds = new Set(accounts.map(a => a.id));
+        const cleaned = stored.filter(id => existingIds.has(id));
+        if (cleaned.length !== stored.length)
+          localStorage.setItem("accountOrder", JSON.stringify(cleaned));
+      }
+    } catch {}
   }, [accounts]);
 
   const total = calcTotalBalance(accounts);
