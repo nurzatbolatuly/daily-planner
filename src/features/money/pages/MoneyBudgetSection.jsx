@@ -94,7 +94,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
   const [planYear,  setPlanYear]    = useState(new Date().getFullYear());
   const [expanded,   setExpanded]   = useState({});
   const [activePill,        setActivePill]        = useState("expense");
-  const [activePerspective, setActivePerspective] = useState("actual");
+  const [activePerspective, setActivePerspective] = useState("plan");
   const [showCal,           setShowCal]           = useState(false);
   const [monthRates, setMonthRates] = useState({});
   const [rateInputs, setRateInputs] = useState({});
@@ -262,7 +262,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
           <div style={{ background: C.monCard, borderRadius: 16, padding: "16px", marginBottom: 14 }}>
             {/* Perspective switcher */}
             <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 3, marginBottom: 14 }}>
-              {[["actual", "Факт"], ["plan", "План"]].map(([v, l]) => (
+              {[["plan", "План"],["actual", "Факт"]].map(([v, l]) => (
                 <button key={v} onClick={() => setActivePerspective(v)}
                   style={{ flex: 1, padding: "6px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
                            background: activePerspective === v ? "rgba(255,255,255,0.1)" : "transparent",
