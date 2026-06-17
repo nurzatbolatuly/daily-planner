@@ -4,7 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad } from "../../../utils/date";
-import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/format";
+import { getSym, fmtAmtAuto, toBase, ratesFromAccounts, calcTotalBalance } from "../../../utils/format";
 import { exportPlansXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
@@ -185,8 +185,10 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
   const activeIncome     = activePerspective === "actual" ? totalActInc : totalPlanInc;
   const activeExpense    = activePerspective === "actual" ? totalActExp : totalPlanExp;
   const activeSavings    = activePerspective === "actual" ? totalActSav : totalPlanSav;
-  const activeFree       = activeIncome - activeExpense - activeSavings;
-  const activeOverBudget = activeExpense + activeSavings > activeIncome;
+  const totalBalance     = useMemo(() => calcTotalBalance(accounts), [accounts]);
+  const totalAvailable   = activeIncome + totalBalance;
+  const activeFree       = totalAvailable - activeExpense - activeSavings;
+  const activeOverBudget = activeExpense + activeSavings > totalAvailable;
 
   const usedPlanCurrencies = useMemo(() => {
     const curs = new Set();
@@ -272,17 +274,25 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
               ))}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-              <span style={{ fontSize: 12, color: C.dim }}>Доход</span>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: C.dim }}>Доход месяца</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: C.emerald }}>{sym}{fmtAmtAuto(activeIncome)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ fontSize: 12, color: C.dim }}>Баланс счетов</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>{sym}{fmtAmtAuto(totalBalance)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 9, marginBottom: 14, borderTop: `1px solid ${C.border}` }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.mid }}>Итого доступно</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{sym}{fmtAmtAuto(totalAvailable)}</span>
             </div>
 
             {[
               { label: "Расходы",   amt: activeExpense, color: C.errorLight },
               { label: "Накоплен.", amt: activeSavings,  color: C.blue },
-              { label: "Свободно",  amt: activeFree,     color: activeFree >= 0 ? C.amber : C.errorLight },
+              { label: "Свободно",  amt: activeFree,     color: activeFree >= 0 ? C.emerald : C.errorLight },
             ].map(({ label, amt, color }) => {
-              const pct = activeIncome > 0 ? Math.min(Math.max(amt / activeIncome, 0), 1) : 0;
+              const pct = totalAvailable > 0 ? Math.min(Math.max(amt / totalAvailable, 0), 1) : 0;
               return (
                 <div key={label} style={{ marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
@@ -299,7 +309,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
             {activeOverBudget && (
               <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)" }}>
                 <span style={{ fontSize: 12, color: C.errorLight }}>
-                  ⚠ Расходы + накопления превышают доход на {sym}{fmtAmtAuto(activeExpense + activeSavings - activeIncome)}
+                  ⚠ Расходы + накопления превышают доступные средства на {sym}{fmtAmtAuto(activeExpense + activeSavings - totalAvailable)}
                 </span>
               </div>
             )}
