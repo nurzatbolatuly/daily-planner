@@ -96,13 +96,13 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
                     {isCommodity(acc.currency) ? (
                       acc.avg_rate != null && (
                         <p style={{ margin:"2px 0 0", fontSize:12, color:C.dim }}>
-                          {fmtGrams(acc.balance)} · ср. {fmtAmt(acc.avg_rate, 0)} ₸/г
+                          {fmtGrams(acc.balance)} · {fmtAmt(acc.avg_rate, 0)} ₸/г
                         </p>
                       )
                     ) : (
                       acc.currency !== BASE_CUR && acc.avg_rate != null && (
                         <p style={{ margin:"2px 0 0", fontSize:12, color:C.dim }}>
-                          Средний курс: 1 {getSym(acc.currency)} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate, 2)}
+                          1 {getSym(acc.currency)} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate, 2)}
                         </p>
                       )
                     )}
