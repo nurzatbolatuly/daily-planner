@@ -47,36 +47,35 @@ export function GoalCalculator({ sym, defaultAmt, monthsLeft, color }) {
         </button>
       </div>
 
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-        <div style={{ flex: 2 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginBottom: 10 }}>
+        <div style={{ flex: 2, minWidth: 0 }}>
           <p style={{ margin: "0 0 4px", fontSize: 10, color: C.dim }}>Сумма</p>
           <NumInput value={amt} onChange={setAmt} style={inputStyle}/>
         </div>
 
         <span style={{ color: C.dim, fontSize: 18, paddingBottom: 10, flexShrink: 0 }}>÷</span>
 
-        <div style={{ flex: 1.5 }}>
+        <div style={{ flex: 1.5, minWidth: 0 }}>
           <p style={{ margin: "0 0 4px", fontSize: 10, color: C.dim }}>
             {dir === "month" ? "Месяцев" : "Плат./мес"}
           </p>
           <NumInput value={snd} onChange={setSnd} style={inputStyle}/>
         </div>
+      </div>
 
-        <span style={{ color: C.dim, fontSize: 16, paddingBottom: 10, flexShrink: 0 }}>=</span>
-
-        <div style={{ flex: 1.8, textAlign: "right", paddingBottom: 2 }}>
-          <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: color, lineHeight: 1.15 }}>
-            {isFinite(result) && result > 0
-              ? dir === "month"
-                ? `${sym}${fmtAmtAuto(result)}`
-                : `${Math.round(result)}`
-              : "—"
-            }
-          </p>
-          <p style={{ margin: "2px 0 0", fontSize: 10, color: C.dim }}>
-            {dir === "month" ? "в месяц" : "месяцев"}
-          </p>
-        </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+        <span style={{ fontSize: 13, color: C.dim, flexShrink: 0 }}>=</span>
+        <span style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1, minWidth: 0, wordBreak: "break-all" }}>
+          {isFinite(result) && result > 0
+            ? dir === "month"
+              ? `${sym}${fmtAmtAuto(result)}`
+              : `${Math.round(result)}`
+            : "—"
+          }
+        </span>
+        <span style={{ fontSize: 12, color: C.dim, flexShrink: 0 }}>
+          {dir === "month" ? "в месяц" : "месяцев"}
+        </span>
       </div>
     </div>
   );
