@@ -112,7 +112,7 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
                     <p style={{ margin:0, fontSize:16, fontWeight:700, color: acc.balance < 0 ? C.errorLight : "#fff" }}>
                       {isCommodity(acc.currency)
                         ? (acc.avg_rate
-                            ? fmtBal(acc.balance * acc.avg_rate, BASE_CUR, 0)
+                            ? fmtBal(acc.balance * acc.avg_rate, BASE_CUR)
                             : fmtGrams(acc.balance))
                         : fmtBal(acc.balance, acc.currency)
                       }

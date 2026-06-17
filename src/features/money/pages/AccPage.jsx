@@ -3,7 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR, COMMODITY_CURRENCIES } from "../../../constants/currencies";
 import { ACC_ICONS } from "../../../constants/icons";
 import { ACC_PURPOSES } from "../../../constants/money";
-import { getSym, fmtAmt } from "../../../utils/format";
+import { getSym, fmtAmtAuto } from "../../../utils/format";
 import { supa, supaRpc } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
@@ -88,7 +88,7 @@ export function AccPage({ onBack, edit }) {
           <div>
             <p style={{ margin:0, fontSize:18, fontWeight:700, color:"#fff" }}>{name||"Счёт"}</p>
             <p style={{ margin:0, fontSize:14, color:C.green }}>
-              {isCom ? `${fmtAmt(parseFloat(bal)||0, 2)} г` : `${getSym(cur)}${fmtAmt(parseFloat(bal)||0)}`}
+              {isCom ? `${fmtAmtAuto(parseFloat(bal)||0)} г` : `${getSym(cur)}${fmtAmtAuto(parseFloat(bal)||0)}`}
             </p>
           </div>
         </div>

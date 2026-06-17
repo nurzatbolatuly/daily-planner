@@ -4,7 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS, RU_MONTHS_S, RU_MON_GEN } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad, monthKey, localDate, daysBetween, todayStr } from "../../../utils/date";
-import { getSym, fmtAmt, toBase, ratesFromAccounts } from "../../../utils/format";
+import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/format";
 import { CatIcon } from "../../../components/CatIcon";
 
 const W = 300, H = 120, PAD = { top: 10, bottom: 24, left: 8, right: 8 };
@@ -263,16 +263,16 @@ export function MoneyAnalyticsSection({ data }) {
               <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
                 <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "8px 10px" }}>
                   <p style={{ margin: 0, fontSize: 10, color: C.dim }}>Доходы</p>
-                  <p style={{ margin: "3px 0 0", fontSize: 14, fontWeight: 700, color: C.emerald }}>{sym}{fmtAmt(selectedData.inc, 0)}</p>
+                  <p style={{ margin: "3px 0 0", fontSize: 14, fontWeight: 700, color: C.emerald }}>{sym}{fmtAmtAuto(selectedData.inc)}</p>
                 </div>
                 <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "8px 10px" }}>
                   <p style={{ margin: 0, fontSize: 10, color: C.dim }}>Расходы</p>
-                  <p style={{ margin: "3px 0 0", fontSize: 14, fontWeight: 700, color: C.errorLight }}>{sym}{fmtAmt(selectedData.exp, 0)}</p>
+                  <p style={{ margin: "3px 0 0", fontSize: 14, fontWeight: 700, color: C.errorLight }}>{sym}{fmtAmtAuto(selectedData.exp)}</p>
                 </div>
                 <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "8px 10px" }}>
                   <p style={{ margin: 0, fontSize: 10, color: C.dim }}>Разница</p>
                   <p style={{ margin: "3px 0 0", fontSize: 14, fontWeight: 700, color: selectedData.inc >= selectedData.exp ? C.emerald : C.errorLight }}>
-                    {selectedData.inc >= selectedData.exp ? "+" : ""}{sym}{fmtAmt(selectedData.inc - selectedData.exp, 0)}
+                    {selectedData.inc >= selectedData.exp ? "+" : ""}{sym}{fmtAmtAuto(selectedData.inc - selectedData.exp)}
                   </p>
                 </div>
               </div>
@@ -283,8 +283,8 @@ export function MoneyAnalyticsSection({ data }) {
                   <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.blue }}>Накопления</p>
                   {selectedSavingsData && (
                     <span style={{ fontSize: 10, color: C.dim }}>
-                      факт {sym}{fmtAmt(selectedSavingsData.totalActual, 0)}
-                      {selectedSavingsData.totalPlan > 0 && ` / план ${sym}${fmtAmt(selectedSavingsData.totalPlan, 0)}`}
+                      факт {sym}{fmtAmtAuto(selectedSavingsData.totalActual)}
+                      {selectedSavingsData.totalPlan > 0 && ` / план ${sym}${fmtAmtAuto(selectedSavingsData.totalPlan)}`}
                     </span>
                   )}
                 </div>
@@ -298,8 +298,8 @@ export function MoneyAnalyticsSection({ data }) {
                         <CatIcon k={acc.icon || "wallet"} size={18} color={acc.color || C.blue}/>
                         <span style={{ fontSize: 12, color: C.main, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{acc.name}</span>
                         <span style={{ fontSize: 11, fontWeight: 600, color: done ? C.emerald : C.amber, flexShrink: 0 }}>
-                          {sym}{fmtAmt(actual, 0)}
-                          {hasPlan && <span style={{ color: C.dim, fontWeight: 400 }}> / {sym}{fmtAmt(plan, 0)}</span>}
+                          {sym}{fmtAmtAuto(actual)}
+                          {hasPlan && <span style={{ color: C.dim, fontWeight: 400 }}> / {sym}{fmtAmtAuto(plan)}</span>}
                         </span>
                       </div>
                       {hasPlan && (
@@ -332,8 +332,8 @@ export function MoneyAnalyticsSection({ data }) {
                         <CatIcon k={cat.icon} size={18} color={cat.color}/>
                         <span style={{ fontSize: 12, color: C.main, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat.name}</span>
                         <span style={{ fontSize: 11, fontWeight: 600, color: overBudget ? C.errorLight : C.main, flexShrink: 0 }}>
-                          {sym}{fmtAmt(amt, 0)}
-                          {hasPlan && <span style={{ color: C.dim, fontWeight: 400 }}> / {sym}{fmtAmt(plan, 0)}</span>}
+                          {sym}{fmtAmtAuto(amt)}
+                          {hasPlan && <span style={{ color: C.dim, fontWeight: 400 }}> / {sym}{fmtAmtAuto(plan)}</span>}
                         </span>
                         {hasPlan && (
                           <span style={{ fontSize: 11, color: overBudget ? C.errorLight : C.dim, minWidth: 36, textAlign: "right", flexShrink: 0 }}>
@@ -346,7 +346,7 @@ export function MoneyAnalyticsSection({ data }) {
                       </div>
                       {overBudget && (
                         <p style={{ margin: "3px 0 0", fontSize: 10, color: C.errorLight, textAlign: "right" }}>
-                          перерасход +{sym}{fmtAmt(amt - plan, 0)}
+                          перерасход +{sym}{fmtAmtAuto(amt - plan)}
                         </p>
                       )}
                     </div>
@@ -391,13 +391,13 @@ export function MoneyAnalyticsSection({ data }) {
           <div style={{ display: "flex", gap: 20, marginBottom: 10 }}>
             <div>
               <p style={{ margin: 0, fontSize: 10, color: C.dim }}>На счетах сбережений</p>
-              <p style={{ margin: "3px 0 0", fontSize: 15, fontWeight: 700, color: C.main }}>{sym}{fmtAmt(yearForecast.currentSavBal, 0)}</p>
+              <p style={{ margin: "3px 0 0", fontSize: 15, fontWeight: 700, color: C.main }}>{sym}{fmtAmtAuto(yearForecast.currentSavBal)}</p>
             </div>
             <div>
               <p style={{ margin: 0, fontSize: 10, color: C.dim }}>Отложено в этом месяце</p>
-              <p style={{ margin: "3px 0 0", fontSize: 15, fontWeight: 700, color: C.main }}>{sym}{fmtAmt(yearForecast.currentMonthActual, 0)}</p>
+              <p style={{ margin: "3px 0 0", fontSize: 15, fontWeight: 700, color: C.main }}>{sym}{fmtAmtAuto(yearForecast.currentMonthActual)}</p>
               {yearForecast.currentMonthPlan > 0 && (
-                <p style={{ margin: "1px 0 0", fontSize: 10, color: C.dim }}>план {sym}{fmtAmt(yearForecast.currentMonthPlan, 0)}</p>
+                <p style={{ margin: "1px 0 0", fontSize: 10, color: C.dim }}>план {sym}{fmtAmtAuto(yearForecast.currentMonthPlan)}</p>
               )}
             </div>
           </div>
@@ -407,20 +407,20 @@ export function MoneyAnalyticsSection({ data }) {
             <>
               <p style={{ margin: "6px 0 2px", fontSize: 22, fontWeight: 600, color: C.emerald }}>
                 {forecastLabel}: <span style={{ margin: "6px 0 2px",fontWeight: 800,fontSize: 22 , color: C.emerald}}>
-                  {sym}{fmtAmt(yearForecast.projected, 0)}
+                  {sym}{fmtAmtAuto(yearForecast.projected)}
                 </span>
               </p>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: C.dim, lineHeight: 1.5 }}>
                 <span style={{ color: "rgba(52,211,153,0.65)", fontWeight: 600 }}>
-                  +{sym}{fmtAmt(yearForecast.remainingProjected, 0)}
+                  +{sym}{fmtAmtAuto(yearForecast.remainingProjected)}
                 </span>
                 {" за "}{yearForecast.monthsLeft} мес.{" · "}
                 <span style={{ color: C.mid, fontWeight: 600 }}>
-                  {sym}{fmtAmt(yearForecast.avgPlanMonthly, 0)}/мес
+                  {sym}{fmtAmtAuto(yearForecast.avgPlanMonthly)}/мес
                 </span>
                 {" по плану"}
                 {yearForecast.avgPlanMonthly.toFixed(0) !== yearForecast.avgMonthlySav.toFixed(0) && yearForecast.avgMonthlySav > 0 && (
-                  <span style={{ color: "rgba(255,255,255,0.2)" }}> · ср. {sym}{fmtAmt(yearForecast.avgMonthlySav, 0)}/{range} мес</span>
+                  <span style={{ color: "rgba(255,255,255,0.2)" }}> · ср. {sym}{fmtAmtAuto(yearForecast.avgMonthlySav)}/{range} мес</span>
                 )}
               </p>
             </>
@@ -439,27 +439,28 @@ export function MoneyAnalyticsSection({ data }) {
               {/* Сводная строка — только если есть цели с дедлайном */}
               {yearForecast.totalGoalsMonthlyNeeded > 0 && (
                 <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                  <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px" }}>
-                    <p style={{ margin: 0, fontSize: 10, color: C.dim }}>Нужно для целей</p>
-                    <p style={{ margin: "4px 0 0", fontSize: 16, fontWeight: 800, color: C.amber }}>
-                      {sym}{fmtAmt(yearForecast.totalGoalsMonthlyNeeded, 0)}<span style={{ fontSize: 11, fontWeight: 400 }}>/мес</span>
+                  <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
+                    <p style={{ margin: 0, fontSize: 10, color: C.dim, lineHeight: 1.4, minHeight: 28 }}>Нужно для целей</p>
+                    <p style={{ margin: 0, fontSize: "var(--analytics-card-value-fs)", fontWeight: 800, color: C.amber }}>
+                      {sym}{fmtAmtAuto(yearForecast.totalGoalsMonthlyNeeded)}<span style={{ fontSize: "var(--analytics-card-unit-fs)", fontWeight: 400 }}>/мес</span>
                     </p>
                   </div>
-                  <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px" }}>
-                    <p style={{ margin: 0, fontSize: 10, color: C.dim }}>Ваш план</p>
-                    <p style={{ margin: "4px 0 0", fontSize: 16, fontWeight: 800, color: C.blue }}>
-                      {sym}{fmtAmt(yearForecast.avgPlanMonthly, 0)}<span style={{ fontSize: 11, fontWeight: 400 }}>/мес</span>
+                  <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
+                    <p style={{ margin: 0, fontSize: 10, color: C.dim, lineHeight: 1.4, minHeight: 28 }}>Ваш план</p>
+                    <p style={{ margin: 0, fontSize: "var(--analytics-card-value-fs)", fontWeight: 800, color: C.blue }}>
+                      {sym}{fmtAmtAuto(yearForecast.avgPlanMonthly)}<span style={{ fontSize: "var(--analytics-card-unit-fs)", fontWeight: 400 }}>/мес</span>
                     </p>
                   </div>
                   {yearForecast.gap != null && (
                     <div style={{
                       flex: 1, borderRadius: 10, padding: "10px 12px",
+                      display: "flex", flexDirection: "column",
                       background: yearForecast.gap >= 0 ? "rgba(52,211,153,0.08)" : "rgba(248,113,113,0.08)",
                       border: `1px solid ${yearForecast.gap >= 0 ? "rgba(52,211,153,0.2)" : "rgba(248,113,113,0.2)"}`,
                     }}>
-                      <p style={{ margin: 0, fontSize: 10, color: C.dim }}>{yearForecast.gap >= 0 ? "Профицит" : "Нехватка"}</p>
-                      <p style={{ margin: "4px 0 0", fontSize: 16, fontWeight: 800, color: yearForecast.gap >= 0 ? C.emerald : C.errorLight }}>
-                        {yearForecast.gap >= 0 ? "+" : ""}{sym}{fmtAmt(yearForecast.gap, 0)}<span style={{ fontSize: 11, fontWeight: 400 }}>/мес</span>
+                      <p style={{ margin: 0, fontSize: 10, color: C.dim, lineHeight: 1.4, minHeight: 28 }}>{yearForecast.gap >= 0 ? "Профицит" : "Нехватка"}</p>
+                      <p style={{ margin: 0, fontSize: "var(--analytics-card-value-fs)", fontWeight: 800, color: yearForecast.gap >= 0 ? C.emerald : C.errorLight }}>
+                        {yearForecast.gap >= 0 ? "+" : ""}{sym}{fmtAmtAuto(yearForecast.gap)}<span style={{ fontSize: "var(--analytics-card-unit-fs)", fontWeight: 400 }}>/мес</span>
                       </p>
                     </div>
                   )}
@@ -474,7 +475,7 @@ export function MoneyAnalyticsSection({ data }) {
                     <span style={{ fontSize: 12, color: C.main, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{goal.name}</span>
                     {monthlyNeeded != null ? (
                       <span style={{ fontSize: 11, fontWeight: 600, color: C.main, flexShrink: 0 }}>
-                        {sym}{fmtAmt(monthlyNeeded, 0)}/мес
+                        {sym}{fmtAmtAuto(monthlyNeeded)}/мес
                       </span>
                     ) : (
                       <span style={{ fontSize: 11, color: C.dim, flexShrink: 0 }}>без дедлайна</span>
@@ -485,7 +486,7 @@ export function MoneyAnalyticsSection({ data }) {
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 10, color: C.dim }}>
-                      {sym}{fmtAmt(totalSaved, 0)} из {getSym(goal.currency || BASE_CUR)}{fmtAmt(goal.target, 0)} · {Math.round(pct * 100)}%
+                      {sym}{fmtAmtAuto(totalSaved)} из {getSym(goal.currency || BASE_CUR)}{fmtAmtAuto(goal.target)} · {Math.round(pct * 100)}%
                     </span>
                     {goal.deadline && (
                       <span style={{ fontSize: 10, color: C.dim }}>до {goal.deadline}</span>

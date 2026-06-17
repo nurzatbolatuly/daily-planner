@@ -14,14 +14,14 @@ import { CalendarPicker } from "../../../components/CalendarPicker";
 import { AccSelect } from "../../../components/AccSelect";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 
-export function TxPage({ accounts, expCats, incCats, onBack, edit }) {
-  const [type, setType] = useState(edit?.type || "expense");
-  const [amt, setAmt] = useState(edit?.amount ? String(edit.amount) : "");
-  const [cur, setCur] = useState(edit?.currency || BASE_CUR);
+export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill }) {
+  const [type, setType] = useState(edit?.type || prefill?.type || "expense");
+  const [amt, setAmt] = useState(edit?.amount ? String(edit.amount) : prefill?.amount ? String(prefill.amount) : "");
+  const [cur, setCur] = useState(edit?.currency || prefill?.currency || BASE_CUR);
   const [cat, setCat] = useState(edit?.category_id || "");
   const [accId, setAccId] = useState(edit?.account_id || "");
-  const [date, setDate] = useState(edit?.date || todayStr());
-  const [note, setNote] = useState(edit?.note || "");
+  const [date, setDate] = useState(edit?.date || prefill?.date || todayStr());
+  const [note, setNote] = useState(edit?.note || prefill?.note || "");
   const [showCur, setShowCur] = useState(false);
   const [showCal, setShowCal] = useState(false);
   const [errors, setErrors] = useState({});

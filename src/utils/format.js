@@ -1,6 +1,9 @@
+import { numericFormatter } from "react-number-format";
 import { BASE_CUR, ALL_CURR, COMMODITY_CURRENCIES } from "../constants/currencies";
 import { RU_MON_GEN, RU_DAYS_FULL } from "../constants/locale";
 import { pad, todayStr, monthKey } from "./date";
+
+const NUM_FMT_OPTS = { thousandSeparator: " ", decimalSeparator: ".", decimalScale: 2 };
 
 export const getSym = code => ALL_CURR.find(c => c.code === code)?.sym || code;
 
@@ -14,17 +17,22 @@ export const fmtGrams = n => {
 
 export const fmtAmt = (n, dec = 2) => Math.abs(Number(n)||0).toLocaleString("ru-RU", { minimumFractionDigits: dec, maximumFractionDigits: dec }).replace(',', '.');
 
-// Целое число — без копеек, дробное — с .00 (показываем копейки только если есть остаток).
-export const fmtAmtAuto = n => fmtAmt(n, Number.isInteger(Number(n)||0) ? 0 : 2);
+// Умное форматирование: 10 000 · 1 500.5 · 1 500.54 · без trailing zeros.
+// Math.round(...) устраняет floating point мусор (2000.5000000000002 → 2000.5) до форматирования.
+export const fmtAmtAuto = n => {
+  const rounded = Math.round(Math.abs(Number(n) || 0) * 100) / 100;
+  return numericFormatter(String(rounded), NUM_FMT_OPTS);
+};
 
-export const fmtM = (n, code) => isCommodity(code) ? fmtGrams(n) : `${getSym(code)}${fmtAmt(n)}`;
+export const fmtM = (n, code) => isCommodity(code) ? fmtGrams(n) : `${getSym(code)}${fmtAmtAuto(n)}`;
 
 // Для отображения баланса счёта — сохраняет знак минус при отрицательных значениях.
-export const fmtBal = (n, code, dec = 0) => {
+// Дробная часть отображается только если есть остаток (не нулевые копейки).
+export const fmtBal = (n, code) => {
   if (isCommodity(code)) return fmtGrams(n);
   const num = Number(n) || 0;
   const sym = getSym(code);
-  const abs = Math.abs(num).toLocaleString("ru-RU", { minimumFractionDigits: dec, maximumFractionDigits: dec }).replace(',', '.');
+  const abs = fmtAmtAuto(Math.abs(num));
   return num < 0 ? `-${sym}${abs}` : `${sym}${abs}`;
 };
 

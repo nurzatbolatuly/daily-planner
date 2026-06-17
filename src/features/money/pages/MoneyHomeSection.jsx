@@ -4,7 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad, todayStr } from "../../../utils/date";
-import { getSym, fmtAmt, fmtBal, toBase, ratesFromAccounts, calcTotalBalance, calcCatDelta } from "../../../utils/format";
+import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts, calcTotalBalance, calcCatDelta } from "../../../utils/format";
 import { exportTransactionsXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
@@ -149,7 +149,7 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
         <div onClick={onGoToBudget}
           style={{ margin: "12px 16px 0", padding: "10px 14px", borderRadius: 12, background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.25)", cursor: onGoToBudget ? "pointer" : "default" }}>
           <p style={{ margin: 0, fontSize: 12, color: C.errorLight }}>
-            ⚠ Расходы превышают бюджет на {sym}{fmtAmt(overBudgetData.overBy, 0)} — посмотреть Бюджет →
+            ⚠ Расходы превышают бюджет на {sym}{fmtAmtAuto(overBudgetData.overBy)} — посмотреть Бюджет →
           </p>
         </div>
       )}
@@ -227,8 +227,8 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
               <span style={{ fontSize: 13, color: C.dim, marginRight: 4 }}>{pct}%</span>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div style={{ textAlign: "right" }}>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.main }}>{sym}{fmtAmt(c.val, 0)}</p>
-                  {pl && <p style={{ margin: 0, fontSize: 10, color: C.dim }}>из {getSym(pl.plan_currency || BASE_CUR)}{fmtAmt(pl.plan, 0)}</p>}
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.main }}>{sym}{fmtAmtAuto(c.val)}</p>
+                  {pl && <p style={{ margin: 0, fontSize: 10, color: C.dim }}>из {getSym(pl.plan_currency || BASE_CUR)}{fmtAmtAuto(pl.plan)}</p>}
                   {txType === "expense" && d?.delta !== null && d?.delta !== undefined && Math.abs(d.delta) >= 5 && (
                     <p style={{ margin: 0, fontSize: 10, color: d.delta > 0 ? C.errorLight : C.emerald }}>
                       {d.delta > 0 ? "↑" : "↓"} {Math.abs(Math.round(d.delta))}%

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { C } from "../../../constants/theme";
 import { RU_MON_GEN } from "../../../constants/locale";
-import { getSym, fmtAmt, toBase, ratesFromAccounts } from "../../../utils/format";
+import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/format";
 import { CatIcon } from "../../../components/CatIcon";
 import { GOAL_TYPES } from "../../../constants/money";
 
@@ -51,7 +51,7 @@ export function GoalListPage({ goals, goalTopups = [], accounts = [], navigate }
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: goal.color || C.blue }}>
-                  {sym}{fmtAmt(goal.target, 0)}
+                  {sym}{fmtAmtAuto(goal.target)}
                 </p>
                 <p style={{ margin: "2px 0 0", fontSize: 12, fontWeight: 700, color: done ? C.emerald : (goal.color || C.blue) }}>
                   {done ? "✓ готово" : `${Math.round(pct * 100)}%`}
@@ -63,10 +63,10 @@ export function GoalListPage({ goals, goalTopups = [], accounts = [], navigate }
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                 <span style={{ fontSize: 10, color: C.dim }}>
-                  накоплено {sym}{fmtAmt(savedBase, 0)}
+                  накоплено {sym}{fmtAmtAuto(savedBase)}
                 </span>
                 <span style={{ fontSize: 10, color: C.dim }}>
-                  из {sym}{fmtAmt(goal.target, 0)}
+                  из {sym}{fmtAmtAuto(goal.target)}
                 </span>
               </div>
               <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.08)" }}>

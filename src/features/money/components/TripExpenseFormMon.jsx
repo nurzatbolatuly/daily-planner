@@ -60,9 +60,9 @@ export function TripExpenseFormMon({ exp, onSave, onCancel, rates = {}, onAddRat
         ))}
       </div>
       <FieldLabel error={errors.amt}>Сумма</FieldLabel>
-      <div style={{ display:"flex", alignItems:"center", gap:10, borderBottom:`1px solid ${errors.amt?"rgba(244,67,54,0.4)":C.border}`, marginBottom:12, paddingBottom:4 }}>
-        <NumInput value={amt} onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }} placeholder="0" style={{ flex:1, background:"none", border:"none", outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0" }}/>
-        <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", color:C.green, fontSize:16, fontWeight:700, cursor:"pointer", flexShrink:0 }}>{cur} ▾</button>
+      <div style={{ display:"flex", alignItems:"center", gap:8, borderBottom:`1px solid ${errors.amt?"rgba(244,67,54,0.4)":C.border}`, marginBottom:12, paddingBottom:4 }}>
+        <NumInput value={amt} onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }} placeholder="0" style={{ flex:1, minWidth:0, background:"none", border:"none", outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0" }}/>
+        <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", padding:"0 2px", color:C.green, fontSize:15, fontWeight:700, cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>{cur} ▾</button>
       </div>
 
       {isMissingRate && (

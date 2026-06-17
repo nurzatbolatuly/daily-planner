@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { fmtM, fmtAmt, getSym, isCommodity } from "../../../utils/format";
+import { fmtM, fmtAmt, fmtAmtAuto, getSym, isCommodity } from "../../../utils/format";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { localDate } from "../../../utils/date";
 import { supabase, supaRpc } from "../../../lib/supabase";
@@ -100,7 +100,7 @@ function StoredDealBanner({ analytics, fromCurrency, toCurrency }) {
               {sellProfit ? "Прибыль" : "Убыток"} {sellProfit ? "+" : ""}{fmtAmt(sellDiff, 0)} ₸/{fromSym} ({sellPct >= 0 ? "+" : ""}{fmtAmt(Math.abs(sellPct), 1)}%)
             </span>
             <span style={{ fontSize:14, fontWeight:700, color:sellColor }}>
-              {sellProfit ? "+" : "-"}{fmtAmt(Math.abs(sell_pnl), 0)} ₸
+              {sellProfit ? "+" : "-"}{fmtAmtAuto(Math.abs(sell_pnl))} ₸
             </span>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { getSym, fmtAmt } from "../../../utils/format";
+import { getSym, fmtAmtAuto } from "../../../utils/format";
 import { supaUpsert, supa } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
@@ -115,7 +115,7 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
         <button onClick={addItem} style={{ width:"100%", padding:"10px", borderRadius:10, background:"transparent", border:`1px dashed rgba(76,175,80,0.4)`, color:C.green, fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:12 }}>+ Добавить статью</button>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 14px", borderRadius:10, background:"rgba(255,255,255,0.04)", marginBottom:24 }}>
           <span style={{ fontSize:13, color:C.dim }}>Итого</span>
-          <span style={{ fontSize:18, fontWeight:700, color:"#fff" }}>{getSym(planCur)}{fmtAmt(total,0)}</span>
+          <span style={{ fontSize:18, fontWeight:700, color:"#fff" }}>{getSym(planCur)}{fmtAmtAuto(total)}</span>
         </div>
 
         {/* Category picker (expense / income) */}

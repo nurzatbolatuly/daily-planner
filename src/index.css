@@ -1,5 +1,13 @@
 :root {
   --app-header-h: 50px;
+  --analytics-card-value-fs: 16px;
+  --analytics-card-unit-fs: 11px;
+}
+@media (max-width: 480px) {
+  :root {
+    --analytics-card-value-fs: 11px;
+    --analytics-card-unit-fs: 10px;
+  }
 }
 
 html {

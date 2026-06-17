@@ -3,8 +3,8 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MON_GEN } from "../../../constants/locale";
 import { GOAL_TYPES, SAVINGS_PURPOSES } from "../../../constants/money";
-import { todayStr } from "../../../utils/date";
-import { fmtBal } from "../../../utils/format";
+import { todayStr, daysBetween } from "../../../utils/date";
+import { fmtBal, getSym, fmtAmtAuto } from "../../../utils/format";
 import { supaUpsert, supabase } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
@@ -17,6 +17,7 @@ import { CurrencyPage } from "../../../components/CurrencyPage";
 import { CalendarPicker } from "../../../components/CalendarPicker";
 import { BottomSheet } from "../../../components/BottomSheet";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
+import { GoalCalculator } from "../components/GoalCalculator";
 
 const GOAL_ICONS = ["target", "home", "travel", "wallet", "invest", "salary", "gift", "entertainment", "unplanned", "other"];
 
@@ -47,6 +48,10 @@ export function GoalFormPage({ onBack, onDelete, edit, accounts = [] }) {
 
   const savingsAccounts = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
   const selectedAcc     = savingsAccounts.find(a => a.id === accountId);
+
+  const targetNum = parseFloat(target) || 0;
+  const mLeft     = deadline && targetNum > 0 ? Math.max(daysBetween(todayStr(), deadline) / 30, 1) : null;
+  const monthly   = mLeft != null ? targetNum / mLeft : null;
 
   const saveRef   = useRef(null);
   const deleteRef = useRef(null);
@@ -189,6 +194,34 @@ export function GoalFormPage({ onBack, onDelete, edit, accounts = [] }) {
             </span>
           )}
         </button>
+
+        {/* Monthly payment preview */}
+        {monthly != null && (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.18)",
+            borderRadius: 10, padding: "10px 14px", marginBottom: 14,
+          }}>
+            <span style={{ fontSize: 12, color: C.dim }}>Ежемес. платёж</span>
+            <div style={{ textAlign: "right" }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color }}>
+                {getSym(currency)}{fmtAmtAuto(monthly)}
+              </span>
+              <span style={{ fontSize: 11, color: C.dim }}>&nbsp;/ мес&nbsp;·&nbsp;~{Math.round(mLeft)} мес.</span>
+            </div>
+          </div>
+        )}
+
+        {/* Calculator */}
+        {targetNum > 0 && (
+          <GoalCalculator
+            key={deadline || "no-dl"}
+            sym={getSym(currency)}
+            defaultAmt={targetNum}
+            monthsLeft={mLeft ?? 12}
+            color={color}
+          />
+        )}
 
         {/* Note */}
         <FieldLabel>Заметка</FieldLabel>

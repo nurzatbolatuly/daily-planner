@@ -1,6 +1,6 @@
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { getSym, fmtAmt } from "../../../utils/format";
+import { getSym, fmtAmtAuto } from "../../../utils/format";
 
 export function DonutChart({ segments, total, size=210 }) {
   const cx=size/2, cy=size/2, r=78, circ=2*Math.PI*r;
@@ -20,7 +20,7 @@ export function DonutChart({ segments, total, size=210 }) {
         <circle cx={cx} cy={cy} r={r-3} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={1} strokeDasharray="4 6"/>
       </svg>
       <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-        <span style={{ fontSize:20, fontWeight:800, color:"#fff" }}>{getSym(BASE_CUR)}{fmtAmt(total,0)}</span>
+        <span style={{ fontSize:20, fontWeight:800, color:"#fff" }}>{getSym(BASE_CUR)}{fmtAmtAuto(total)}</span>
       </div>
     </div>
   );

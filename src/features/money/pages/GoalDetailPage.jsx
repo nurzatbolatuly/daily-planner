@@ -3,12 +3,13 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MON_GEN } from "../../../constants/locale";
 import { daysBetween, todayStr, monthKey, pad } from "../../../utils/date";
-import { getSym, fmtAmt, fmtBal, toBase, ratesFromAccounts } from "../../../utils/format";
+import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts } from "../../../utils/format";
 import { supaUpsert } from "../../../lib/supabase";
 import { PageHeader } from "../../../components/PageHeader";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 import { NumInput } from "../../../components/NumInput";
+import { GoalCalculator } from "../components/GoalCalculator";
 
 function fmtDate(s) {
   const d = new Date(s);
@@ -96,10 +97,10 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
             <div>
               <p style={{ margin: 0, fontSize: 11, color: C.dim }}>Накоплено</p>
               <p style={{ margin: "2px 0 0", fontSize: 22, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
-                {sym}{fmtAmt(totalSaved, 0)}
+                {sym}{fmtAmtAuto(totalSaved)}
               </p>
               <p style={{ margin: "2px 0 0", fontSize: 12, color: C.dim }}>
-                из {sym}{fmtAmt(initialGoal.target, 0)}
+                из {sym}{fmtAmtAuto(initialGoal.target)}
               </p>
             </div>
           </div>
@@ -129,7 +130,7 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
           {monthlyNeeded != null && remaining > 0 && (
             <p style={{ margin: "8px 0 0", fontSize: 12, color: C.dim }}>
               Нужно{" "}
-              <span style={{ color: C.main, fontWeight: 600 }}>{sym}{fmtAmt(monthlyNeeded, 0)}/мес</span>
+              <span style={{ color: C.main, fontWeight: 600 }}>{sym}{fmtAmtAuto(monthlyNeeded)}/мес</span>
               {monthsLeft && ` · осталось ~${Math.round(monthsLeft)} мес.`}
             </p>
           )}
@@ -140,10 +141,10 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
           <div style={{ background: "rgba(96,165,250,0.08)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, border: "1px solid rgba(96,165,250,0.15)" }}>
             <p style={{ margin: "0 0 4px", fontSize: 12, color: C.dim }}>Рекомендуемая подушка</p>
             <p style={{ margin: "0 0 2px", fontSize: 16, fontWeight: 700, color: C.blue }}>
-              {sym}{fmtAmt(safetyNetRec.recommendedTarget, 0)}
+              {sym}{fmtAmtAuto(safetyNetRec.recommendedTarget)}
             </p>
             <p style={{ margin: 0, fontSize: 11, color: C.dim }}>
-              3 мес. расходов · {sym}{fmtAmt(safetyNetRec.avgMonthlyExp, 0)}/мес (среднее)
+              3 мес. расходов · {sym}{fmtAmtAuto(safetyNetRec.avgMonthlyExp)}/мес (среднее)
             </p>
           </div>
         )}
@@ -153,7 +154,7 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
           <div style={{ background: C.monCard, borderRadius: 16, padding: "16px", marginBottom: 14 }}>
             <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: C.amber }}>ROI</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <Row label="Вложено" value={`${sym}${fmtAmt(roiData.invested, 0)}`}/>
+              <Row label="Вложено" value={`${sym}${fmtAmtAuto(roiData.invested)}`}/>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: C.dim }}>Текущая стоимость:</span>
                 {editingCurVal ? (
@@ -171,7 +172,7 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
                   </div>
                 ) : (
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 12, color: C.main }}>{sym}{fmtAmt(roiData.currentVal, 0)}</span>
+                    <span style={{ fontSize: 12, color: C.main }}>{sym}{fmtAmtAuto(roiData.currentVal)}</span>
                     <button
                       onClick={() => { setCurValInput(String(currentValue)); setEditingCurVal(true); }}
                       style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}>
@@ -183,7 +184,7 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 12, color: C.dim }}>Доход:</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: roiData.gain >= 0 ? C.emerald : C.errorLight }}>
-                  {roiData.gain >= 0 ? "+" : ""}{sym}{fmtAmt(Math.abs(roiData.gain), 0)}
+                  {roiData.gain >= 0 ? "+" : ""}{sym}{fmtAmtAuto(Math.abs(roiData.gain))}
                   {" "}({roiData.gain >= 0 ? "+" : ""}{roiData.roiPct.toFixed(1)}%)
                 </span>
               </div>
@@ -239,85 +240,6 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
             </div>
           ))
         )}
-      </div>
-    </div>
-  );
-}
-
-function GoalCalculator({ sym, defaultAmt, monthsLeft, color }) {
-  const [dir, setDir] = useState("month");
-  const [amt, setAmt] = useState(String(Math.round(defaultAmt || 0)));
-  const [snd, setSnd] = useState(String(Math.round(monthsLeft || 12)));
-
-  const amtN   = parseFloat(amt) || 0;
-  const sndN   = Math.max(parseFloat(snd) || 1, 0.01);
-  const rawResult = amtN / sndN;
-  const result    = dir === "month" ? rawResult : Math.ceil(Math.round(rawResult * 100) / 100);
-
-  const toggle = () => {
-    const next = dir === "month" ? "months" : "month";
-    if (result > 0 && isFinite(result)) setSnd(String(Math.round(result)));
-    setDir(next);
-  };
-
-  const inputStyle = {
-    width: "100%",
-    boxSizing: "border-box",
-    background: "rgba(255,255,255,0.07)",
-    border: `1px solid ${C.border}`,
-    borderRadius: 8,
-    padding: "9px 10px",
-    color: "#fff",
-    fontSize: 14,
-    outline: "none",
-  };
-
-  return (
-    <div style={{ background: C.monCard, borderRadius: 16, padding: "12px 14px", marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: C.dim }}>Калькулятор</span>
-        <button
-          onClick={toggle}
-          style={{
-            background: "rgba(96,165,250,0.1)", border: `1px solid rgba(96,165,250,0.25)`,
-            borderRadius: 8, padding: "4px 12px", color: C.blue,
-            fontSize: 15, cursor: "pointer", lineHeight: 1,
-          }}
-        >
-          ⇄
-        </button>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-        <div style={{ flex: 2 }}>
-          <p style={{ margin: "0 0 4px", fontSize: 10, color: C.dim }}>Сумма</p>
-          <NumInput value={amt} onChange={setAmt} style={inputStyle}/>
-        </div>
-
-        <span style={{ color: C.dim, fontSize: 18, paddingBottom: 10, flexShrink: 0 }}>÷</span>
-
-        <div style={{ flex: 1.5 }}>
-          <p style={{ margin: "0 0 4px", fontSize: 10, color: C.dim }}>
-            {dir === "month" ? "Месяцев" : "Плат./мес"}
-          </p>
-          <NumInput value={snd} onChange={setSnd} style={inputStyle}/>
-        </div>
-
-        <span style={{ color: C.dim, fontSize: 16, paddingBottom: 10, flexShrink: 0 }}>=</span>
-
-        <div style={{ flex: 1.8, textAlign: "right", paddingBottom: 2 }}>
-          <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: color, lineHeight: 1.15 }}>
-            {isFinite(result) && result > 0
-              ? dir === "month"
-                ? `${sym}${fmtAmt(result, 0)}`
-                : `${Math.round(result)}`
-              : "—"
-            }
-          </p>
-          <p style={{ margin: "2px 0 0", fontSize: 10, color: C.dim }}>
-            {dir === "month" ? "в месяц" : "месяцев"}
-          </p>
-        </div>
       </div>
     </div>
   );

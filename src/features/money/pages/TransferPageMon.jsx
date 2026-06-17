@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, localDate } from "../../../utils/date";
-import { avgRateFn, fmtAmt, fmtBal, getSym, isCommodity } from "../../../utils/format";
+import { avgRateFn, fmtAmt, fmtAmtAuto, fmtBal, getSym, isCommodity } from "../../../utils/format";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
 import { FEE_TX_NOTE } from "../../../constants/money";
 import { useSave } from "../../../hooks/useSave";
@@ -75,7 +75,7 @@ function DealAnalysisBanner({ fromAcc, toAcc, impliedSellRate, impliedBuyRate, r
             </span>
             {amtNum > 0 && (
               <span style={{ fontSize:14, fontWeight:700, color:sellColor }}>
-                {sellProfit ? "+" : "-"}{fmtAmt(Math.abs(sellTotal), 0)} ₸
+                {sellProfit ? "+" : "-"}{fmtAmtAuto(Math.abs(sellTotal))} ₸
               </span>
             )}
           </div>
@@ -489,7 +489,7 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
           {pricePerGramMode && effectiveToAmt > 0 && (
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:C.monCard, borderRadius:10, marginBottom:16 }}>
               <span style={{ fontSize:13, color:C.dim }}>Итого</span>
-              <span style={{ fontSize:16, fontWeight:700, color:"#fff" }}>{fmtBal(effectiveToAmt, BASE_CUR, 0)}</span>
+              <span style={{ fontSize:16, fontWeight:700, color:"#fff" }}>{fmtBal(effectiveToAmt, BASE_CUR)}</span>
             </div>
           )}
 

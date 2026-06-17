@@ -81,7 +81,7 @@ export default function MoneyManagerSection() {
   if (screen) {
     const { name, data: d } = screen;
     const screenMap = {
-      addTx:        ()  => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} onBack={goBack}/>,
+      addTx:        (d) => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} onBack={goBack} prefill={d}/>,
       editTx:       (d) => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d}/>,
       addAcc:       ()  => <AccPage onBack={goBack}/>,
       editAcc:      (d) => <AccPage onBack={goBack} edit={d}/>,

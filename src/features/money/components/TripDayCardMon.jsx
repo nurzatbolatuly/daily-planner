@@ -2,13 +2,13 @@ import { useState } from "react";
 import { C } from "../../../constants/theme";
 import { TRIP_LABELS } from "../../../constants/money";
 import { todayStr } from "../../../utils/date";
-import { getSym, fmtAmt, toBase } from "../../../utils/format";
+import { getSym, fmtAmtAuto, toBase } from "../../../utils/format";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { Ico } from "../../../components/Ico";
 import { TripExpenseFormMon } from "./TripExpenseFormMon";
 
-export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {}, onAddRate }) {
+export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {}, onAddRate, onAddTx }) {
   const [collapsed, setCollapsed] = useState(day.date < todayStr());
   const [editExpId, setEditExpId] = useState(null);
   const [addingExp, setAddingExp] = useState(false);
@@ -56,8 +56,8 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {}, o
           {day.location && <p style={{ margin:"2px 0 0", fontSize:13, color:C.mid }}>{day.location}</p>}
         </div>
         <div style={{ textAlign:"right", marginRight:12 }}>
-          <p style={{ margin:0, fontSize:14, fontWeight:700, color:"#fff" }}>{sym}{fmtAmt(dayTotal,0)}</p>
-          {dayPaid > 0 && <p style={{ margin:0, fontSize:11, color:C.green }}>{sym}{fmtAmt(dayPaid,0)} оплачено</p>}
+          <p style={{ margin:0, fontSize:14, fontWeight:700, color:"#fff" }}>{sym}{fmtAmtAuto(dayTotal)}</p>
+          {dayPaid > 0 && <p style={{ margin:0, fontSize:11, color:C.green }}>{sym}{fmtAmtAuto(dayPaid)} оплачено</p>}
         </div>
         <Ico n={collapsed?"chevD":"chevU"} s={18} c={C.dim}/>
       </div>
@@ -99,15 +99,18 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {}, o
                     </div>
                     <div style={{ display:"flex", gap:8, marginTop:2, flexWrap:"wrap" }}>
                       <span style={{ fontSize:12, color:C.dim }}>{TRIP_LABELS[exp.cat]||exp.cat}</span>
-                      {exp.status==="partial" && <span style={{ fontSize:12, color:C.amber }}>{getSym(exp.currency)}{fmtAmt(exp.paidAmount)} оплачено</span>}
+                      {exp.status==="partial" && <span style={{ fontSize:12, color:C.amber }}>{getSym(exp.currency)}{fmtAmtAuto(exp.paidAmount)} оплачено</span>}
                       {exp.note && <span style={{ fontSize:12, color:C.dim, fontStyle:"italic" }}>{exp.note}</span>}
                     </div>
                   </div>
                   <div style={{ textAlign:"right", flexShrink:0 }}>
-                    <p style={{ margin:0, fontSize:14, fontWeight:600, color:C.main }}>{getSym(exp.currency)}{fmtAmt(exp.amount)}</p>
+                    <p style={{ margin:0, fontSize:14, fontWeight:600, color:C.main }}>{getSym(exp.currency)}{fmtAmtAuto(exp.amount)}</p>
                   </div>
-                  <button onClick={() => setEditExpId(exp.id)} style={{ background:"none", border:"none", cursor:"pointer", padding:2, display:"flex" }}><Ico n="edit" s={14} c={C.dim}/></button>
-                  <button onClick={() => onUpdate({...day, expenses:day.expenses.filter(e => e.id!==exp.id)})} style={{ background:"none", border:"none", cursor:"pointer", padding:2, display:"flex" }}><Ico n="trash" s={14} c="rgba(244,67,54,0.4)"/></button>
+                  <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                    {onAddTx && <button onClick={() => onAddTx(exp)} title="Добавить как транзакцию" style={{ background:"none", border:"none", cursor:"pointer", padding:2, display:"flex" }}><Ico n="plus" s={14} c={C.amber}/></button>}
+                    <button onClick={() => setEditExpId(exp.id)} style={{ background:"none", border:"none", cursor:"pointer", padding:2, display:"flex" }}><Ico n="edit" s={14} c={C.dim}/></button>
+                    <button onClick={() => onUpdate({...day, expenses:day.expenses.filter(e => e.id!==exp.id)})} style={{ background:"none", border:"none", cursor:"pointer", padding:2, display:"flex" }}><Ico n="trash" s={14} c="rgba(244,67,54,0.4)"/></button>
+                  </div>
                 </div>
               );
             })}

@@ -4,7 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad } from "../../../utils/date";
-import { getSym, fmtAmt, toBase, ratesFromAccounts } from "../../../utils/format";
+import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/format";
 import { exportPlansXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
@@ -41,17 +41,17 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
                       <Ico n={isOpen ? "chevU" : "chevD"} s={13} c={C.dim}/>
                     </div>
                     <p style={{ margin: 0, fontSize: 12, textAlign: "center", color: C.mid }}>
-                      {planCurrency === BASE_CUR ? `${sym}${fmtAmt(plan, 0)}` : `${getSym(planCurrency)}${fmtAmt(plan, 0)}`}
+                      {planCurrency === BASE_CUR ? `${sym}${fmtAmtAuto(plan)}` : `${getSym(planCurrency)}${fmtAmtAuto(plan)}`}
                     </p>
-                    <p style={{ margin: 0, fontSize: 12, textAlign: "center", color: C.main }}>{sym}{fmtAmt(actual, 0)}</p>
-                    <p style={{ margin: 0, fontSize: 12, textAlign: "center", fontWeight: 600, color: rest >= 0 ? C.emerald : C.errorLight }}>{sym}{fmtAmt(rest, 0)}</p>
+                    <p style={{ margin: 0, fontSize: 12, textAlign: "center", color: C.main }}>{sym}{fmtAmtAuto(actual)}</p>
+                    <p style={{ margin: 0, fontSize: 12, textAlign: "center", fontWeight: 600, color: rest >= 0 ? C.emerald : C.errorLight }}>{sym}{fmtAmtAuto(rest)}</p>
                   </div>
                   {isOpen && (
                     <div style={{ padding: "0 14px 12px" }}>
                       {its.map(it => (
                         <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0 3px 34px" }}>
                           <span style={{ fontSize: 12, color: C.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: 8 }}>• {it.label || "—"}</span>
-                          <span style={{ fontSize: 12, color: C.mid, flexShrink: 0 }}>{getSym(planCurrency)}{fmtAmt(it.amount, 0)}</span>
+                          <span style={{ fontSize: 12, color: C.mid, flexShrink: 0 }}>{getSym(planCurrency)}{fmtAmtAuto(it.amount)}</span>
                         </div>
                       ))}
                       {its.length === 0 && planData && (
@@ -76,9 +76,9 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
 
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", padding: "12px 14px", borderTop: `1px solid rgba(255,255,255,0.1)`, background: "rgba(255,255,255,0.04)" }}>
               <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.mid }}>Итого</p>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textAlign: "center", color: C.mid }}>{sym}{fmtAmt(totalPlan, 0)}</p>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textAlign: "center", color: C.main }}>{sym}{fmtAmt(totalAct, 0)}</p>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textAlign: "center", color: (totalPlan - totalAct) >= 0 ? C.emerald : C.errorLight }}>{sym}{fmtAmt(totalPlan - totalAct, 0)}</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textAlign: "center", color: C.mid }}>{sym}{fmtAmtAuto(totalPlan)}</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textAlign: "center", color: C.main }}>{sym}{fmtAmtAuto(totalAct)}</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, textAlign: "center", color: (totalPlan - totalAct) >= 0 ? C.emerald : C.errorLight }}>{sym}{fmtAmtAuto(totalPlan - totalAct)}</p>
             </div>
           </div>
         </div>
@@ -258,7 +258,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
           <div style={{ background: C.monCard, borderRadius: 16, padding: "16px", marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
               <span style={{ fontSize: 12, color: C.dim }}>Доход план</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.emerald }}>{sym}{fmtAmt(totalPlanInc, 0)}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.emerald }}>{sym}{fmtAmtAuto(totalPlanInc)}</span>
             </div>
 
             {[
@@ -271,7 +271,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
                 <div key={label} style={{ marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                     <span style={{ fontSize: 11, color: C.dim }}>{label}</span>
-                    <span style={{ fontSize: 11, color }}>{Math.round(pct * 100)}% {sym}{fmtAmt(amt, 0)}</span>
+                    <span style={{ fontSize: 11, color }}>{Math.round(pct * 100)}% {sym}{fmtAmtAuto(amt)}</span>
                   </div>
                   <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)" }}>
                     <div style={{ height: 6, borderRadius: 3, width: `${pct * 100}%`, background: color, transition: "width 0.4s ease" }}/>
@@ -283,7 +283,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
             {overBudget && (
               <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)" }}>
                 <span style={{ fontSize: 12, color: C.errorLight }}>
-                  ⚠ Расходы + накопления превышают доход на {sym}{fmtAmt(totalActExp + totalActSav - totalPlanInc, 0)}
+                  ⚠ Расходы + накопления превышают доход на {sym}{fmtAmtAuto(totalActExp + totalActSav - totalPlanInc)}
                 </span>
               </div>
             )}
@@ -422,8 +422,8 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
                     <p style={{ margin: "3px 0 0", fontSize: 12, color: C.dim }}>{tp.start_date} → {tp.end_date} · {(tp.days || []).length} дн.</p>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#fff" }}>{sym}{fmtAmt(total, 0)}</p>
-                    <p style={{ margin: 0, fontSize: 11, color: C.green }}>{sym}{fmtAmt(paid, 0)} оплачено</p>
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#fff" }}>{sym}{fmtAmtAuto(total)}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: C.green }}>{sym}{fmtAmtAuto(paid)} оплачено</p>
                   </div>
                 </div>
                 {total > 0 && (

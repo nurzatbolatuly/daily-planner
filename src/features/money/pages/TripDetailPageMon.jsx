@@ -44,6 +44,10 @@ export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
 
   const back = () => { flush(); onBack(true); };
 
+  const handleAddTx = (exp, dayDate) => {
+    navigate("addTx", { type:"expense", amount:exp.amount, currency:exp.currency, note:exp.label, date:dayDate });
+  };
+
   const allExp = days.flatMap(d => d.expenses || []);
   const totalAll = allExp.reduce((s,e) => s + toBase(e.amount, e.currency, rates), 0);
   const totalPaid = allExp.reduce((s,e) => s + toBase(e.paidAmount || 0, e.currency, rates), 0);
@@ -126,6 +130,7 @@ export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
             prevDay={i>0?days[i-1]:null}
             rates={rates}
             onAddRate={handleAddRate}
+            onAddTx={exp => handleAddTx(exp, day.date)}
           />
         ))}
       </div>
