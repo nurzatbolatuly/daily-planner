@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useLayoutEffect } from "react";
+import { todayStr } from "../../utils/date";
 import { C } from "../../constants/theme";
 import { Spinner } from "../../components/Spinner";
 import { useMoneyData } from "./hooks/useMoneyData";
@@ -99,7 +100,21 @@ export default function MoneyManagerSection() {
       tripDetail:   (d) => <TripDetailPageMon plan={d} accounts={data.accounts} navigate={navigate} onBack={goBack}/>,
       menuCats:     ()  => <CatsListPageMon expCats={data.expCats} incCats={data.incCats} dispatch={data} navigate={navigate} onBack={() => goBack(false)}/>,
       menuRec:      ()  => <RecListPageMon recurring={data.recurring} accounts={data.accounts} expCats={data.expCats} navigate={navigate} onBack={() => goBack(false)}/>,
-      catTxs:       (d) => <CatTxsPageMon cat={d.cat} txs={d.txs} periodLabel={d.periodLabel} txType={d.txType} accounts={data.accounts} navigate={navigate} onBack={() => goBack(false)}/>,
+      catTxs: (d) => {
+        const week = new Date(); week.setDate(week.getDate() - 7);
+        const liveTxs = data.transactions.filter(t => {
+          if (t.type !== d.txType || t.category_id !== d.catId) return false;
+          if (d.selAccId && t.account_id !== d.selAccId) return false;
+          const dt = new Date(t.date);
+          if (d.period === "day")   return t.date === todayStr();
+          if (d.period === "week")  return dt >= week;
+          if (d.period === "month") return dt.getMonth() === d.viewMonth && dt.getFullYear() === d.viewYear;
+          if (d.period === "year")  return dt.getFullYear() === d.viewYear;
+          if (d.period === "range") return d.rangeStart && d.rangeEnd ? t.date >= d.rangeStart && t.date <= d.rangeEnd : true;
+          return true;
+        });
+        return <CatTxsPageMon cat={d.cat} txs={liveTxs} periodLabel={d.periodLabel} txType={d.txType} accounts={data.accounts} navigate={navigate} onBack={() => goBack(false)}/>;
+      },
       addGoal:      ()  => <GoalFormPage accounts={data.accounts} onBack={goBack}/>,
       editGoal:     (d) => <GoalFormPage accounts={data.accounts} onBack={goBack} onDelete={goToGoalsList} edit={d}/>,
       goalDetail:   (d) => <GoalDetailPage goal={data.goals.find(g => g.id === d.id) || d} goalTopups={data.goalTopups} accounts={data.accounts} transactions={data.transactions} navigate={navigate} onBack={goBack}/>,

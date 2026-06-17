@@ -405,8 +405,9 @@ export function MoneyAnalyticsSection({ data }) {
           {/* Итоговый прогноз */}
           {yearForecast.monthsLeft > 0 ? (
             <>
-              <p style={{ margin: "6px 0 2px", fontSize: 22, fontWeight: 600, color: C.emerald }}>
-                {forecastLabel}: <span style={{ margin: "6px 0 2px",fontWeight: 800,fontSize: 22 , color: C.emerald}}>
+              <p style={{ margin: "6px 0 2px", fontSize: "clamp(13px, 5vw, 22px)", fontWeight: 600, color: C.emerald, whiteSpace: "nowrap" }}>
+                {forecastLabel}:{" "}
+                <span style={{ fontWeight: 800 }}>
                   {sym}{fmtAmtAuto(yearForecast.projected)}
                 </span>
               </p>

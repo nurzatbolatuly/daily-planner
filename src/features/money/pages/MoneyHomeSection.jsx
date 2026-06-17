@@ -2,9 +2,10 @@ import { useState, useMemo, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
-import { SAVINGS_PURPOSES } from "../../../constants/money";
+import { SAVINGS_PURPOSES, ACC_PURPOSES } from "../../../constants/money";
 import { pad, todayStr } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts, calcTotalBalance, calcCatDelta } from "../../../utils/format";
+import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportTransactionsXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
@@ -213,7 +214,7 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
           const d        = catDelta[c.id];
 
           return (
-            <div key={c.id} onClick={() => navigate("catTxs", { cat: c, txs: typeTxs.filter(t => t.category_id === c.id), periodLabel, txType })}
+            <div key={c.id} onClick={() => navigate("catTxs", { cat: c, catId: c.id, period, viewMonth, viewYear, rangeStart, rangeEnd, selAccId, periodLabel, txType })}
               style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderTop: `1px solid ${C.border}`, cursor: "pointer" }}>
               <CatIcon k={c.icon} size={42} color={c.color}/>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -250,7 +251,7 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
 
       {/* Account picker */}
       <BottomSheet open={showAccPicker} onClose={() => setShowAccPicker(false)} title="Счёт">
-        {[{ id: null, name: "Все счета", icon: "other", color: C.green }, ...accounts].map(a => (
+        {[{ id: null, name: "Все счета", icon: "other", color: C.green }, ...ACC_PURPOSES.flatMap(p => getSavedOrder(accounts).filter(a => (a.purpose || "daily") === p.key))].map(a => (
           <div key={String(a.id)} onClick={() => { setSelAccId(a.id); setShowAccPicker(false); }}
             style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 12px", borderRadius: 12, marginBottom: 6, cursor: "pointer", background: selAccId === a.id ? "rgba(76,175,80,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${selAccId === a.id ? "rgba(76,175,80,0.4)" : C.border}` }}>
             <CatIcon k={a.icon || "other"} size={40} color={a.color || C.green}/>

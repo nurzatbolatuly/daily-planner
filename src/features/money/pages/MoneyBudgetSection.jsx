@@ -93,8 +93,9 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
   const [planMonth, setPlanMonth]   = useState(new Date().getMonth());
   const [planYear,  setPlanYear]    = useState(new Date().getFullYear());
   const [expanded,   setExpanded]   = useState({});
-  const [activePill, setActivePill] = useState("expense");
-  const [showCal,    setShowCal]    = useState(false);
+  const [activePill,        setActivePill]        = useState("expense");
+  const [activePerspective, setActivePerspective] = useState("actual");
+  const [showCal,           setShowCal]           = useState(false);
   const [monthRates, setMonthRates] = useState({});
   const [rateInputs, setRateInputs] = useState({});
   const [ratesOpen,  setRatesOpen]  = useState(false);
@@ -181,8 +182,11 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expRows, incRows, savingsRows, rates]);
 
-  const freeAmt    = totalPlanInc - totalActExp - totalActSav;
-  const overBudget = totalActExp + totalActSav > totalPlanInc;
+  const activeIncome     = activePerspective === "actual" ? totalActInc : totalPlanInc;
+  const activeExpense    = activePerspective === "actual" ? totalActExp : totalPlanExp;
+  const activeSavings    = activePerspective === "actual" ? totalActSav : totalPlanSav;
+  const activeFree       = activeIncome - activeExpense - activeSavings;
+  const activeOverBudget = activeExpense + activeSavings > activeIncome;
 
   const usedPlanCurrencies = useMemo(() => {
     const curs = new Set();
@@ -256,17 +260,29 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
 
           {/* Cash Flow bar */}
           <div style={{ background: C.monCard, borderRadius: 16, padding: "16px", marginBottom: 14 }}>
+            {/* Perspective switcher */}
+            <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 3, marginBottom: 14 }}>
+              {[["actual", "Факт"], ["plan", "План"]].map(([v, l]) => (
+                <button key={v} onClick={() => setActivePerspective(v)}
+                  style={{ flex: 1, padding: "6px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                           background: activePerspective === v ? "rgba(255,255,255,0.1)" : "transparent",
+                           color: activePerspective === v ? "#fff" : C.dim }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-              <span style={{ fontSize: 12, color: C.dim }}>Доход план</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.emerald }}>{sym}{fmtAmtAuto(totalPlanInc)}</span>
+              <span style={{ fontSize: 12, color: C.dim }}>Доход</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.emerald }}>{sym}{fmtAmtAuto(activeIncome)}</span>
             </div>
 
             {[
-              { label: "Расходы",   amt: totalActExp, color: C.errorLight },
-              { label: "Накоплен.", amt: totalActSav, color: C.blue },
-              { label: "Свободно",  amt: freeAmt,     color: C.amber },
+              { label: "Расходы",   amt: activeExpense, color: C.errorLight },
+              { label: "Накоплен.", amt: activeSavings,  color: C.blue },
+              { label: "Свободно",  amt: activeFree,     color: activeFree >= 0 ? C.amber : C.errorLight },
             ].map(({ label, amt, color }) => {
-              const pct = totalPlanInc > 0 ? Math.min(Math.max(amt / totalPlanInc, 0), 1) : 0;
+              const pct = activeIncome > 0 ? Math.min(Math.max(amt / activeIncome, 0), 1) : 0;
               return (
                 <div key={label} style={{ marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
@@ -280,10 +296,10 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
               );
             })}
 
-            {overBudget && (
+            {activeOverBudget && (
               <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)" }}>
                 <span style={{ fontSize: 12, color: C.errorLight }}>
-                  ⚠ Расходы + накопления превышают доход на {sym}{fmtAmtAuto(totalActExp + totalActSav - totalPlanInc)}
+                  ⚠ Расходы + накопления превышают доход на {sym}{fmtAmtAuto(activeExpense + activeSavings - activeIncome)}
                 </span>
               </div>
             )}

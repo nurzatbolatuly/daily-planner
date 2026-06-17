@@ -6,6 +6,7 @@ import { GOAL_TYPES, SAVINGS_PURPOSES } from "../../../constants/money";
 import { todayStr, daysBetween } from "../../../utils/date";
 import { fmtBal, getSym, fmtAmtAuto } from "../../../utils/format";
 import { supaUpsert, supabase } from "../../../lib/supabase";
+import { getSavedOrder } from "../../../utils/accountOrder";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
@@ -46,7 +47,7 @@ export function GoalFormPage({ onBack, onDelete, edit, accounts = [] }) {
   const [showAccPicker, setShowAccPicker]   = useState(false);
   const [confirmDelete, setConfirmDelete]   = useState(false);
 
-  const savingsAccounts = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
+  const savingsAccounts = getSavedOrder(accounts).filter(a => SAVINGS_PURPOSES.includes(a.purpose));
   const selectedAcc     = savingsAccounts.find(a => a.id === accountId);
 
   const targetNum = parseFloat(target) || 0;

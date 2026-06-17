@@ -5,7 +5,7 @@
 }
 @media (max-width: 480px) {
   :root {
-    --analytics-card-value-fs: 11px;
+    --analytics-card-value-fs: 12px;
     --analytics-card-unit-fs: 10px;
   }
 }
