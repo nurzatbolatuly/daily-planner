@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import { numericFormatter } from "react-number-format";
 import { BASE_CUR, ALL_CURR, COMMODITY_CURRENCIES } from "../constants/currencies";
 import { RU_MON_GEN, RU_DAYS_FULL } from "../constants/locale";
@@ -8,6 +9,11 @@ const NUM_FMT_OPTS = { thousandSeparator: " ", decimalSeparator: ".", decimalSca
 export const getSym = code => ALL_CURR.find(c => c.code === code)?.sym || code;
 
 export const isCommodity = code => COMMODITY_CURRENCIES.includes(code);
+
+// Точная денежная арифметика через Decimal.js — устраняет IEEE 754 floating-point мусор.
+// Принимает результат обычного JS-выражения: round2(a + b) или round2(a - b).
+// Decimal.js использует num.toString() внутри, поэтому 1.6099999... → "1.61" корректно.
+export const round2 = n => new Decimal(Number(n) || 0).toDecimalPlaces(2).toNumber();
 
 export const fmtGrams = n => {
   const num = Number(n) || 0;

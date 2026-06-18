@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, localDate } from "../../../utils/date";
-import { avgRateFn, fmtAmt, fmtAmtAuto, fmtBal, getSym, isCommodity } from "../../../utils/format";
+import { avgRateFn, fmtAmt, fmtAmtAuto, fmtBal, getSym, isCommodity, round2 } from "../../../utils/format";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
 import { FEE_TX_NOTE } from "../../../constants/money";
 import { useSave } from "../../../hooks/useSave";
@@ -268,14 +268,14 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
       const sameTo   = toId   === edit.to_id;
 
       const newFromBal = sameFrom
-        ? oldFromAcc.balance + edit.amount + oldFee - newAmt - feeAmt
-        : fromAcc.balance - newAmt - feeAmt;
+        ? round2(oldFromAcc.balance + edit.amount + oldFee - newAmt - feeAmt)
+        : round2(fromAcc.balance - newAmt - feeAmt);
 
-      const preOldToBal = oldToAcc.balance - oldToAmt;
+      const preOldToBal = round2(oldToAcc.balance - oldToAmt);
       let newToBal, newToAvgRateSave = null;
 
       if (sameTo) {
-        newToBal = preOldToBal + newToAmt;
+        newToBal = round2(preOldToBal + newToAmt);
         if (diffCur && computedRate && !toIsKzt) {
           let prevRate = oldToAcc.avg_rate;
           if (edit.rate && oldToAcc.avg_rate && preOldToBal > 0)
@@ -286,14 +286,14 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
           newToAvgRateSave = Math.round(avgRateFn(preOldToBal, baseRate, newToAmt, computedRate) * 100) / 100;
         }
       } else {
-        newToBal = toAcc.balance + newToAmt;
+        newToBal = round2(toAcc.balance + newToAmt);
         if (diffCur && computedRate && !toIsKzt) {
           const baseRate = toAcc.avg_rate || computedRate;
           newToAvgRateSave = Math.round(avgRateFn(toAcc.balance, baseRate, newToAmt, computedRate) * 100) / 100;
         }
       }
 
-      const oldFromRestoredBal = !sameFrom ? oldFromAcc.balance + edit.amount + oldFee : null;
+      const oldFromRestoredBal = !sameFrom ? round2(oldFromAcc.balance + edit.amount + oldFee) : null;
       let oldToRestoredBal = null, oldToRestoredRate = null;
       if (!sameTo) {
         oldToRestoredBal = preOldToBal;
@@ -344,8 +344,8 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
 
     } else {
       // ── CREATE ─────────────────────────────────────────────────────────────
-      const baseFromBal = fromAcc.balance - newAmt;
-      const newToBal    = toAcc.balance   + newToAmt;
+      const baseFromBal = round2(fromAcc.balance - newAmt);
+      const newToBal    = round2(toAcc.balance   + newToAmt);
       let newAvgRate = null;
       if (diffCur && computedRate && !toIsKzt) {
         const oldRate = toAcc.avg_rate || computedRate;
@@ -360,7 +360,7 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
         };
         await supaRpc("save_transfer_with_fee", {
           p_tr: tr,
-          p_from_id: fromId, p_from_balance: baseFromBal - feeAmt,
+          p_from_id: fromId, p_from_balance: round2(baseFromBal - feeAmt),
           p_to_id:   toId,   p_to_balance:   newToBal,   p_to_avg_rate: newAvgRate,
           p_fee_tx:  feeTx,
         });

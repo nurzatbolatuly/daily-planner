@@ -3,7 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR, COMMODITY_CURRENCIES } from "../../../constants/currencies";
 import { ACC_ICONS } from "../../../constants/icons";
 import { ACC_PURPOSES } from "../../../constants/money";
-import { getSym, fmtAmtAuto } from "../../../utils/format";
+import { getSym, fmtAmtAuto, round2 } from "../../../utils/format";
 import { supa, supaRpc } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
@@ -49,7 +49,7 @@ export function AccPage({ onBack, edit }) {
       purpose,
       is_fx_account: isFxAccount,
     };
-    const diff = isEdit ? newBal - edit.balance : 0;
+    const diff = isEdit ? round2(newBal - edit.balance) : 0;
     const adj = (isEdit && diff !== 0) ? {
       id: crypto.randomUUID(),
       from_id: acc.id,

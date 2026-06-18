@@ -3,6 +3,7 @@ import { useSave } from "../../../hooks/useSave";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, addDays } from "../../../utils/date";
+import { round2 } from "../../../utils/format";
 import { supaRpc } from "../../../lib/supabase";
 import { BALANCE_ADJUSTMENT_NOTE } from "../../../constants/money";
 import { Ico } from "../../../components/Ico";
@@ -41,7 +42,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill }) {
     const delta = type === "income" ? parseFloat(amt) : -parseFloat(amt);
     const tx = { id: edit?.id || crypto.randomUUID(), type, amount: parseFloat(amt), currency: cur, category_id: cat, account_id: accId, date, note };
     const oldDelta = edit ? (edit.type === "income" ? -edit.amount : edit.amount) : 0;
-    const newBal = acc.balance + oldDelta + delta;
+    const newBal = round2(acc.balance + oldDelta + delta);
     await supaRpc("save_tx", { p_tx: tx, p_account_id: accId, p_new_balance: newBal });
     onBack(true);
   };
@@ -52,7 +53,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill }) {
     await supaRpc("delete_tx", {
       p_id: edit.id,
       p_account_id: acc ? acc.id : null,
-      p_new_balance: acc ? acc.balance + delta : null,
+      p_new_balance: acc ? round2(acc.balance + delta) : null,
     });
     onBack(true);
   };

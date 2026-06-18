@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { fmtM, fmtAmt, fmtAmtAuto, getSym, isCommodity } from "../../../utils/format";
+import { fmtM, fmtAmt, fmtAmtAuto, getSym, isCommodity, round2 } from "../../../utils/format";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { localDate } from "../../../utils/date";
 import { supabase, supaRpc } from "../../../lib/supabase";
@@ -179,7 +179,7 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
       }
 
       const toAmt       = t.to_amt || t.amount;
-      const prevToBal   = to ? to.balance - toAmt : null;
+      const prevToBal   = to ? round2(to.balance - toAmt) : null;
       let   prevToRate  = null;
       if (to && t.rate && to.avg_rate && prevToBal > 0)
         prevToRate = Math.round((to.avg_rate * to.balance - toAmt * t.rate) / prevToBal * 100) / 100;
@@ -190,7 +190,7 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
       await supaRpc("cancel_transfer", {
         p_id:          t.id,
         p_from_id:     t.from_id,
-        p_from_balance: from ? from.balance + t.amount + (t.fee || 0) : 0,
+        p_from_balance: from ? round2(from.balance + t.amount + (t.fee || 0)) : 0,
         p_to_id:        to?.id ?? null,
         p_to_balance:   prevToBal,
         p_to_avg_rate:  prevToRate,
