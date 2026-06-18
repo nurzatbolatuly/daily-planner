@@ -4,7 +4,8 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad } from "../../../utils/date";
-import { getSym, fmtAmtAuto, toBase, ratesFromAccounts, calcTotalBalance } from "../../../utils/format";
+import { getSym, fmtAmtAuto, toBase, ratesFromAccounts, calcTotalBalance, fmtDateShort } from "../../../utils/format";
+import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportPlansXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
@@ -43,7 +44,9 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
                     <p style={{ margin: 0, fontSize: 12, textAlign: "center", color: C.mid }}>
                       {planCurrency === BASE_CUR ? `${sym}${fmtAmtAuto(plan)}` : `${getSym(planCurrency)}${fmtAmtAuto(plan)}`}
                     </p>
-                    <p style={{ margin: 0, fontSize: 12, textAlign: "center", color: C.main }}>{sym}{fmtAmtAuto(actual)}</p>
+                    <p style={{ margin: 0, fontSize: 12, textAlign: "center", color: actual < 0 ? C.amber : C.main }}>
+                      {actual < 0 ? "−" : ""}{sym}{fmtAmtAuto(Math.abs(actual))}
+                    </p>
                     <p style={{ margin: 0, fontSize: 12, textAlign: "center", fontWeight: 600, color: rest >= 0 ? C.emerald : C.errorLight }}>{sym}{fmtAmtAuto(rest)}</p>
                   </div>
                   {isOpen && (
@@ -83,6 +86,96 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Карточка долга самому себе — показывается когда были исходящие переводы с накопительных счетов
+function SelfDebtCard({ debtData, accounts, sym, navigate, rates }) {
+  const [open, setOpen] = useState(false);
+  const { totalDebt, byAcc } = debtData;
+  if (totalDebt <= 0) return null;
+
+  const entries = Object.entries(byAcc)
+    .map(([accId, { total, items }]) => ({
+      acc: accounts.find(a => a.id === accId),
+      total,
+      items: [...items].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+    }))
+    .filter(e => e.acc)
+    .sort((a, b) => b.total - a.total);
+
+  return (
+    <div style={{ borderRadius: 16, overflow: "hidden", marginBottom: 16, border: `1px solid rgba(245,158,11,0.22)` }}>
+      {/* Заголовок — всегда виден */}
+      <div
+        onClick={() => setOpen(p => !p)}
+        style={{ background: "rgba(245,158,11,0.08)", padding: "14px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(245,158,11,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Ico n="transfer" s={18} c={C.amber}/>
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.amber }}>Долг самому себе</p>
+            <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(245,158,11,0.55)" }}>Взято из накоплений — нужно вернуть</p>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 8 }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: C.amber }}>{sym}{fmtAmtAuto(totalDebt)}</span>
+          <Ico n={open ? "chevU" : "chevD"} s={16} c={C.amber}/>
+        </div>
+      </div>
+
+      {/* Детали — раскрываются */}
+      {open && (
+        <div style={{ background: "rgba(245,158,11,0.03)", borderTop: "1px solid rgba(245,158,11,0.12)" }}>
+          {entries.map(({ acc, total, items }) => (
+            <div key={acc.id} style={{ borderBottom: "1px solid rgba(245,158,11,0.08)" }}>
+              {/* Счёт-источник */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px 6px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <CatIcon k={acc.icon || "other"} size={22} color={acc.color || C.amber}/>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.main }}>{acc.name}</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>{sym}{fmtAmtAuto(total)}</span>
+              </div>
+              {/* Список переводов */}
+              {items.map(t => {
+                const toAcc = accounts.find(a => a.id === t.to_id);
+                return (
+                  <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 16px 3px 46px" }}>
+                    <div style={{ minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, overflow: "hidden" }}>
+                      <span style={{ fontSize: 11, color: C.dim, flexShrink: 0 }}>→</span>
+                      <span style={{ fontSize: 11, color: C.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {toAcc?.name || "Удалённый счёт"}
+                      </span>
+                      <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", flexShrink: 0 }}>{fmtDateShort(t.created_at)}</span>
+                    </div>
+                    <span style={{ fontSize: 11, color: "rgba(245,158,11,0.65)", flexShrink: 0, marginLeft: 8 }}>
+                      {sym}{fmtAmtAuto(toBase(t.amount, t.from_currency, rates))}
+                    </span>
+                  </div>
+                );
+              })}
+              <div style={{ height: 8 }}/>
+            </div>
+          ))}
+
+          {/* CTA */}
+          <div style={{ padding: "14px 16px" }}>
+            <p style={{ margin: "0 0 10px", fontSize: 12, color: "rgba(245,158,11,0.65)", lineHeight: 1.5 }}>
+              Верните {sym}{fmtAmtAuto(totalDebt)} обратно в накопительные счета
+            </p>
+            <button
+              onClick={() => navigate("transfer")}
+              style={{ width: "100%", padding: "12px", borderRadius: 12, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.32)", color: C.amber, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              Перевести в накопления →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -148,9 +241,14 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
       txsM.filter(t => t.type === type && t.category_id === catId)
         .reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0);
 
-    const getSavingsActual = accId =>
-      transfersM.filter(t => t.to_id === accId)
+    // Нетто накоплений за месяц: входящие − исходящие переводы по счёту
+    const getSavingsActual = accId => {
+      const inc = transfersM.filter(t => t.to_id === accId)
         .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
+      const out = transfersM.filter(t => t.from_id === accId)
+        .reduce((s, t) => s + toBase(t.amount, t.from_currency, rates), 0);
+      return inc - out;
+    };
 
     const buildRows = (cats, type) =>
       cats.map(cat => {
@@ -158,7 +256,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
         return { key: `${cat.id}-${type}`, cat, type, plan: planData?.plan ?? 0, planCurrency: planData?.plan_currency ?? BASE_CUR, items: planData?.items ?? [], planData, actual: getActual(cat.id, type) };
       });
 
-    const savingsAccounts = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
+    const savingsAccounts = getSavedOrder(accounts).filter(a => SAVINGS_PURPOSES.includes(a.purpose));
     return {
       expRows: buildRows(expCats, "expense"),
       incRows: buildRows(incCats, "income"),
@@ -169,22 +267,61 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
     };
   }, [txsM, transfersM, expCats, incCats, accounts, monthRows, rates]);
 
+  // Долг самому себе: нетто за выбранный месяц (исходящие − входящие).
+  // Используем transfersM чтобы возврат в том же месяце сразу гасил долг.
+  const selfDebtData = useMemo(() => {
+    const savingsIds = new Set(accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose)).map(a => a.id));
+
+    const byAcc = {};
+    let totalDebt = 0;
+
+    savingsIds.forEach(accId => {
+      const outItems = transfersM.filter(t => t.from_id === accId);
+      if (outItems.length === 0) return;
+
+      const out = outItems.reduce((s, t) => s + toBase(t.amount, t.from_currency, rates), 0);
+      const inc = transfersM.filter(t => t.to_id === accId)
+        .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
+
+      const net = Math.max(0, out - inc);
+      if (net > 0) {
+        byAcc[accId] = { total: net, items: outItems };
+        totalDebt += net;
+      }
+    });
+
+    return { totalDebt, byAcc };
+  }, [transfersM, accounts, rates]);
+
   const sum = (rows, field) => rows.reduce((s, r) => s + toBase(r[field], r.planCurrency, rates), 0);
-  const { totalPlanExp, totalPlanInc, totalPlanSav, totalActExp, totalActInc, totalActSav, totalPlanExpAll } = useMemo(() => {
+  const { totalPlanExp, totalPlanInc, totalPlanSav, totalActExp, totalActInc, totalActSav, totalPlanExpAll, planExpCovered } = useMemo(() => {
     const tPE = sum(expRows, "plan"), tPI = sum(incRows, "plan"), tPS = sum(savingsRows, "plan");
+    // How much actual expense "covers" planned categories (min of actual vs plan per row, only rows with a plan)
+    const covered = expRows.reduce((s, r) => {
+      const pb = toBase(r.plan, r.planCurrency, rates);
+      return pb > 0 ? s + Math.min(r.actual, pb) : s;
+    }, 0);
     return {
       totalPlanExp: tPE, totalPlanInc: tPI, totalPlanSav: tPS,
       totalActExp:  expRows.reduce((s, r) => s + r.actual, 0),
       totalActInc:  incRows.reduce((s, r) => s + r.actual, 0),
       totalActSav:  savingsRows.reduce((s, r) => s + r.actual, 0),
       totalPlanExpAll: tPE + tPS,
+      planExpCovered: covered,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expRows, incRows, savingsRows, rates]);
 
-  const activeIncome     = activePerspective === "actual" ? totalActInc : totalPlanInc;
-  const activeExpense    = activePerspective === "actual" ? totalActExp : totalPlanExp;
-  const activeSavings    = activePerspective === "actual" ? totalActSav : totalPlanSav;
+  // Plan mode: remaining = what's still left to execute (plan minus progress, floored at 0).
+  // planExpCovered uses per-category min so unplanned spending eats activeFree, not the plan bar.
+  // planSavRemaining floors actSav at 0 so borrowing from savings doesn't inflate the bar.
+  const planExpRemaining = Math.max(totalPlanExp - planExpCovered, 0);
+  const planSavRemaining = Math.max(totalPlanSav - Math.max(totalActSav, 0), 0);
+  const planIncRemaining = Math.max(totalPlanInc - totalActInc, 0);
+
+  const activeIncome  = planIncRemaining;
+  const activeExpense = planExpRemaining;
+  const activeSavings = planSavRemaining;
   const totalBalance     = useMemo(() => calcTotalBalance(accounts), [accounts]);
   const totalAvailable   = activeIncome + totalBalance;
   const activeFree       = totalAvailable - activeExpense - activeSavings;
@@ -264,7 +401,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
           <div style={{ background: C.monCard, borderRadius: 16, padding: "16px", marginBottom: 14 }}>
             {/* Perspective switcher */}
             <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 3, marginBottom: 14 }}>
-              {[["plan", "План"],["actual", "Факт"]].map(([v, l]) => (
+              {[["plan", "План"], ["summary", "Итог"]].map(([v, l]) => (
                 <button key={v} onClick={() => setActivePerspective(v)}
                   style={{ flex: 1, padding: "6px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
                            background: activePerspective === v ? "rgba(255,255,255,0.1)" : "transparent",
@@ -274,44 +411,109 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
               ))}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: C.dim }}>Доход месяца</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.emerald }}>{sym}{fmtAmtAuto(activeIncome)}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-              <span style={{ fontSize: 12, color: C.dim }}>Баланс счетов</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>{sym}{fmtAmtAuto(totalBalance)}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 9, marginBottom: 14, borderTop: `1px solid ${C.border}` }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: C.mid }}>Итого доступно</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{sym}{fmtAmtAuto(totalAvailable)}</span>
-            </div>
-
-            {[
-              { label: "Расходы",   amt: activeExpense, color: C.errorLight },
-              { label: "Накоплен.", amt: activeSavings,  color: C.blue },
-              { label: "Свободно",  amt: activeFree,     color: activeFree >= 0 ? C.emerald : C.errorLight },
-            ].map(({ label, amt, color }) => {
-              const pct = totalAvailable > 0 ? Math.min(Math.max(amt / totalAvailable, 0), 1) : 0;
-              return (
-                <div key={label} style={{ marginBottom: 8 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                    <span style={{ fontSize: 11, color: C.dim }}>{label}</span>
-                    <span style={{ fontSize: 11, color }}>{Math.round(pct * 100)}% {sym}{fmtAmtAuto(amt)}</span>
+            {activePerspective === "plan" ? (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, color: C.dim }}>Ожид. доход</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.emerald }}>{sym}{fmtAmtAuto(activeIncome)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, color: C.dim }}>Баланс счетов</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>{sym}{fmtAmtAuto(totalBalance)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 9, marginBottom: 14, borderTop: `1px solid ${C.border}` }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.mid }}>Итого доступно</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{sym}{fmtAmtAuto(totalAvailable)}</span>
+                </div>
+                {[
+                  { label: "Расходы",   amt: activeExpense, color: C.errorLight },
+                  { label: "Накоплен.", amt: activeSavings,  color: C.blue },
+                  { label: "Свободно",  amt: activeFree,     color: activeFree >= 0 ? C.emerald : C.errorLight },
+                ].map(({ label, amt, color }) => {
+                  const pct = totalAvailable > 0 ? Math.min(Math.max(amt / totalAvailable, 0), 1) : 0;
+                  return (
+                    <div key={label} style={{ marginBottom: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                        <span style={{ fontSize: 11, color: C.dim }}>{label}</span>
+                        <span style={{ fontSize: 11, color }}>{Math.round(pct * 100)}% {sym}{fmtAmtAuto(amt)}</span>
+                      </div>
+                      <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)" }}>
+                        <div style={{ height: 6, borderRadius: 3, width: `${pct * 100}%`, background: color, transition: "width 0.4s ease" }}/>
+                      </div>
+                    </div>
+                  );
+                })}
+                {selfDebtData.totalDebt > 0 && (
+                  <div
+                    onClick={() => setActivePill("savings")}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, cursor: "pointer" }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.amber, flexShrink: 0 }}/>
+                      <span style={{ fontSize: 11, color: C.amber }}>Долг себе</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.amber }}>{sym}{fmtAmtAuto(selfDebtData.totalDebt)}</span>
+                      <Ico n="chevR" s={12} c={C.amber}/>
+                    </div>
                   </div>
-                  <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)" }}>
-                    <div style={{ height: 6, borderRadius: 3, width: `${pct * 100}%`, background: color, transition: "width 0.4s ease" }}/>
+                )}
+                {activeOverBudget && (
+                  <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)" }}>
+                    <span style={{ fontSize: 12, color: C.errorLight }}>
+                      ⚠ Расходы + накопления превышают доступные средства на {sym}{fmtAmtAuto(activeExpense + activeSavings - totalAvailable)}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <p style={{ margin: "0 0 14px", fontSize: 11, color: C.dim, textAlign: "center", letterSpacing: 0.5 }}>ИСПОЛНЕНИЕ ПЛАНА</p>
+                {[
+                  { label: "Доходы",     plan: totalPlanInc, act: totalActInc,              color: C.emerald,    goodOver: true  },
+                  { label: "Расходы",    plan: totalPlanExp, act: totalActExp,              color: C.errorLight, goodOver: false },
+                  { label: "Накопления", plan: totalPlanSav, act: Math.max(totalActSav, 0), color: C.blue,       goodOver: true  },
+                ].map(({ label, plan, act, color, goodOver }) => {
+                  const ratio  = plan > 0 ? act / plan : 0;
+                  const barPct = Math.min(ratio, 1);
+                  const over   = ratio > 1;
+                  const barColor = over ? (goodOver ? C.emerald : C.errorLight) : color;
+                  return (
+                    <div key={label} style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
+                        <span style={{ fontSize: 11, color: C.dim }}>{label}</span>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: over && !goodOver ? C.errorLight : C.main }}>
+                            {sym}{fmtAmtAuto(act)}
+                          </span>
+                          {plan > 0 ? (
+                            <span style={{ fontSize: 10, color: C.dim }}>
+                              / {sym}{fmtAmtAuto(plan)} · <span style={{ color: barColor }}>{Math.round(ratio * 100)}%</span>
+                            </span>
+                          ) : (
+                            act > 0 && <span style={{ fontSize: 10, color: C.dim }}>без плана</span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)" }}>
+                        <div style={{ height: 5, borderRadius: 3, width: `${barPct * 100}%`, background: barColor, transition: "width 0.4s ease" }}/>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 4, paddingTop: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, color: C.dim }}>Баланс счетов</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>{sym}{fmtAmtAuto(totalBalance)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 12, color: C.dim }}>Поток за месяц</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: (totalActInc - totalActExp) >= 0 ? C.emerald : C.errorLight }}>
+                      {(totalActInc - totalActExp) >= 0 ? "+" : ""}{sym}{fmtAmtAuto(totalActInc - totalActExp)}
+                    </span>
                   </div>
                 </div>
-              );
-            })}
-
-            {activeOverBudget && (
-              <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)" }}>
-                <span style={{ fontSize: 12, color: C.errorLight }}>
-                  ⚠ Расходы + накопления превышают доступные средства на {sym}{fmtAmtAuto(activeExpense + activeSavings - totalAvailable)}
-                </span>
-              </div>
+              </>
             )}
           </div>
 
@@ -387,7 +589,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
             </div>
           )}
 
-          {/* Pill-switcher */}
+          {/* Pill-switcher — на пилюле "Накопления" показывается точка если есть долг */}
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {[
               { v: "expense", l: "Расходы",    color: C.errorLight },
@@ -407,10 +609,16 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
             <PlanTable {...tableProps} rows={expRows} totalPlan={totalPlanExp} totalAct={totalActExp} label="Расходы" accentColor={C.errorLight}/>
           )}
           {activePill === "savings" && savingsRows.length > 0 && (
-            <PlanTable {...tableProps} rows={savingsRows} totalPlan={totalPlanSav} totalAct={totalActSav} label="Накопления / Инвест." accentColor={C.blue}/>
+            <>
+              <PlanTable {...tableProps} rows={savingsRows} totalPlan={totalPlanSav} totalAct={totalActSav} label="Накопления / Инвест." accentColor={C.blue}/>
+              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={rates}/>
+            </>
           )}
           {activePill === "savings" && savingsRows.length === 0 && (
-            <p style={{ textAlign: "center", padding: "32px 0", color: C.dim, fontSize: 13 }}>Нет накопительных счетов</p>
+            <>
+              <p style={{ textAlign: "center", padding: "32px 0", color: C.dim, fontSize: 13 }}>Нет накопительных счетов</p>
+              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={rates}/>
+            </>
           )}
           {activePill === "income" && (
             <PlanTable {...tableProps} rows={incRows} totalPlan={totalPlanInc} totalAct={totalActInc} label="Доходы" accentColor={C.emerald}/>

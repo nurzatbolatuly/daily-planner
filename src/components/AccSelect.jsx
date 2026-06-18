@@ -22,7 +22,7 @@ export function AccSelect({ accounts, value, onChange, onCurrencyChange, label, 
         {sel ? (
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <CatIcon k={sel.icon} size={32} color={sel.color}/>
-            <div><p style={{ margin:0, fontSize:14, color:"#fff" }}>{sel.name}</p><p style={{ margin:0, fontSize:12, color:C.dim }}>{isCommodity(sel.currency) ? fmtGrams(sel.balance) : fmtBal(sel.balance, sel.currency)}</p></div>
+            <div><p style={{ margin:0, fontSize:14, color:"#fff" }}>{sel.name}</p><p style={{ margin:0, fontSize:13, color:C.mid }}>{isCommodity(sel.currency) ? fmtGrams(sel.balance) : fmtBal(sel.balance, sel.currency)}</p></div>
           </div>
         ) : <span style={{ fontSize:14, color:C.dim }}>Select account</span>}
         <Ico n="chevD" s={16} c={C.dim}/>
@@ -31,7 +31,7 @@ export function AccSelect({ accounts, value, onChange, onCurrencyChange, label, 
         {ordered.map(a => (
           <div key={a.id} onClick={() => { onChange(a.id); onCurrencyChange?.(a.currency); setOpen(false); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 12px", borderRadius:12, marginBottom:6, cursor:"pointer", background:value===a.id?"rgba(76,175,80,0.1)":"rgba(255,255,255,0.03)", border:`1px solid ${value===a.id?"rgba(76,175,80,0.4)":C.border}` }}>
             <CatIcon k={a.icon} size={40} color={a.color}/>
-            <div style={{ flex:1 }}><p style={{ margin:0, fontSize:14, color:"#fff" }}>{a.name}</p><p style={{ margin:0, fontSize:12, color:C.dim }}>{isCommodity(a.currency) ? fmtGrams(a.balance) : fmtBal(a.balance, a.currency)}</p></div>
+            <div style={{ flex:1 }}><p style={{ margin:0, fontSize:14, color:"#fff" }}>{a.name}</p><p style={{ margin:0, fontSize:13, color:C.mid }}>{isCommodity(a.currency) ? fmtGrams(a.balance) : fmtBal(a.balance, a.currency)}</p></div>
             {value===a.id && <Ico n="check" s={18} c={C.green}/>}
           </div>
         ))}
