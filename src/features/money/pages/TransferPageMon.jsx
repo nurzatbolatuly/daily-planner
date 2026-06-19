@@ -28,8 +28,6 @@ function DealAnalysisBanner({ fromAcc, toAcc, impliedSellRate, impliedBuyRate, r
   const hasSell    = !fromIsKzt && (fromAcc?.avg_rate > 0) && (impliedSellRate > 0);
   // hasBuy не требует refToAvgRate — impliedBuyRate считается из fromAcc.avg_rate
   const hasBuy     = !toIsKzt && (impliedBuyRate > 0) && (newToAvgRate != null);
-  // есть ли курс сравнения (для разницы "дороже/дешевле рынка или средней")
-  const hasRefComp = refToAvgRate > 0;
 
   if (!hasSell && !hasBuy) return null;
 
@@ -42,16 +40,20 @@ function DealAnalysisBanner({ fromAcc, toAcc, impliedSellRate, impliedBuyRate, r
   const sellBg     = sellProfit ? "rgba(76,175,80,0.10)" : "rgba(244,67,54,0.10)";
   const sellBorder = sellProfit ? "rgba(76,175,80,0.30)" : "rgba(244,67,54,0.30)";
 
-  // Сторона покупки: цена входа vs средняя/рыночная (только если есть курс для сравнения)
-  const buyDiff    = hasRefComp ? impliedBuyRate - refToAvgRate : 0;
-  const buyPct     = hasRefComp ? (buyDiff / refToAvgRate * 100) : 0;
-  const buyBetter  = buyDiff < 0; // дешевле → хорошо
-  const buyNeutral = !hasRefComp || Math.abs(buyPct) < 0.5;
-  const buyColor   = buyNeutral ? C.mid : (buyBetter ? C.green : C.red);
-  const buyBg      = buyNeutral ? "rgba(255,255,255,0.04)" : (buyBetter ? "rgba(76,175,80,0.07)" : "rgba(244,67,54,0.07)");
-  const buyBorder  = buyNeutral ? "rgba(255,255,255,0.10)"  : (buyBetter ? "rgba(76,175,80,0.20)" : "rgba(244,67,54,0.20)");
-  // Метка строки «до»: историческая средняя или текущая рыночная
-  const refLabel   = hasToHistory ? "Ср. цена до" : "Тек. цена рынка";
+  // Сторона покупки.
+  // refForDisplay: «Ср. цена до» = реальная средняя счёта (если есть); иначе — рыночная (если введена).
+  // refToAvgRate используется ТОЛЬКО для impliedSellRate на стороне FROM, здесь не используется.
+  const toAccAvg     = (toAcc?.avg_rate || 0);
+  const refForDisplay = hasToHistory ? toAccAvg : refToAvgRate;
+  const hasRefComp   = refForDisplay > 0;
+  const buyDiff      = hasRefComp ? impliedBuyRate - refForDisplay : 0;
+  const buyPct       = hasRefComp ? (buyDiff / refForDisplay * 100) : 0;
+  const buyBetter    = buyDiff < 0; // дешевле → хорошо
+  const buyNeutral   = !hasRefComp || Math.abs(buyPct) < 0.5;
+  const buyColor     = buyNeutral ? C.mid : (buyBetter ? C.green : C.red);
+  const buyBg        = buyNeutral ? "rgba(255,255,255,0.04)" : (buyBetter ? "rgba(76,175,80,0.07)" : "rgba(244,67,54,0.07)");
+  const buyBorder    = buyNeutral ? "rgba(255,255,255,0.10)"  : (buyBetter ? "rgba(76,175,80,0.20)" : "rgba(244,67,54,0.20)");
+  const refLabel     = hasToHistory ? "Ср. цена до" : "Тек. цена рынка";
 
   return (
     <div style={{ marginBottom:20 }}>
@@ -62,16 +64,16 @@ function DealAnalysisBanner({ fromAcc, toAcc, impliedSellRate, impliedBuyRate, r
           </p>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
             <span style={{ fontSize:12, color:C.dim }}>Средняя покупки</span>
-            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(fromAcc.avg_rate, 0)} ₸/{fromSym}</span>
+            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(fromAcc.avg_rate)} ₸/{fromSym}</span>
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
             <span style={{ fontSize:12, color:C.dim }}>Цена продажи</span>
-            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(impliedSellRate, 0)} ₸/{fromSym}</span>
+            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(impliedSellRate)} ₸/{fromSym}</span>
           </div>
           <div style={{ height:1, background:"rgba(255,255,255,0.08)", marginBottom:8 }}/>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ fontSize:13, fontWeight:600, color:sellColor }}>
-              {sellProfit ? "Прибыль" : "Убыток"} {sellProfit ? "+" : ""}{fmtAmt(sellDiff, 0)} ₸/{fromSym} ({sellPct >= 0 ? "+" : ""}{fmtAmt(Math.abs(sellPct), 1)}%)
+              {sellProfit ? "Прибыль" : "Убыток"} {sellProfit ? "+" : ""}{fmtAmt(sellDiff)} ₸/{fromSym} ({sellPct >= 0 ? "+" : ""}{fmtAmt(Math.abs(sellPct), 1)}%)
             </span>
             {amtNum > 0 && (
               <span style={{ fontSize:14, fontWeight:700, color:sellColor }}>
@@ -90,18 +92,18 @@ function DealAnalysisBanner({ fromAcc, toAcc, impliedSellRate, impliedBuyRate, r
           {hasRefComp && (
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
               <span style={{ fontSize:12, color:C.dim }}>{refLabel}</span>
-              <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(refToAvgRate, 0)} ₸/{toSym}</span>
+              <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(refForDisplay)} ₸/{toSym}</span>
             </div>
           )}
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
             <span style={{ fontSize:12, color:C.dim }}>Цена входа</span>
-            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(impliedBuyRate, 0)} ₸/{toSym}</span>
+            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(impliedBuyRate)} ₸/{toSym}</span>
           </div>
           <div style={{ height:1, background:"rgba(255,255,255,0.08)", marginBottom:8 }}/>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ fontSize:12, color:C.dim }}>Новая средняя</span>
             <span style={{ fontSize:13, fontWeight:700, color:buyColor }}>
-              {fmtAmt(newToAvgRate, 0)} ₸/{toSym}
+              {fmtAmt(newToAvgRate)} ₸/{toSym}
               {!buyNeutral && <> ({buyPct >= 0 ? "+" : ""}{fmtAmt(Math.abs(buyPct), 1)}%)</>}
             </span>
           </div>
@@ -190,10 +192,11 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
   }
 
   // Новая средняя получателя после перевода.
-  // Если нет refToAvgRate (первая покупка, нет toRate) — используем impliedBuyRate как базу,
-  // тогда avgRateFn при нулевом балансе вернёт impliedBuyRate.
+  // oldRate = реальная историческая средняя счёта (toAcc.avg_rate), НЕ рыночная цена (refToAvgRate).
+  // refToAvgRate используется только для impliedSellRate и цветовой индикации, не для взвешенной средней.
+  const toAccAvgRate   = (toAcc?.avg_rate || 0);
   const newToAvgRate = (!toIsKzt && impliedBuyRate != null && effectiveToAmt > 0)
-    ? Math.round(avgRateFn(toAcc?.balance || 0, refToAvgRate > 0 ? refToAvgRate : impliedBuyRate, effectiveToAmt, impliedBuyRate) * 100) / 100
+    ? Math.round(avgRateFn(toAcc?.balance || 0, toAccAvgRate > 0 ? toAccAvgRate : impliedBuyRate, effectiveToAmt, impliedBuyRate) * 100) / 100
     : null;
 
   // ─── SAVE ──────────────────────────────────────────────────────────────────
@@ -206,16 +209,18 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
     const hasSellSnap = !fromIsKzt && (fromAcc?.avg_rate > 0) && (impliedSellRate > 0);
     const hasBuySnap  = !toIsKzt && (impliedBuyRate != null) && (newToAvgRate != null) && effectiveToAmt > 0;
     const sellDiffSnap = hasSellSnap ? impliedSellRate - fromAcc.avg_rate : 0;
-    const pnlKzt       = hasSellSnap ? Math.round(sellDiffSnap * amtNum) : 0;
+    const pnlKzt       = hasSellSnap ? round2(sellDiffSnap * amtNum) : 0;
     const analyticsData = (hasSellSnap || hasBuySnap) ? {
-      has_sell:          hasSellSnap,
-      has_buy:           hasBuySnap,
-      from_avg_rate:     fromAcc?.avg_rate || null,
-      implied_sell_rate: impliedSellRate,
-      sell_pnl:          pnlKzt,
-      implied_buy_rate:  impliedBuyRate,
-      to_avg_before:     toAcc?.avg_rate || null,
-      new_to_avg_rate:   newToAvgRate,
+      has_sell:            hasSellSnap,
+      has_buy:             hasBuySnap,
+      from_avg_rate:       fromAcc?.avg_rate || null,
+      implied_sell_rate:   impliedSellRate,
+      sell_pnl:            pnlKzt,
+      implied_buy_rate:    impliedBuyRate,
+      to_avg_before:       toAcc?.avg_rate || null,
+      to_balance_before:   hasBuySnap ? (toAcc?.balance || 0) : null,
+      to_amount_added:     hasBuySnap ? effectiveToAmt : null,
+      new_to_avg_rate:     newToAvgRate,
     } : null;
 
     const fromRateToKztSave = fromIsKzt ? 1

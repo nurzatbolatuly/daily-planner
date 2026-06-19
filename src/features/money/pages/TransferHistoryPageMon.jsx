@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { fmtM, fmtAmt, fmtAmtAuto, getSym, isCommodity, round2 } from "../../../utils/format";
+import { fmtM, fmtAmt, fmtAmtAuto, getSym, isCommodity, round2, avgRateFn } from "../../../utils/format";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { localDate } from "../../../utils/date";
 import { supabase, supaRpc } from "../../../lib/supabase";
@@ -55,8 +55,15 @@ const ArrowDown = () => (
 function StoredDealBanner({ analytics, fromCurrency, toCurrency }) {
   if (!analytics) return null;
   const { has_sell, has_buy, from_avg_rate, implied_sell_rate, sell_pnl,
-          implied_buy_rate, to_avg_before, new_to_avg_rate } = analytics;
+          implied_buy_rate, to_avg_before, new_to_avg_rate,
+          to_balance_before, to_amount_added } = analytics;
   if (!has_sell && !has_buy) return null;
+
+  // Если есть данные о балансе до и кол-ве добавленного — пересчитываем взвешенную среднюю точно.
+  // Это исправляет старые записи, где new_to_avg_rate был посчитан с рыночной ценой вместо avg_rate.
+  const displayNewAvg = (has_buy && to_balance_before != null && to_amount_added != null && implied_buy_rate != null)
+    ? Math.round(avgRateFn(to_balance_before, (to_avg_before || 0) > 0 ? to_avg_before : implied_buy_rate, to_amount_added, implied_buy_rate) * 100) / 100
+    : new_to_avg_rate;
 
   const fromSym  = getSym(fromCurrency);
   const toSym    = getSym(toCurrency);
@@ -88,16 +95,16 @@ function StoredDealBanner({ analytics, fromCurrency, toCurrency }) {
           </p>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
             <span style={{ fontSize:12, color:C.dim }}>Средняя покупки</span>
-            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(from_avg_rate, 0)} ₸/{fromSym}</span>
+            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(from_avg_rate)} ₸/{fromSym}</span>
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
             <span style={{ fontSize:12, color:C.dim }}>Цена продажи</span>
-            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(implied_sell_rate, 0)} ₸/{fromSym}</span>
+            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(implied_sell_rate)} ₸/{fromSym}</span>
           </div>
           <div style={{ height:1, background:"rgba(255,255,255,0.08)", marginBottom:8 }}/>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ fontSize:13, fontWeight:600, color:sellColor }}>
-              {sellProfit ? "Прибыль" : "Убыток"} {sellProfit ? "+" : ""}{fmtAmt(sellDiff, 0)} ₸/{fromSym} ({sellPct >= 0 ? "+" : ""}{fmtAmt(Math.abs(sellPct), 1)}%)
+              {sellProfit ? "Прибыль" : "Убыток"} {sellProfit ? "+" : ""}{fmtAmt(sellDiff)} ₸/{fromSym} ({sellPct >= 0 ? "+" : ""}{fmtAmt(Math.abs(sellPct), 1)}%)
             </span>
             <span style={{ fontSize:14, fontWeight:700, color:sellColor }}>
               {sellProfit ? "+" : "-"}{fmtAmtAuto(Math.abs(sell_pnl))} ₸
@@ -113,18 +120,18 @@ function StoredDealBanner({ analytics, fromCurrency, toCurrency }) {
           {hasRefComp && (
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
               <span style={{ fontSize:12, color:C.dim }}>Ср. цена до</span>
-              <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(to_avg_before, 0)} ₸/{toSym}</span>
+              <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(to_avg_before)} ₸/{toSym}</span>
             </div>
           )}
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
             <span style={{ fontSize:12, color:C.dim }}>Цена входа</span>
-            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(implied_buy_rate, 0)} ₸/{toSym}</span>
+            <span style={{ fontSize:12, color:C.mid }}>{fmtAmt(implied_buy_rate)} ₸/{toSym}</span>
           </div>
           <div style={{ height:1, background:"rgba(255,255,255,0.08)", marginBottom:8 }}/>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ fontSize:12, color:C.dim }}>Новая средняя</span>
             <span style={{ fontSize:13, fontWeight:700, color:buyColor }}>
-              {fmtAmt(new_to_avg_rate, 0)} ₸/{toSym}
+              {fmtAmt(displayNewAvg)} ₸/{toSym}
               {!buyNeutral && <> ({buyPct >= 0 ? "+" : ""}{fmtAmt(Math.abs(buyPct), 1)}%)</>}
             </span>
           </div>
@@ -254,7 +261,8 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
     const toAmt  = t.to_amt ?? t.amount;
     const toCur  = t.to_currency || t.from_currency;
     const diffCur = t.from_currency !== toCur;
-    const foreignCur = t.from_currency !== BASE_CUR ? t.from_currency : toCur;
+    // t.rate = ₸ за 1 ед. toCur (если toCur≠KZT) или ₸ за 1 ед. fromCurrency (если toCur=KZT, pricePerGramMode)
+    const foreignCur = toCur !== BASE_CUR ? toCur : t.from_currency;
 
     return (
       <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
@@ -278,7 +286,7 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
 
           {t.rate && <>
             {lbl("Курс обмена")}
-            <p style={{ margin:"0 0 20px", fontSize:16, fontWeight:600, color:"#fff" }}>1 {foreignCur} = {t.rate} {BASE_CUR}</p>
+            <p style={{ margin:"0 0 20px", fontSize:16, fontWeight:600, color:"#fff" }}>1 {foreignCur} = {fmtAmt(t.rate)} {BASE_CUR}</p>
           </>}
 
           {t.fee > 0 && <>
