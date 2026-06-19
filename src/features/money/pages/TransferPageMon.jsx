@@ -420,7 +420,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
     if (edit) {
       await supabase.from("goal_topups").delete().eq("transfer_id", edit.id);
     }
-    if (linkedGoal) {
+    if (linkedGoal && !isDebtRepayment) {
       await supaUpsert("goal_topups", {
         id:          crypto.randomUUID(),
         goal_id:     linkedGoal.id,
