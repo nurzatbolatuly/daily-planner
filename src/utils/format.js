@@ -24,9 +24,9 @@ export const fmtGrams = n => {
 export const fmtAmt = (n, dec = 2) => Math.abs(Number(n)||0).toLocaleString("ru-RU", { minimumFractionDigits: dec, maximumFractionDigits: dec }).replace(',', '.');
 
 // Умное форматирование: 10 000 · 1 500.5 · 1 500.54 · без trailing zeros.
-// Math.round(...) устраняет floating point мусор (2000.5000000000002 → 2000.5) до форматирования.
+// Decimal.js устраняет IEEE 754 float-point мусор (1.005 → 1.01, не 1.00).
 export const fmtAmtAuto = n => {
-  const rounded = Math.round(Math.abs(Number(n) || 0) * 100) / 100;
+  const rounded = round2(Math.abs(Number(n) || 0));
   return numericFormatter(String(rounded), NUM_FMT_OPTS);
 };
 

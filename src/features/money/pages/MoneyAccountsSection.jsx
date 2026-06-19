@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { getSym, fmtAmt, fmtBal, fmtGrams, isCommodity, calcTotalBalance } from "../../../utils/format";
+import { getSym, fmtAmtAuto, fmtBal, fmtGrams, isCommodity, calcTotalBalance } from "../../../utils/format";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { ACC_PURPOSES } from "../../../constants/money";
 import { useDragReorder } from "../../../hooks/useDragReorder";
@@ -96,13 +96,13 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
                     {isCommodity(acc.currency) ? (
                       acc.avg_rate != null && (
                         <p style={{ margin:"2px 0 0", fontSize:12, color:C.dim }}>
-                          {fmtGrams(acc.balance)} · {fmtAmt(acc.avg_rate, 0)} ₸/г
+                          {fmtGrams(acc.balance)} · {fmtAmtAuto(acc.avg_rate)} ₸/г
                         </p>
                       )
                     ) : (
                       acc.currency !== BASE_CUR && acc.avg_rate != null && (
                         <p style={{ margin:"2px 0 0", fontSize:12, color:C.dim }}>
-                          1 {getSym(acc.currency)} = {getSym(BASE_CUR)}{fmtAmt(acc.avg_rate, 2)}
+                          1 {getSym(acc.currency)} = {getSym(BASE_CUR)}{fmtAmtAuto(acc.avg_rate)}
                         </p>
                       )
                     )}
