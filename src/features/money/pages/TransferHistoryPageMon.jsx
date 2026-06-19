@@ -299,6 +299,13 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
             <p style={{ margin:"0 0 20px", fontSize:16, fontWeight:600, color:"#fff" }}>{t.note}</p>
           </>}
 
+          {t.is_debt_repayment && (
+            <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:12, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.22)", marginBottom:20 }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:C.amber, flexShrink:0 }}/>
+              <span style={{ fontSize:13, color:C.amber, fontWeight:600 }}>Возврат долга самому себе</span>
+            </div>
+          )}
+
           {lbl("Дата")}
           <p style={{ margin:"0 0 20px", fontSize:16, fontWeight:600, color:"#fff" }}>{fmtGroupDate(localDate(t.created_at))}</p>
 
@@ -435,8 +442,11 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
                       </div>
                     </div>
                   </div>
-                  {(t.note || t.fee > 0) && (
-                    <div style={{ display:"flex", gap:6, fontSize:12, color:C.dim, marginTop:4, paddingLeft:24 }}>
+                  {(t.note || t.fee > 0 || t.is_debt_repayment) && (
+                    <div style={{ display:"flex", gap:6, fontSize:12, color:C.dim, marginTop:4, paddingLeft:24, alignItems:"center" }}>
+                      {t.is_debt_repayment && (
+                        <span style={{ fontSize:10, fontWeight:600, color:C.amber, background:"rgba(245,158,11,0.12)", padding:"2px 7px", borderRadius:6, flexShrink:0 }}>Возврат долга</span>
+                      )}
                       {t.note && <span style={{ flex:1, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.note}</span>}
                       {t.note && t.fee > 0 && <span>·</span>}
                       {t.fee > 0 && <span style={{ color:C.errorLight, flexShrink:0 }}>{fmtM(t.fee, t.from_currency)}</span>}

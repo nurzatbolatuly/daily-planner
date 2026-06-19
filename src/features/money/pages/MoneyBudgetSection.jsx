@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect, memo } from "react";
+import { useState, useMemo, useEffect, useRef, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad } from "../../../utils/date";
 import { getSym, fmtAmtAuto, toBase, ratesFromAccounts, calcTotalBalance, fmtDateShort } from "../../../utils/format";
+import { computeDebtState } from "../../../utils/debtUtils";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportPlansXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
@@ -91,7 +92,7 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
 }
 
 // Карточка долга самому себе — показывается когда были исходящие переводы с накопительных счетов
-function SelfDebtCard({ debtData, accounts, sym, navigate, rates }) {
+function SelfDebtCard({ debtData, accounts, sym, navigate, rates, cardRef }) {
   const [open, setOpen] = useState(false);
   const { totalDebt, byAcc } = debtData;
   if (totalDebt <= 0) return null;
@@ -106,7 +107,7 @@ function SelfDebtCard({ debtData, accounts, sym, navigate, rates }) {
     .sort((a, b) => b.total - a.total);
 
   return (
-    <div style={{ borderRadius: 16, overflow: "hidden", marginBottom: 16, border: `1px solid rgba(245,158,11,0.22)` }}>
+    <div ref={cardRef} style={{ borderRadius: 16, overflow: "hidden", marginBottom: 16, border: `1px solid rgba(245,158,11,0.22)` }}>
       {/* Заголовок — всегда виден */}
       <div
         onClick={() => setOpen(p => !p)}
@@ -158,22 +159,17 @@ function SelfDebtCard({ debtData, accounts, sym, navigate, rates }) {
                   </div>
                 );
               })}
-              <div style={{ height: 8 }}/>
+              {/* Кнопка возврата для конкретного счёта */}
+              <div style={{ padding: "8px 16px 12px" }}>
+                <button
+                  onClick={() => navigate("transfer", { to_id: acc.id, amount: total, is_debt_repayment: true })}
+                  style={{ width: "100%", padding: "10px", borderRadius: 10, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.32)", color: C.amber, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Вернуть {sym}{fmtAmtAuto(total)} в «{acc.name}» →
+                </button>
+              </div>
             </div>
           ))}
-
-          {/* CTA */}
-          <div style={{ padding: "14px 16px" }}>
-            <p style={{ margin: "0 0 10px", fontSize: 12, color: "rgba(245,158,11,0.65)", lineHeight: 1.5 }}>
-              Верните {sym}{fmtAmtAuto(totalDebt)} обратно в накопительные счета
-            </p>
-            <button
-              onClick={() => navigate("transfer")}
-              style={{ width: "100%", padding: "12px", borderRadius: 12, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.32)", color: C.amber, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-            >
-              Перевести в накопления →
-            </button>
-          </div>
         </div>
       )}
     </div>
@@ -193,8 +189,9 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
   const [rateInputs, setRateInputs] = useState({});
   const [ratesOpen,  setRatesOpen]  = useState(false);
 
-  const toggle = key => setExpanded(p => ({ ...p, [key]: !p[key] }));
-  const sym    = getSym(BASE_CUR);
+  const toggle      = key => setExpanded(p => ({ ...p, [key]: !p[key] }));
+  const sym         = getSym(BASE_CUR);
+  const debtCardRef = useRef(null);
 
   const planMonthKey = `${planYear}-${pad(planMonth + 1)}`;
 
@@ -236,18 +233,33 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
     }),
   }), [transactions, transfers, planMonth, planYear]);
 
+  // Долг самому себе — хронологическая обработка ВСЕЙ истории переводов.
+  // repaymentSavings[id] = излишек конкретного погашения сверх долга (= реальное накопление).
+  const debtState = useMemo(
+    () => computeDebtState(transfers, accounts, rates),
+    [transfers, accounts, rates]
+  );
+
   const { expRows, incRows, savingsRows } = useMemo(() => {
+    const { repaymentSavings } = debtState;
+
     const getActual = (catId, type) =>
       txsM.filter(t => t.type === type && t.category_id === catId)
         .reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0);
 
-    // Нетто накоплений за месяц: входящие − исходящие переводы по счёту
     const getSavingsActual = accId => {
-      const inc = transfersM.filter(t => t.to_id === accId)
+      // Переводы без флага — 100% накопление этого месяца
+      const regularInc = transfersM
+        .filter(t => t.to_id === accId && !t.is_debt_repayment)
         .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
-      const out = transfersM.filter(t => t.from_id === accId)
-        .reduce((s, t) => s + toBase(t.amount, t.from_currency, rates), 0);
-      return inc - out;
+
+      // Погашения долга: только излишек сверх долга считается накоплением
+      const repayExcess = transfersM
+        .filter(t => t.to_id === accId && t.is_debt_repayment)
+        .reduce((s, t) => s + (repaymentSavings[t.id] || 0), 0);
+
+      // Исходящие (заимствование) не вычитаем — они трекаются в карточке долга отдельно
+      return regularInc + repayExcess;
     };
 
     const buildRows = (cats, type) =>
@@ -265,33 +277,9 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
         return { key: `sav-${acc.id}`, cat: { icon: acc.icon, color: acc.color, name: acc.name }, type: "savings", plan: planData?.plan ?? 0, planCurrency: planData?.plan_currency ?? BASE_CUR, items: planData?.items ?? [], planData, actual: getSavingsActual(acc.id), accId: acc.id };
       }),
     };
-  }, [txsM, transfersM, expCats, incCats, accounts, monthRows, rates]);
+  }, [txsM, transfersM, expCats, incCats, accounts, monthRows, rates, debtState]);
 
-  // Долг самому себе: нетто за выбранный месяц (исходящие − входящие).
-  // Используем transfersM чтобы возврат в том же месяце сразу гасил долг.
-  const selfDebtData = useMemo(() => {
-    const savingsIds = new Set(accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose)).map(a => a.id));
-
-    const byAcc = {};
-    let totalDebt = 0;
-
-    savingsIds.forEach(accId => {
-      const outItems = transfersM.filter(t => t.from_id === accId);
-      if (outItems.length === 0) return;
-
-      const out = outItems.reduce((s, t) => s + toBase(t.amount, t.from_currency, rates), 0);
-      const inc = transfersM.filter(t => t.to_id === accId)
-        .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
-
-      const net = Math.max(0, out - inc);
-      if (net > 0) {
-        byAcc[accId] = { total: net, items: outItems };
-        totalDebt += net;
-      }
-    });
-
-    return { totalDebt, byAcc };
-  }, [transfersM, accounts, rates]);
+  const selfDebtData = debtState;
 
   const sum = (rows, field) => rows.reduce((s, r) => s + toBase(r[field], r.planCurrency, rates), 0);
   const { totalPlanExp, totalPlanInc, totalPlanSav, totalActExp, totalActInc, totalActSav, totalPlanExpAll, planExpCovered } = useMemo(() => {
@@ -445,7 +433,10 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
                 })}
                 {selfDebtData.totalDebt > 0 && (
                   <div
-                    onClick={() => setActivePill("savings")}
+                    onClick={() => {
+                      setActivePill("savings");
+                      setTimeout(() => debtCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 80);
+                    }}
                     style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, cursor: "pointer" }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -611,13 +602,13 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
           {activePill === "savings" && savingsRows.length > 0 && (
             <>
               <PlanTable {...tableProps} rows={savingsRows} totalPlan={totalPlanSav} totalAct={totalActSav} label="Накопления / Инвест." accentColor={C.blue}/>
-              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={rates}/>
+              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={rates} cardRef={debtCardRef}/>
             </>
           )}
           {activePill === "savings" && savingsRows.length === 0 && (
             <>
               <p style={{ textAlign: "center", padding: "32px 0", color: C.dim, fontSize: 13 }}>Нет накопительных счетов</p>
-              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={rates}/>
+              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={rates} cardRef={debtCardRef}/>
             </>
           )}
           {activePill === "income" && (

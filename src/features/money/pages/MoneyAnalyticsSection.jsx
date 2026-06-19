@@ -5,6 +5,7 @@ import { RU_MONTHS, RU_MONTHS_S, RU_MON_GEN } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad, monthKey, localDate, daysBetween, todayStr } from "../../../utils/date";
 import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/format";
+import { computeDebtState } from "../../../utils/debtUtils";
 import { CatIcon } from "../../../components/CatIcon";
 
 const W = 300, H = 120, PAD = { top: 10, bottom: 24, left: 8, right: 8 };
@@ -83,6 +84,10 @@ export function MoneyAnalyticsSection({ data }) {
   const sym   = getSym(BASE_CUR);
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
 
+  // Хронологический учёт долга — единый источник правды для всей аналитики.
+  // repaymentSavings[transferId] = часть погашения, являющаяся накоплением (излишек > долга).
+  const debtState = useMemo(() => computeDebtState(transfers, accounts, rates), [transfers, accounts, rates]);
+
   const months = useMemo(() => {
     const result = [];
     for (let i = range - 1; i >= 0; i--) {
@@ -125,13 +130,20 @@ export function MoneyAnalyticsSection({ data }) {
 
   const selectedSavingsData = useMemo(() => {
     if (!selectedMonth) return null;
+    const { repaymentSavings } = debtState;
     const savingsAccs = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
     const rows = savingsAccs.map(acc => {
       const planRow = monthPlans.find(p => p.month === selectedMonth && p.type === "savings" && p.acc_id === acc.id);
-      const actual  = transfers
-        .filter(t => t.to_id === acc.id && !t.is_adjustment && monthKey(localDate(t.created_at)) === selectedMonth)
+      // Обычные переводы — 100% накопление
+      const regularActual = transfers
+        .filter(t => t.to_id === acc.id && !t.is_adjustment && !t.is_debt_repayment && monthKey(localDate(t.created_at)) === selectedMonth)
         .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
-      const plan = planRow ? toBase(planRow.plan, planRow.plan_currency, rates) : 0;
+      // Погашения долга — только излишек сверх долга считается накоплением
+      const repayExcess = transfers
+        .filter(t => t.to_id === acc.id && !t.is_adjustment && t.is_debt_repayment && monthKey(localDate(t.created_at)) === selectedMonth)
+        .reduce((s, t) => s + (repaymentSavings[t.id] || 0), 0);
+      const actual = regularActual + repayExcess;
+      const plan   = planRow ? toBase(planRow.plan, planRow.plan_currency, rates) : 0;
       return { acc, plan, actual };
     }).filter(r => r.plan > 0 || r.actual > 0);
     if (!rows.length) return null;
@@ -140,9 +152,10 @@ export function MoneyAnalyticsSection({ data }) {
       totalPlan:   rows.reduce((s, r) => s + r.plan,   0),
       totalActual: rows.reduce((s, r) => s + r.actual, 0),
     };
-  }, [selectedMonth, accounts, monthPlans, transfers, rates]);
+  }, [selectedMonth, accounts, monthPlans, transfers, rates, debtState]);
 
   const yearForecast = useMemo(() => {
+    const { repaymentSavings } = debtState;
     const thisMonth = now.getMonth();
 
     const savingsAccs   = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
@@ -159,15 +172,23 @@ export function MoneyAnalyticsSection({ data }) {
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
     });
     const avgMonthlySav = avgPeriodMks.reduce((sum, mk) => {
-      return sum + transfers
-        .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && monthKey(localDate(t.created_at)) === mk)
+      const regular = transfers
+        .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && !t.is_debt_repayment && monthKey(localDate(t.created_at)) === mk)
         .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
+      const excess = transfers
+        .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && t.is_debt_repayment && monthKey(localDate(t.created_at)) === mk)
+        .reduce((s, t) => s + (repaymentSavings[t.id] || 0), 0);
+      return sum + regular + excess;
     }, 0) / range;
 
     const currentMk = `${thisYear}-${pad(thisMonth + 1)}`;
-    const currentMonthActual = transfers
-      .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && monthKey(localDate(t.created_at)) === currentMk)
+    const currentMonthRegular = transfers
+      .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && !t.is_debt_repayment && monthKey(localDate(t.created_at)) === currentMk)
       .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
+    const currentMonthExcess = transfers
+      .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && t.is_debt_repayment && monthKey(localDate(t.created_at)) === currentMk)
+      .reduce((s, t) => s + (repaymentSavings[t.id] || 0), 0);
+    const currentMonthActual = currentMonthRegular + currentMonthExcess;
 
     const currentMonthPlan = monthPlans
       .filter(p => p.month === currentMk && p.type === "savings" && savingsAccIds.includes(p.acc_id))
@@ -213,7 +234,7 @@ export function MoneyAnalyticsSection({ data }) {
       remainingProjected, projected, monthsLeft, avgPlanMonthly,
       goalsAnalysis, totalGoalsMonthlyNeeded, gap,
     };
-  }, [transfers, accounts, monthPlans, goals, goalTopups, rates, forecastTarget, range, now, thisYear]);
+  }, [transfers, accounts, monthPlans, goals, goalTopups, rates, forecastTarget, range, now, thisYear, debtState]);
 
   const forecastLabel = `К концу ${RU_MON_GEN[forecastTarget.month]}${forecastTarget.year !== thisYear ? ` ${forecastTarget.year}` : ""}`;
 

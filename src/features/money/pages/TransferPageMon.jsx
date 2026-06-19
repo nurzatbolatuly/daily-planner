@@ -1,16 +1,17 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, localDate } from "../../../utils/date";
-import { avgRateFn, fmtAmt, fmtAmtAuto, fmtBal, getSym, isCommodity, round2 } from "../../../utils/format";
+import { avgRateFn, fmtAmt, fmtAmtAuto, fmtBal, getSym, isCommodity, round2, toBase, ratesFromAccounts } from "../../../utils/format";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
-import { FEE_TX_NOTE } from "../../../constants/money";
+import { FEE_TX_NOTE, SAVINGS_PURPOSES } from "../../../constants/money";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
 import { AccSelect } from "../../../components/AccSelect";
 import { CatIcon } from "../../../components/CatIcon";
+import { Toggle } from "../../../components/Toggle";
 
 // Анализ сделки: сторона продажи (PnL источника) + сторона покупки (новая средняя получателя).
 // refToAvgRate — актуальная цена/курс получателя: toAcc.avg_rate если есть история,
@@ -113,15 +114,16 @@ function DealAnalysisBanner({ fromAcc, toAcc, impliedSellRate, impliedBuyRate, r
   );
 }
 
-export function TransferPageMon({ accounts, expCats, goals = [], transactions = [], fxAccount, onBack, edit }) {
+export function TransferPageMon({ accounts, transfers = [], expCats, goals = [], transactions = [], fxAccount, onBack, edit, prefill = null }) {
   const [fromId,   setFromId]   = useState(edit?.from_id || accounts[0]?.id || "");
-  const [toId,     setToId]     = useState(edit?.to_id   || accounts[1]?.id || "");
-  const [amt,      setAmt]      = useState(edit ? String(edit.amount) : "");
+  const [toId,     setToId]     = useState(edit?.to_id   || prefill?.to_id || accounts[1]?.id || "");
+  const [amt,      setAmt]      = useState(edit ? String(edit.amount) : prefill?.amount ? String(prefill.amount) : "");
   const [toAmt,    setToAmt]    = useState(edit?.to_amt  ? String(edit.to_amt) : "");
   const [rate,     setRate]     = useState(edit?.rate    ? String(edit.rate)   : "");
   // Текущий курс/цена счёта-получателя — только для точного P&L, не влияет на балансы
   const [toRate,   setToRate]   = useState("");
   const [fee,      setFee]      = useState(edit?.fee     ? String(edit.fee)    : "");
+  const [isDebtRepayment, setIsDebtRepayment] = useState(edit?.is_debt_repayment || prefill?.is_debt_repayment || false);
   const [feeCatId, setFeeCatId] = useState(() => {
     if (!edit?.fee) return "";
     const feeTx = transactions.find(tx =>
@@ -142,6 +144,22 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
   const fromAcc   = accounts.find(a => a.id === fromId);
   const toAcc     = accounts.find(a => a.id === toId);
   const diffCur   = fromAcc?.currency !== toAcc?.currency;
+
+  // Флаг "Возврат долга" показывается когда счёт-получатель — накопительный
+  const toAccIsSavings = toAcc ? SAVINGS_PURPOSES.includes(toAcc.purpose) : false;
+
+  // Текущий накопленный долг по счёту-получателю — для авто-подсказки тоггла
+  const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
+  const toAccOutstandingDebt = useMemo(() => {
+    if (!toAccIsSavings || !toId) return 0;
+    const out = transfers
+      .filter(t => t.from_id === toId && !t.is_adjustment)
+      .reduce((s, t) => s + toBase(t.amount, t.from_currency, rates), 0);
+    const repaid = transfers
+      .filter(t => t.to_id === toId && t.is_debt_repayment && !t.is_adjustment)
+      .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
+    return Math.max(0, out - repaid);
+  }, [toId, toAccIsSavings, transfers, rates]);
   const fromIsKzt = fromAcc?.currency === BASE_CUR;
   const toIsKzt   = toAcc?.currency   === BASE_CUR;
   const fromIsCom = isCommodity(fromAcc?.currency);
@@ -238,16 +256,17 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
     }
 
     const tr = {
-      id:            edit?.id || crypto.randomUUID(),
-      from_id:       fromId,
-      to_id:         toId,
-      amount:        newAmt,
-      from_currency: fromAcc?.currency,
-      to_amt:        newToAmt,
-      to_currency:   toAcc?.currency,
-      rate:          computedRate,
-      fee:           feeAmt,
+      id:                 edit?.id || crypto.randomUUID(),
+      from_id:            fromId,
+      to_id:              toId,
+      amount:             newAmt,
+      from_currency:      fromAcc?.currency,
+      to_amt:             newToAmt,
+      to_currency:        toAcc?.currency,
+      rate:               computedRate,
+      fee:                feeAmt,
       note,
+      is_debt_repayment:  toAccIsSavings ? isDebtRepayment : false,
     };
 
     if (edit) {
@@ -443,6 +462,23 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
 
   const resetAccFields = () => { setToAmt(""); setRate(""); setToRate(""); };
 
+  const handleToIdChange = (v) => {
+    setToId(v);
+    resetAccFields();
+    setErrors(p => ({ ...p, to: "" }));
+    // Авто-предлагаем тоггл если у этого счёта есть непогашенный долг
+    const acc = accounts.find(a => a.id === v);
+    if (acc && SAVINGS_PURPOSES.includes(acc.purpose)) {
+      const out = transfers.filter(t => t.from_id === v && !t.is_adjustment)
+        .reduce((s, t) => s + toBase(t.amount, t.from_currency, rates), 0);
+      const repaid = transfers.filter(t => t.to_id === v && t.is_debt_repayment && !t.is_adjustment)
+        .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
+      setIsDebtRepayment(out > repaid);
+    } else {
+      setIsDebtRepayment(false);
+    }
+  };
+
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
       <PageHeader title={edit ? "Редактировать перевод" : "Новый перевод"} onBack={() => onBack(false)}/>
@@ -452,7 +488,7 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
           onChange={v => { setFromId(v); resetAccFields(); setErrors(p => ({...p, from:"", to:""})); }}
           label="Откуда" error={errors.from}/>
         <AccSelect accounts={accounts} value={toId}
-          onChange={v => { setToId(v); resetAccFields(); setErrors(p => ({...p, to:""})); }}
+          onChange={handleToIdChange}
           label="Куда" error={errors.to}/>
         {errors.to && <p style={{ color:C.errorLight, fontSize:12, marginTop:-10, marginBottom:12 }}>{errors.to}</p>}
 
@@ -543,6 +579,27 @@ export function TransferPageMon({ accounts, expCats, goals = [], transactions = 
         <FieldLabel>Комментарий</FieldLabel>
         <input value={note} onChange={e => setNote(e.target.value)} placeholder="Комментарий"
           style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${C.border}`, outline:"none", color:"#fff", fontSize:15, padding:"4px 0", marginBottom:24, boxSizing:"border-box" }}/>
+
+        {/* Возврат долга — только когда получатель является накопительным счётом */}
+        {toAccIsSavings && (
+          <div style={{ marginBottom: 20, padding: "14px 16px", borderRadius: 14, background: isDebtRepayment ? "rgba(245,158,11,0.08)" : "rgba(255,255,255,0.04)", border: `1px solid ${isDebtRepayment ? "rgba(245,158,11,0.25)" : C.border}`, transition: "background 0.2s, border-color 0.2s" }}>
+            <Toggle
+              value={isDebtRepayment}
+              onChange={setIsDebtRepayment}
+              label="Возврат долга самому себе"
+            />
+            {toAccOutstandingDebt > 0 && (
+              <p style={{ margin: "8px 0 0", fontSize: 11, color: isDebtRepayment ? C.amber : C.dim, lineHeight: 1.4 }}>
+                Непогашенный долг: {getSym(BASE_CUR)}{fmtAmtAuto(toAccOutstandingDebt)}
+              </p>
+            )}
+            {isDebtRepayment && (
+              <p style={{ margin: "6px 0 0", fontSize: 11, color: "rgba(245,158,11,0.55)", lineHeight: 1.4 }}>
+                Перевод не будет засчитан как накопление
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Анализ сделки: итоговое резюме перед подтверждением */}
         {diffCur && (
