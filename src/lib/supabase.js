@@ -11,7 +11,11 @@ export const supabase = createClient(SUPA_URL, SUPA_KEY);
 
 export async function ensureAuth() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) return;
+  const now = Math.floor(Date.now() / 1000);
+  // getSession() возвращает сессию из localStorage без проверки срока —
+  // сверяем expires_at вручную (с запасом 60 сек).
+  if (session && session.expires_at > now + 60) return;
+
   const { error } = await supabase.auth.signInWithPassword({
     email: process.env.REACT_APP_AUTH_EMAIL,
     password: process.env.REACT_APP_AUTH_PASSWORD,
