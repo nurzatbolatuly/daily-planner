@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MON_GEN } from "../../../constants/locale";
 import { daysBetween, todayStr, monthKey, pad } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts } from "../../../utils/format";
 import { supaUpsert } from "../../../lib/supabase";
+import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
@@ -69,7 +70,9 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
     return { invested, currentVal, gain, roiPct, annualized };
   }, [initialGoal, topups, rates, currentValue]);
 
-  const saveCurVal = async () => {
+  const saveCurValRef = useRef(null);
+  const { save: saveCurVal, saving: savingCurVal } = useSave(() => saveCurValRef.current(), { errorMsg: "Не удалось сохранить" });
+  saveCurValRef.current = async () => {
     const v = parseFloat(curValInput) || 0;
     await supaUpsert("goals", { ...initialGoal, current_value: v });
     setCurValueOverride(v);
@@ -163,7 +166,7 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
                       value={curValInput} onChange={setCurValInput}
                       style={{ width: 110, background: "rgba(255,255,255,0.08)", border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 8px", color: "#fff", fontSize: 13, outline: "none" }}
                     />
-                    <button onClick={saveCurVal} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}>
+                    <button onClick={saveCurVal} disabled={savingCurVal} style={{ background: "none", border: "none", cursor: savingCurVal ? "default" : "pointer", display: "flex", opacity: savingCurVal ? 0.4 : 1 }}>
                       <Ico n="check" s={18} c={C.emerald}/>
                     </button>
                     <button onClick={() => setEditingCurVal(false)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}>

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useSave } from "../../../hooks/useSave";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
@@ -35,6 +35,16 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill }) {
   const { save: del } = useSave(() => deleteRef.current?.(), { errorMsg: "Не удалось удалить транзакцию" });
 
   const cats = type === "expense" ? expCats : incCats;
+
+  const dateShorts = useMemo(() => {
+    const today = todayStr();
+    return [
+      {key:today, label:`${new Date().getMonth()+1}/${new Date().getDate()}`, sub:"сегодня"},
+      {key:addDays(today,-1), label:`${new Date(addDays(today,-1)).getMonth()+1}/${new Date(addDays(today,-1)).getDate()}`, sub:"вчера"},
+      {key:addDays(today,-2), label:`${new Date(addDays(today,-2)).getMonth()+1}/${new Date(addDays(today,-2)).getDate()}`, sub:"2 дня назад"},
+      {key:addDays(today,-3), label:`${new Date(addDays(today,-3)).getMonth()+1}/${new Date(addDays(today,-3)).getDate()}`, sub:"3 дня назад"},
+    ];
+  }, []);
 
   // Always update refs with latest state closures
   saveRef.current = async () => {
@@ -97,14 +107,6 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill }) {
   }
 
   if (showCur) return <CurrencyPage value={cur} onSelect={v => { setCur(v); setShowCur(false); }} onBack={() => setShowCur(false)}/>;
-
-  const today = todayStr();
-  const dateShorts = [
-    {key:today, label:`${new Date().getMonth()+1}/${new Date().getDate()}`, sub:"сегодня"},
-    {key:addDays(today,-1), label:`${new Date(addDays(today,-1)).getMonth()+1}/${new Date(addDays(today,-1)).getDate()}`, sub:"вчера"},
-    {key:addDays(today,-2), label:`${new Date(addDays(today,-2)).getMonth()+1}/${new Date(addDays(today,-2)).getDate()}`, sub:"2 дня назад"},
-    {key:addDays(today,-3), label:`${new Date(addDays(today,-3)).getMonth()+1}/${new Date(addDays(today,-3)).getDate()}`, sub:"3 дня назад"},
-  ];
 
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>

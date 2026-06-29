@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { TRIP_LABELS } from "../../../constants/money";
@@ -14,9 +14,9 @@ export function TripDetailPageMon({ plan, accounts, navigate, onBack }) {
   const [tripRates, setTripRates] = useState(plan.rates || {});
   const sym = getSym(BASE_CUR);
 
-  const accountRates = ratesFromAccounts(accounts);
+  const accountRates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
   // Trip-specific rates override account rates (user explicitly set them for this trip)
-  const rates = { ...accountRates, ...tripRates };
+  const rates = useMemo(() => ({ ...accountRates, ...tripRates }), [accountRates, tripRates]);
 
   const timerRef = useRef(null);
   const pendingRef = useRef(null);

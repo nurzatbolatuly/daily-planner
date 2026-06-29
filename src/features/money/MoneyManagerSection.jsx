@@ -24,6 +24,8 @@ import { GoalFormPage } from "./pages/GoalFormPage";
 import { GoalDetailPage } from "./pages/GoalDetailPage";
 import { GoalTopupPage } from "./pages/GoalTopupPage";
 
+const MON_NAV_HEIGHT = 60;
+
 const MON_TABS = [
   { id: "home",      label: "Главная",   d: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10" },
   { id: "accounts",  label: "Счета",     d: "M3 4h18v16H3zM3 10h18" },
@@ -64,17 +66,24 @@ export default function MoneyManagerSection() {
   const setMonTabP    = useCallback((t) => { setMonTab(t);    localStorage.setItem("mon.tab",       t); }, []);
   const setBudgetTabP = useCallback((t) => { setBudgetTab(t); localStorage.setItem("mon.budgetTab", t); }, []);
 
+  const { reload } = data;
   const navigate = useCallback((name, d) => setStack(s => [...s, { name, data: d }]), []);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const goBack = useCallback((reload = false) => { if (reload) data.reload(); setStack(s => s.slice(0, -1)); }, [data.reload]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const goBackToTrips = useCallback((reload = false) => { setBudgetTabP("trips"); setMonTabP("budget"); if (reload) data.reload(); setStack([]); }, [setBudgetTabP, setMonTabP, data.reload]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const goToGoalsList = useCallback(() => { setBudgetTabP("goals"); setMonTabP("budget"); data.reload(); setStack([]); }, [setBudgetTabP, setMonTabP, data.reload]);
+  const goBack = useCallback((doReload = false) => { if (doReload) reload(); setStack(s => s.slice(0, -1)); }, [reload]);
+  const goBackToTrips = useCallback((doReload = false) => { setBudgetTabP("trips"); setMonTabP("budget"); if (doReload) reload(); setStack([]); }, [setBudgetTabP, setMonTabP, reload]);
+  const goToGoalsList = useCallback(() => { setBudgetTabP("goals"); setMonTabP("budget"); reload(); setStack([]); }, [setBudgetTabP, setMonTabP, reload]);
 
   if (data.loading) return (
     <div style={{ background: C.monBg, minHeight: "calc(100dvh - var(--app-header-h))" }}>
       <Spinner color={C.green}/>
+    </div>
+  );
+
+  if (data.loadError) return (
+    <div style={{ background: C.monBg, minHeight: "calc(100dvh - var(--app-header-h))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 16 }}>
+      <p style={{ margin: 0, fontSize: 15, color: C.errorLight, textAlign: "center" }}>{data.loadError}</p>
+      <button onClick={data.reload} style={{ padding: "12px 28px", borderRadius: 30, background: C.greenDim, border: `1px solid ${C.green}`, color: C.green, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+        Повторить
+      </button>
     </div>
   );
 
@@ -127,7 +136,7 @@ export default function MoneyManagerSection() {
 
   return (
     <div style={{ background: C.monBg, minHeight: "calc(100dvh - var(--app-header-h))", color: "#fff" }}>
-      <div ref={contentRef} style={{ overflowY: "auto", height: "calc(100dvh - var(--app-header-h) - var(--mon-nav-h, 64px))" }}>
+      <div ref={contentRef} style={{ overflowY: "auto", height: `calc(100dvh - var(--app-header-h) - var(--mon-nav-h, ${MON_NAV_HEIGHT}px))` }}>
         {monTab === "home"      && <MoneyHomeSection      data={data} navigate={navigate} onGoToBudget={() => setMonTabP("budget")}/>}
         {monTab === "accounts"  && <MoneyAccountsSection  data={data} navigate={navigate}/>}
         {monTab === "budget"    && <MoneyBudgetSection    data={data} navigate={navigate} budgetTab={budgetTab} setBudgetTab={setBudgetTabP}/>}
@@ -137,7 +146,7 @@ export default function MoneyManagerSection() {
 
       {/* Bottom nav */}
       <div ref={navRef}
-        style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: "calc(60px + env(safe-area-inset-bottom, 0px))", paddingBottom: "env(safe-area-inset-bottom, 0px)", background: C.monHeader, borderTop: "1px solid rgba(76,175,80,0.1)", display: "flex", zIndex: 30 }}>
+        style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: `calc(${MON_NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px))`, paddingBottom: "env(safe-area-inset-bottom, 0px)", background: C.monHeader, borderTop: "1px solid rgba(76,175,80,0.1)", display: "flex", zIndex: 30 }}>
         {MON_TABS.map(t => (
           <button key={t.id} onClick={() => { setMonTabP(t.id); setStack([]); }}
             style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, background: "none", border: "none", cursor: "pointer", color: monTab === t.id ? C.green : "rgba(255,255,255,0.3)", minWidth: 0 }}>

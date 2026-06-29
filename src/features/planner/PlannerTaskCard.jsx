@@ -56,6 +56,8 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
     return () => document.removeEventListener("mousedown", h);
   }, [showMenu]);
 
+  const todEntry = task.time_of_day ? TIME_OF_DAY.find(t => t.id === task.time_of_day) : null;
+
   return (
     <>
       <div className={pressing?"lp-glow":""} style={{ position:"relative", borderRadius:16, border:isDim?"1px solid rgba(255,255,255,0.05)":pressing?"1px solid rgba(99,102,241,0.5)":"1px solid rgba(255,255,255,0.1)", background:isDim?"rgba(255,255,255,0.03)":pressing?"rgba(99,102,241,0.12)":C.planCard, opacity:isDim?0.45:(isAnyPressing&&!pressing)?0.35:1, transform:pressing?"scale(1.025)":"scale(1)", transition:"opacity 0.2s,transform 0.15s,background 0.15s", cursor:"pointer", userSelect:"none" }}
@@ -80,7 +82,7 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:2 }}>
               {task.time ? <span style={{ fontSize:12, color:"rgba(255,255,255,0.35)", display:"flex", alignItems:"center", gap:3 }}><Ico n="clock" s={10} c="rgba(255,255,255,0.35)"/>{task.time}</span>
-                : task.time_of_day ? <span style={{ fontSize:12, color:"rgba(255,255,255,0.35)" }}>{TIME_OF_DAY.find(t=>t.id===task.time_of_day)?.icon} {TIME_OF_DAY.find(t=>t.id===task.time_of_day)?.label}</span>
+                : todEntry ? <span style={{ fontSize:12, color:"rgba(255,255,255,0.35)" }}>{todEntry.icon} {todEntry.label}</span>
                   : null}
               {task.note && <span style={{ fontSize:12, color:"rgba(255,255,255,0.25)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{task.note}</span>}
             </div>
@@ -94,7 +96,7 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
       {/* Context menu */}
       {showMenu && (
         <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", cursor:"pointer" }} onClick={() => setShowMenu(false)}>
-          <div ref={menuRef} style={{ width:"100%", maxWidth:480, marginLeft:16, marginRight:16, marginBottom:"calc(32px + env(safe-area-inset-bottom, 0px))", borderRadius:24, background:"#1a1a2e", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.5)", cursor:"default" }} onClick={e => e.stopPropagation()}>
+          <div ref={menuRef} style={{ width:"100%", maxWidth:480, marginLeft:16, marginRight:16, marginBottom:"calc(32px + env(safe-area-inset-bottom, 0px))", borderRadius:24, background:C.planSheet, border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.5)", cursor:"default" }} onClick={e => e.stopPropagation()}>
             <div style={{ padding:"16px 20px", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
               <p style={{ margin:0, fontSize:14, fontWeight:600, color:"rgba(255,255,255,0.9)" }}>{task.title}</p>
             </div>
@@ -128,7 +130,7 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
       {/* Detail modal */}
       {showDetail && (
         <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.6)", backdropFilter:"blur(4px)", padding:16, cursor:"pointer" }} onClick={() => setShowDetail(false)}>
-          <div style={{ width:"100%", maxWidth:400, borderRadius:24, background:"#1a1a2e", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", cursor:"default" }} onClick={e => e.stopPropagation()}>
+          <div style={{ width:"100%", maxWidth:400, borderRadius:24, background:C.planSheet, border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", cursor:"default" }} onClick={e => e.stopPropagation()}>
             <div style={{ padding:"20px 24px 16px" }}>
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12 }}>
                 <h3 style={{ margin:0, fontSize:16, fontWeight:600, color:"rgba(255,255,255,0.95)" }}>{task.title}</h3>
@@ -141,7 +143,7 @@ export default function PlannerTaskCard({ task, colorLabels, onStatusChange, onM
                 <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:C.mid }}>{statusCfg.label}</span>
                 {colorCfg.id!=="none" && <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:C.mid, display:"flex", alignItems:"center", gap:6 }}><span style={{ width:8, height:8, borderRadius:4, background:colorCfg.hex, display:"inline-block" }}/>{colorCfg.label}</span>}
                 {task.time && <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:C.mid, display:"flex", alignItems:"center", gap:4 }}><Ico n="clock" s={10} c="rgba(255,255,255,0.6)"/>{task.time}</span>}
-                {task.time_of_day && !task.time && <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:C.mid }}>{TIME_OF_DAY.find(t=>t.id===task.time_of_day)?.icon} {TIME_OF_DAY.find(t=>t.id===task.time_of_day)?.label}</span>}
+                {todEntry && !task.time && <span style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:"rgba(255,255,255,0.08)", color:C.mid }}>{todEntry.icon} {todEntry.label}</span>}
               </div>
             </div>
             {task.note && <div style={{ margin:"0 24px 24px", padding:16, borderRadius:16, background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)" }}><p style={{ margin:0, fontSize:14, color:"rgba(255,255,255,0.65)", lineHeight:1.5 }}>{task.note}</p></div>}

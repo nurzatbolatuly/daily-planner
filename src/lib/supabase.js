@@ -9,6 +9,16 @@ if (!SUPA_URL || !SUPA_KEY) {
 
 export const supabase = createClient(SUPA_URL, SUPA_KEY);
 
+export async function ensureAuth() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) return;
+  const { error } = await supabase.auth.signInWithPassword({
+    email: process.env.REACT_APP_AUTH_EMAIL,
+    password: process.env.REACT_APP_AUTH_PASSWORD,
+  });
+  if (error) throw new Error("Ошибка авторизации: " + error.message);
+}
+
 export const supa = {
   select: async (table, filters = "") => {
     let q = supabase.from(table).select("*");

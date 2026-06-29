@@ -16,8 +16,10 @@ export function useMoneyData() {
   const [goals, setGoals] = useState([]);
   const [goalTopups, setGoalTopups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async () => {
+    setLoadError(null);
     try {
       const [acc, txs, trs, ec, ic, mp, tp, rec, gl, gt] = await Promise.all([
         supa.select("accounts", "order=created_at.asc"),
@@ -44,7 +46,10 @@ export function useMoneyData() {
       setRecurring(rec || []);
       setGoals(gl || []);
       setGoalTopups(gt || []);
-    } catch(e) { console.error("Load money data:", e); }
+    } catch(e) {
+      console.error("Load money data:", e);
+      setLoadError("Не удалось загрузить данные. Проверьте соединение.");
+    }
     setLoading(false);
   }, []);
 
@@ -92,5 +97,5 @@ export function useMoneyData() {
     })();
   }, [recurring, accounts]);
 
-  return { accounts, setAccounts, transactions, setTransactions, transfers, setTransfers, expCats, setExpCats, incCats, setIncCats, monthPlans, setMonthPlans, tripPlans, setTripPlans, recurring, setRecurring, goals, setGoals, goalTopups, setGoalTopups, loading, reload: load };
+  return { accounts, setAccounts, transactions, setTransactions, transfers, setTransfers, expCats, setExpCats, incCats, setIncCats, monthPlans, setMonthPlans, tripPlans, setTripPlans, recurring, setRecurring, goals, setGoals, goalTopups, setGoalTopups, loading, loadError, reload: load };
 }

@@ -13,6 +13,16 @@ import { AccSelect } from "../../../components/AccSelect";
 import { CatIcon } from "../../../components/CatIcon";
 import { Toggle } from "../../../components/Toggle";
 
+function calcOutstandingDebt(accId, transfers, rates) {
+  const out = transfers
+    .filter(t => t.from_id === accId && !t.is_adjustment)
+    .reduce((s, t) => s + toBase(t.amount, t.from_currency, rates), 0);
+  const repaid = transfers
+    .filter(t => t.to_id === accId && t.is_debt_repayment && !t.is_adjustment)
+    .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
+  return Math.max(0, out - repaid);
+}
+
 // Анализ сделки: сторона продажи (PnL источника) + сторона покупки (новая средняя получателя).
 // refToAvgRate — актуальная цена/курс получателя: toAcc.avg_rate если есть история,
 // иначе текущий курс введённый пользователем.
@@ -152,13 +162,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
   const toAccOutstandingDebt = useMemo(() => {
     if (!toAccIsSavings || !toId) return 0;
-    const out = transfers
-      .filter(t => t.from_id === toId && !t.is_adjustment)
-      .reduce((s, t) => s + toBase(t.amount, t.from_currency, rates), 0);
-    const repaid = transfers
-      .filter(t => t.to_id === toId && t.is_debt_repayment && !t.is_adjustment)
-      .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
-    return Math.max(0, out - repaid);
+    return calcOutstandingDebt(toId, transfers, rates);
   }, [toId, toAccIsSavings, transfers, rates]);
   const fromIsKzt = fromAcc?.currency === BASE_CUR;
   const toIsKzt   = toAcc?.currency   === BASE_CUR;
@@ -469,11 +473,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
     // Авто-предлагаем тоггл если у этого счёта есть непогашенный долг
     const acc = accounts.find(a => a.id === v);
     if (acc && SAVINGS_PURPOSES.includes(acc.purpose)) {
-      const out = transfers.filter(t => t.from_id === v && !t.is_adjustment)
-        .reduce((s, t) => s + toBase(t.amount, t.from_currency, rates), 0);
-      const repaid = transfers.filter(t => t.to_id === v && t.is_debt_repayment && !t.is_adjustment)
-        .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
-      setIsDebtRepayment(out > repaid);
+      setIsDebtRepayment(calcOutstandingDebt(v, transfers, rates) > 0);
     } else {
       setIsDebtRepayment(false);
     }

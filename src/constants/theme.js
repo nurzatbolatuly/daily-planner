@@ -1,6 +1,7 @@
 export const C = {
   // Planner
   planBg: "#0d0d1a", planHeader: "rgba(13,13,26,0.92)", planCard: "rgba(255,255,255,0.06)",
+  planSheet: "#1a1a2e",
   indigo: "#6366f1", indigoD: "rgba(99,102,241,0.2)", indigoBright: "#a5b4fc",
   // Money
   monBg: "#0a1a0a", monHeader: "#0f2010", monCard: "#141e14", monCard2: "#1a2a1a",

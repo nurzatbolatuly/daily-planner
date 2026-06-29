@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS, RU_MONTHS_S, RU_MON_GEN } from "../../../constants/locale";
@@ -68,7 +68,7 @@ const SELECT_STYLE = {
   WebkitAppearance: "none",
 };
 
-export function MoneyAnalyticsSection({ data }) {
+export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data }) {
   const { transactions, transfers, accounts, expCats, monthPlans, goals, goalTopups } = data;
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [range, setRange] = useState(6);
@@ -509,4 +509,4 @@ export function MoneyAnalyticsSection({ data }) {
       </div>
     </div>
   );
-}
+});

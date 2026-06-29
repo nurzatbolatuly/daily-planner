@@ -1,5 +1,6 @@
-import { Component, useState, useRef, useLayoutEffect } from "react";
+import { Component, useState, useEffect, useRef, useLayoutEffect } from "react";
 import { C } from "./constants/theme";
+import { ensureAuth } from "./lib/supabase";
 import PlannerSection from "./features/planner/PlannerSection";
 import MoneyManagerSection from "./features/money/MoneyManagerSection";
 
@@ -24,7 +25,15 @@ class ErrorBoundary extends Component {
 
 export default function App() {
   const [section, setSection] = useState(() => localStorage.getItem("app.section") || "planner");
+  const [authStatus, setAuthStatus] = useState("loading"); // "loading" | "ok" | "error"
+  const [authError, setAuthError]   = useState(null);
   const headerRef = useRef(null);
+
+  useEffect(() => {
+    ensureAuth()
+      .then(() => setAuthStatus("ok"))
+      .catch((e) => { setAuthError(e.message); setAuthStatus("error"); });
+  }, []);
 
   useLayoutEffect(() => {
     const el = headerRef.current;
@@ -36,6 +45,26 @@ export default function App() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  if (authStatus === "loading") {
+    return (
+      <div style={{ height:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", background:C.bg, color:C.textMuted, fontSize:14 }}>
+        Подключение...
+      </div>
+    );
+  }
+
+  if (authStatus === "error") {
+    return (
+      <div style={{ height:"100dvh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:C.bg, color:C.errorLight, fontFamily:"monospace", padding:32, gap:12 }}>
+        <div style={{ fontSize:16, fontWeight:700 }}>Ошибка авторизации</div>
+        <div style={{ fontSize:13, opacity:0.7, textAlign:"center" }}>{authError}</div>
+        <button onClick={() => { setAuthStatus("loading"); setAuthError(null); ensureAuth().then(() => setAuthStatus("ok")).catch((e) => { setAuthError(e.message); setAuthStatus("error"); }); }} style={{ marginTop:8, padding:"8px 20px", background:`rgba(248,113,113,0.15)`, border:`1px solid ${C.errorLight}`, borderRadius:8, color:C.errorLight, cursor:"pointer", fontSize:13 }}>
+          Попробовать снова
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily:"'DM Sans',system-ui,sans-serif", display:"flex", flexDirection:"column", height:"100dvh", overflow:"hidden" }}>

@@ -9,6 +9,7 @@ export function useSave(fn, { onSuccess, errorMsg = "Не удалось сох�
     setSaveError(null);
     try {
       await fn(...args);
+      setSaving(false);
       onSuccess?.();
     } catch(e) {
       console.error(e);

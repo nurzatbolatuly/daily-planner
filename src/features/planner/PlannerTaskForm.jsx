@@ -24,6 +24,15 @@ function RoutineWeekPicker({ date, routineDays, setRoutineDays, weekMondayOf, ru
   );
 }
 
+function weekMondayOf(ds) {
+  const [y, m, dd] = (ds || todayStr()).split("-").map(Number);
+  const anchor = new Date(y, m - 1, dd);
+  const dow = anchor.getDay();
+  const monday = new Date(anchor);
+  monday.setDate(anchor.getDate() - (dow === 0 ? 6 : dow - 1));
+  return monday;
+}
+
 export default function PlannerTaskForm({ initialDate, initialTask, colorLabels, onSave, onClose }) {
   const [title, setTitle] = useState(initialTask?.title || "");
   const [note, setNote] = useState(initialTask?.note || "");
@@ -40,15 +49,6 @@ export default function PlannerTaskForm({ initialDate, initialTask, colorLabels,
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, []);
-
-  const weekMondayOf = (dateStr) => {
-    const [y, m, dd] = (dateStr || todayStr()).split("-").map(Number);
-    const anchor = new Date(y, m - 1, dd);
-    const dow = anchor.getDay();
-    const monday = new Date(anchor);
-    monday.setDate(anchor.getDate() - (dow === 0 ? 6 : dow - 1));
-    return monday;
-  };
 
   const handleSave = () => {
     if (!title.trim()) { setTitleError(true); return; }
@@ -76,7 +76,7 @@ export default function PlannerTaskForm({ initialDate, initialTask, colorLabels,
     >
       <div
         className="sheet-up"
-        style={{ width:"100%", maxWidth:480, borderRadius:"24px 24px 0 0", background:"#1a1a2e", borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 20px calc(32px + env(safe-area-inset-bottom, 0px))", boxShadow:"0 -20px 60px rgba(0,0,0,0.4)", maxHeight:"85dvh", overflowY:"auto", overscrollBehavior:"contain" }}
+        style={{ width:"100%", maxWidth:480, borderRadius:"24px 24px 0 0", background:C.planSheet, borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 20px calc(32px + env(safe-area-inset-bottom, 0px))", boxShadow:"0 -20px 60px rgba(0,0,0,0.4)", maxHeight:"85dvh", overflowY:"auto", overscrollBehavior:"contain" }}
         onClick={e => e.stopPropagation()}
         onTouchMove={e => e.stopPropagation()}
       >

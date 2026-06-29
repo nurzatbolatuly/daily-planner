@@ -35,7 +35,7 @@ function SomedayCardForm({ initial, colorLabels, onSave, onClose }) {
       onTouchMove={e => e.preventDefault()}
     >
       <div
-        style={{ width:"100%", maxWidth:480, borderRadius:"24px 24px 0 0", background:"#1a1a2e", borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 20px calc(32px + env(safe-area-inset-bottom, 0px))", boxShadow:"0 -20px 60px rgba(0,0,0,0.4)", maxHeight:"calc(92dvh - env(safe-area-inset-top, 0px))", overflowY:"auto" }}
+        style={{ width:"100%", maxWidth:480, borderRadius:"24px 24px 0 0", background:C.planSheet, borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 20px calc(32px + env(safe-area-inset-bottom, 0px))", boxShadow:"0 -20px 60px rgba(0,0,0,0.4)", maxHeight:"calc(92dvh - env(safe-area-inset-top, 0px))", overflowY:"auto" }}
         onClick={e => e.stopPropagation()}
         onTouchMove={e => e.stopPropagation()}
       >
