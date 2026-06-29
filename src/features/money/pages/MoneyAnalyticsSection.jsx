@@ -196,18 +196,8 @@ export function MoneyAnalyticsSection({ data }) {
 
     const monthsLeft = (forecastTarget.year - thisYear) * 12 + (forecastTarget.month - thisMonth);
 
-    let remainingProjected = 0;
-    for (let i = 1; i <= Math.max(monthsLeft, 0); i++) {
-      const d  = new Date(thisYear, thisMonth + i, 1);
-      const mk = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
-      const planAmt = monthPlans
-        .filter(p => p.month === mk && p.type === "savings" && savingsAccIds.includes(p.acc_id))
-        .reduce((s, p) => s + toBase(p.plan, p.plan_currency, rates), 0);
-      remainingProjected += planAmt > 0 ? planAmt : avgMonthlySav;
-    }
-
-    const projected      = currentSavBal + remainingProjected;
-    const avgPlanMonthly = monthsLeft > 0 ? remainingProjected / monthsLeft : avgMonthlySav;
+    const remainingProjected = avgMonthlySav * Math.max(monthsLeft, 0);
+    const projected          = currentSavBal + remainingProjected;
 
     // Анализ целей — показываем все активные, дедлайн опционален
     const today = todayStr();
@@ -227,11 +217,11 @@ export function MoneyAnalyticsSection({ data }) {
     const totalGoalsMonthlyNeeded = goalsAnalysis
       .filter(g => g.monthlyNeeded != null)
       .reduce((s, g) => s + g.monthlyNeeded, 0);
-    const gap = totalGoalsMonthlyNeeded > 0 ? avgPlanMonthly - totalGoalsMonthlyNeeded : null;
+    const gap = totalGoalsMonthlyNeeded > 0 ? avgMonthlySav - totalGoalsMonthlyNeeded : null;
 
     return {
       avgMonthlySav, currentSavBal, currentMonthActual, currentMonthPlan,
-      remainingProjected, projected, monthsLeft, avgPlanMonthly,
+      remainingProjected, projected, monthsLeft,
       goalsAnalysis, totalGoalsMonthlyNeeded, gap,
     };
   }, [transfers, accounts, monthPlans, goals, goalTopups, rates, forecastTarget, range, now, thisYear, debtState]);
@@ -438,12 +428,8 @@ export function MoneyAnalyticsSection({ data }) {
                 </span>
                 {" за "}{yearForecast.monthsLeft} мес.{" · "}
                 <span style={{ color: C.mid, fontWeight: 600 }}>
-                  {sym}{fmtAmtAuto(yearForecast.avgPlanMonthly)}/мес
+                  ср. {sym}{fmtAmtAuto(yearForecast.avgMonthlySav)}/{range} мес
                 </span>
-                {" по плану"}
-                {yearForecast.avgPlanMonthly.toFixed(0) !== yearForecast.avgMonthlySav.toFixed(0) && yearForecast.avgMonthlySav > 0 && (
-                  <span style={{ color: "rgba(255,255,255,0.2)" }}> · ср. {sym}{fmtAmtAuto(yearForecast.avgMonthlySav)}/{range} мес</span>
-                )}
               </p>
             </>
           ) : (
@@ -468,9 +454,9 @@ export function MoneyAnalyticsSection({ data }) {
                     </p>
                   </div>
                   <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
-                    <p style={{ margin: 0, fontSize: 10, color: C.dim, lineHeight: 1.4, minHeight: 28 }}>Ваш план</p>
+                    <p style={{ margin: 0, fontSize: 10, color: C.dim, lineHeight: 1.4, minHeight: 28 }}>Ср. накопление</p>
                     <p style={{ margin: 0, fontSize: "var(--analytics-card-value-fs)", fontWeight: 800, color: C.blue }}>
-                      {sym}{fmtAmtAuto(yearForecast.avgPlanMonthly)}<span style={{ fontSize: "var(--analytics-card-unit-fs)", fontWeight: 400 }}>/мес</span>
+                      {sym}{fmtAmtAuto(yearForecast.avgMonthlySav)}<span style={{ fontSize: "var(--analytics-card-unit-fs)", fontWeight: 400 }}>/мес</span>
                     </p>
                   </div>
                   {yearForecast.gap != null && (
