@@ -201,7 +201,9 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
   }, [planMonthKey]);
 
   const accountRates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
-  const rates = useMemo(() => ({ ...accountRates, ...monthRates }), [accountRates, monthRates]);
+  // planRates — для конвертации плановых сумм (включает ручной курс месяца)
+  // accountRates — для конвертации фактических транзакций (только курс из счетов)
+  const planRates = useMemo(() => ({ ...accountRates, ...monthRates }), [accountRates, monthRates]);
 
   const applyMonthRate = (cur, val) => {
     const rate = parseFloat(val);
@@ -236,8 +238,8 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
   // Долг самому себе — хронологическая обработка ВСЕЙ истории переводов.
   // repaymentSavings[id] = излишек конкретного погашения сверх долга (= реальное накопление).
   const debtState = useMemo(
-    () => computeDebtState(transfers, accounts, rates),
-    [transfers, accounts, rates]
+    () => computeDebtState(transfers, accounts, accountRates),
+    [transfers, accounts, accountRates]
   );
 
   const { expRows, incRows, savingsRows } = useMemo(() => {
@@ -245,13 +247,13 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
 
     const getActual = (catId, type) =>
       txsM.filter(t => t.type === type && t.category_id === catId)
-        .reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0);
+        .reduce((s, t) => s + toBase(t.amount, t.currency, accountRates), 0);
 
     const getSavingsActual = accId => {
       // Переводы без флага — 100% накопление этого месяца
       const regularInc = transfersM
         .filter(t => t.to_id === accId && !t.is_debt_repayment)
-        .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
+        .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, accountRates), 0);
 
       // Погашения долга: только излишек сверх долга считается накоплением
       const repayExcess = transfersM
@@ -277,16 +279,16 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
         return { key: `sav-${acc.id}`, cat: { icon: acc.icon, color: acc.color, name: acc.name }, type: "savings", plan: planData?.plan ?? 0, planCurrency: planData?.plan_currency ?? BASE_CUR, items: planData?.items ?? [], planData, actual: getSavingsActual(acc.id), accId: acc.id };
       }),
     };
-  }, [txsM, transfersM, expCats, incCats, accounts, monthRows, rates, debtState]);
+  }, [txsM, transfersM, expCats, incCats, accounts, monthRows, accountRates, debtState]);
 
   const selfDebtData = debtState;
 
-  const sum = (rows, field) => rows.reduce((s, r) => s + toBase(r[field], r.planCurrency, rates), 0);
+  const sum = (rows, field) => rows.reduce((s, r) => s + toBase(r[field], r.planCurrency, planRates), 0);
   const { totalPlanExp, totalPlanInc, totalPlanSav, totalActExp, totalActInc, totalActSav, totalPlanExpAll, planExpCovered } = useMemo(() => {
     const tPE = sum(expRows, "plan"), tPI = sum(incRows, "plan"), tPS = sum(savingsRows, "plan");
     // How much actual expense "covers" planned categories (min of actual vs plan per row, only rows with a plan)
     const covered = expRows.reduce((s, r) => {
-      const pb = toBase(r.plan, r.planCurrency, rates);
+      const pb = toBase(r.plan, r.planCurrency, planRates);
       return pb > 0 ? s + Math.min(r.actual, pb) : s;
     }, 0);
     return {
@@ -298,7 +300,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
       planExpCovered: covered,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expRows, incRows, savingsRows, rates]);
+  }, [expRows, incRows, savingsRows, planRates]);
 
   // Plan mode: remaining = what's still left to execute (plan minus progress, floored at 0).
   // planExpCovered uses per-category min so unplanned spending eats activeFree, not the plan bar.
@@ -323,7 +325,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
     return [...curs];
   }, [expRows, incRows, savingsRows]);
 
-  const missingCount = usedPlanCurrencies.filter(c => !rates[c]).length;
+  const missingCount = usedPlanCurrencies.filter(c => !planRates[c]).length;
 
   const prevM = () => {
     if (planMonth === 0) { setPlanMonth(11); setPlanYear(y => y - 1); }
@@ -338,12 +340,12 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
     exportPlansXLSX({
       expRows, incRows, savingsRows,
       totals: { totalPlanExp, totalPlanInc, totalPlanSav, totalActExp, totalActInc, totalActSav, totalPlanExpAll },
-      rates, planMonth, planYear,
+      rates: planRates, planMonth, planYear,
       filename: `plan_${planYear}-${pad(planMonth + 1)}.xlsx`,
     });
   };
 
-  const tableProps = { expanded, toggle, navigate, planMonthKey, sym, rates };
+  const tableProps = { expanded, toggle, navigate, planMonthKey, sym, rates: planRates };
 
   return (
     <div style={{ paddingBottom: 80 }}>
@@ -602,13 +604,13 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
           {activePill === "savings" && savingsRows.length > 0 && (
             <>
               <PlanTable {...tableProps} rows={savingsRows} totalPlan={totalPlanSav} totalAct={totalActSav} label="Накопления / Инвест." accentColor={C.blue}/>
-              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={rates} cardRef={debtCardRef}/>
+              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={accountRates} cardRef={debtCardRef}/>
             </>
           )}
           {activePill === "savings" && savingsRows.length === 0 && (
             <>
               <p style={{ textAlign: "center", padding: "32px 0", color: C.dim, fontSize: 13 }}>Нет накопительных счетов</p>
-              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={rates} cardRef={debtCardRef}/>
+              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={accountRates} cardRef={debtCardRef}/>
             </>
           )}
           {activePill === "income" && (
