@@ -7,6 +7,7 @@ import { todayStr, daysBetween } from "../../../utils/date";
 import { fmtBal, getSym, fmtAmtAuto } from "../../../utils/format";
 import { supaUpsert, supabase } from "../../../lib/supabase";
 import { getSavedOrder } from "../../../utils/accountOrder";
+import { newId } from "../../../utils/id";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
@@ -61,7 +62,7 @@ export function GoalFormPage({ onBack, onDelete, edit, accounts = [] }) {
 
   saveRef.current = async () => {
     const row = {
-      id: edit?.id || crypto.randomUUID(),
+      id: edit?.id || newId(),
       name: name.trim(), icon, color,
       target: parseFloat(target) || 0,
       currency, deadline: deadline || null,

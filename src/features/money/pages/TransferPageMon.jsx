@@ -3,6 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, localDate } from "../../../utils/date";
 import { avgRateFn, fmtAmt, fmtAmtAuto, fmtBal, getSym, isCommodity, round2, toBase, ratesFromAccounts } from "../../../utils/format";
+import { newId } from "../../../utils/id";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
 import { FEE_TX_NOTE, SAVINGS_PURPOSES } from "../../../constants/money";
 import { useSave } from "../../../hooks/useSave";
@@ -260,7 +261,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
     }
 
     const tr = {
-      id:                 edit?.id || crypto.randomUUID(),
+      id:                 edit?.id || newId(),
       from_id:            fromId,
       to_id:              toId,
       amount:             newAmt,
@@ -330,7 +331,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
       }
 
       const feeTx = feeAmt > 0 ? {
-        id: crypto.randomUUID(), type: "expense", amount: feeAmt,
+        id: newId(), type: "expense", amount: feeAmt,
         currency: fromAcc.currency, category_id: feeCatId || null,
         account_id: fromId, date: localDate(edit.created_at), note: FEE_TX_NOTE,
       } : null;
@@ -358,7 +359,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
       // Создаём новую FX транзакцию с обновлёнными значениями
       if (fxAccount && hasSellSnap && pnlKzt !== 0) {
         await supabase.from("transactions").insert({
-          id:          crypto.randomUUID(),
+          id:          newId(),
           type:        pnlKzt > 0 ? "income" : "expense",
           amount:      Math.abs(pnlKzt),
           currency:    BASE_CUR,
@@ -382,7 +383,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
 
       if (feeAmt > 0) {
         const feeTx = {
-          id: crypto.randomUUID(), type: "expense", amount: feeAmt,
+          id: newId(), type: "expense", amount: feeAmt,
           currency: fromAcc.currency, category_id: feeCatId || null,
           account_id: fromId, date: todayStr(), note: FEE_TX_NOTE,
         };
@@ -407,7 +408,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
       // Записываем FX транзакцию в счёт курсовых разниц (не влияет на баланс)
       if (fxAccount && hasSellSnap && pnlKzt !== 0) {
         await supabase.from("transactions").insert({
-          id:          crypto.randomUUID(),
+          id:          newId(),
           type:        pnlKzt > 0 ? "income" : "expense",
           amount:      Math.abs(pnlKzt),
           currency:    BASE_CUR,
@@ -426,7 +427,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
     }
     if (linkedGoal && !isDebtRepayment) {
       await supaUpsert("goal_topups", {
-        id:          crypto.randomUUID(),
+        id:          newId(),
         goal_id:     linkedGoal.id,
         amount:      newToAmt,
         currency:    toAcc?.currency || tr.to_currency,

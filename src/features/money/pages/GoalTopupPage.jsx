@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { todayStr } from "../../../utils/date";
 import { supaUpsert, supabase } from "../../../lib/supabase";
+import { newId } from "../../../utils/id";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
@@ -29,7 +30,7 @@ export function GoalTopupPage({ goal, onBack, edit }) {
 
   saveRef.current = async () => {
     const row = {
-      id: edit?.id || crypto.randomUUID(),
+      id: edit?.id || newId(),
       goal_id: goal.id,
       amount: parseFloat(amount) || 0,
       currency,

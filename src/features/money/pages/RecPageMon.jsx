@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { C } from "../../../constants/theme";
 import { supaUpsert, supa } from "../../../lib/supabase";
+import { newId } from "../../../utils/id";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
@@ -30,7 +31,7 @@ export function RecPageMon({ accounts, expCats, onBack, edit }) {
     setSaving(true);
     setSaveError(null);
     const rec = {
-      id: edit?.id || crypto.randomUUID(),
+      id: edit?.id || newId(),
       name: name.trim(),
       day: parseInt(day),
       amount: parseFloat(amt),

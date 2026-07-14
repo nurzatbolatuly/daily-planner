@@ -73,7 +73,7 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
                 <div
                   key={acc.id}
                   data-accid={acc.id}
-                  onClick={() => navigate("editAcc", acc)}
+                  onClick={() => navigate("accDetail", acc)}
                   style={{
                     display:"flex", alignItems:"center", gap:12, padding:"16px 14px",
                     borderRadius:16, marginBottom:10, background:C.monCard, cursor:"pointer",

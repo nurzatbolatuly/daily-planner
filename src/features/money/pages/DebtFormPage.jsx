@@ -4,6 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { PALETTE, DEBT_BORROW_NOTE_PREFIX } from "../../../constants/money";
 import { todayStr } from "../../../utils/date";
 import { round2 } from "../../../utils/format";
+import { newId } from "../../../utils/id";
 import { supaUpsert, supaRpc } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
@@ -42,7 +43,7 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
     const name = newName.trim();
     if (!name || creating) return;
     setCreating(true);
-    const person = { id: crypto.randomUUID(), name, color: PALETTE[debtPeople.length % PALETTE.length] };
+    const person = { id: newId(), name, color: PALETTE[debtPeople.length % PALETTE.length] };
     try {
       await supaUpsert("debt_people", person);
       setDebtPeople(prev => [...prev, person]);
@@ -61,7 +62,7 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
       // Реальные деньги: сумма поступает на выбранный счёт.
       const date = todayStr();
       const tx = {
-        id: crypto.randomUUID(),
+        id: newId(),
         type: "income",
         amount: amt,
         currency: account.currency,
@@ -71,7 +72,7 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
         note: note.trim() ? `${DEBT_BORROW_NOTE_PREFIX} — ${person?.name || ""}: ${note.trim()}` : `${DEBT_BORROW_NOTE_PREFIX} — ${person?.name || ""}`,
       };
       const debtEvent = {
-        id: crypto.randomUUID(),
+        id: newId(),
         person_id: personId,
         type: "they_paid",
         amount: -amt,
@@ -86,7 +87,7 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
       });
     } else {
       await supaUpsert("debt_events", {
-        id: crypto.randomUUID(),
+        id: newId(),
         person_id: personId,
         type: "paid_for_them",
         amount: amt,

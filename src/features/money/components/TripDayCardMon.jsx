@@ -3,6 +3,7 @@ import { C } from "../../../constants/theme";
 import { TRIP_LABELS } from "../../../constants/money";
 import { todayStr } from "../../../utils/date";
 import { getSym, fmtAmtAuto, toBase } from "../../../utils/format";
+import { newId } from "../../../utils/id";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { Ico } from "../../../components/Ico";
@@ -34,13 +35,13 @@ export function TripDayCardMon({ day, dayIndex, onUpdate, prevDay, rates = {}, o
 
   const addPlace = () => {
     if (!newPlace.trim()) return;
-    onUpdate({...day, places: [...(day.places||[]), {id: crypto.randomUUID(), name:newPlace.trim(), done:false}]});
+    onUpdate({...day, places: [...(day.places||[]), {id: newId(), name:newPlace.trim(), done:false}]});
     setNewPlace("");
   };
 
   const copyFromPrev = () => {
     if (!prevDay) return;
-    const newExps = prevDay.expenses.map(e => ({...e, id: crypto.randomUUID(), status:"unpaid", paidAmount:0}));
+    const newExps = prevDay.expenses.map(e => ({...e, id: newId(), status:"unpaid", paidAmount:0}));
     onUpdate({...day, expenses: [...day.expenses, ...newExps]});
   };
 

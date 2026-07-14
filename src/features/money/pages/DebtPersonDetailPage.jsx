@@ -4,6 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr } from "../../../utils/date";
 import { fmtAmtAuto, getSym, round2, toBase, ratesFromAccounts } from "../../../utils/format";
 import { supaUpsert } from "../../../lib/supabase";
+import { newId } from "../../../utils/id";
 import { computeNetByPerson, personHistory } from "../../../utils/debtLedger";
 import { PageHeader } from "../../../components/PageHeader";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
@@ -38,7 +39,7 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], o
       const outstanding = history.filter(e => e.type === "paid_for_them" && e.transaction_id && !alreadyForgivenTx.has(e.transaction_id));
 
       const rows = outstanding.map(e => ({
-        id: crypto.randomUUID(),
+        id: newId(),
         person_id: person.id,
         type: "forgive",
         amount: round2(-e.amount),
@@ -53,7 +54,7 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], o
       const remainder = round2(net - coveredBase);
       if (remainder !== 0) {
         rows.push({
-          id: crypto.randomUUID(),
+          id: newId(),
           person_id: person.id,
           type: "forgive",
           amount: round2(-remainder),

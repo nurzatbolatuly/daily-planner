@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { DEF_EXP, DEF_INC } from "../../../constants/money";
 import { todayStr, monthKey } from "../../../utils/date";
 import { round2 } from "../../../utils/format";
+import { newId } from "../../../utils/id";
 import { supa, supaUpsert, supaRpc } from "../../../lib/supabase";
 
 export function useMoneyData() {
@@ -86,7 +87,7 @@ export function useMoneyData() {
       for (const r of due) {
         const acc = accounts.find(a => a.id === r.acc_id);
         if (!acc) continue;
-        const tx = { id: crypto.randomUUID(), type:"expense", amount:r.amount, currency:acc.currency, category_id:r.cat_id, account_id:r.acc_id, date:todayStr(), note:`${r.name} (авто)` };
+        const tx = { id: newId(), type:"expense", amount:r.amount, currency:acc.currency, category_id:r.cat_id, account_id:r.acc_id, date:todayStr(), note:`${r.name} (авто)` };
         const newBal = round2(balByAcc[acc.id] - r.amount);
         try {
           await supaRpc("fire_recurring", { p_tx: tx, p_account_id: acc.id, p_new_balance: newBal, p_rec_id: r.id, p_month: mk });

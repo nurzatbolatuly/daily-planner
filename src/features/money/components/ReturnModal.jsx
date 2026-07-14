@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { todayStr } from "../../../utils/date";
 import { round2 } from "../../../utils/format";
+import { newId } from "../../../utils/id";
 import { supaRpc } from "../../../lib/supabase";
 import { DEBT_RETURN_NOTE_PREFIX } from "../../../constants/money";
 import { useSave } from "../../../hooks/useSave";
@@ -29,7 +30,7 @@ export function ReturnModal({ open, onClose, person, net, accounts, onDone }) {
     const delta = theyOweMe ? amt : -amt;
     const date = todayStr();
     const tx = {
-      id: crypto.randomUUID(),
+      id: newId(),
       type: theyOweMe ? "income" : "expense",
       amount: amt,
       currency: acc.currency,
@@ -39,7 +40,7 @@ export function ReturnModal({ open, onClose, person, net, accounts, onDone }) {
       note: `${DEBT_RETURN_NOTE_PREFIX} — ${person.name}`,
     };
     const debtEvent = {
-      id: crypto.randomUUID(),
+      id: newId(),
       person_id: person.id,
       type: "return",
       amount: theyOweMe ? -amt : amt,

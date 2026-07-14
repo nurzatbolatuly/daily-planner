@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { C } from "../../constants/theme";
 import { Ico } from "../../components/Ico";
 import { useDragReorder } from "../../hooks/useDragReorder";
+import { newId } from "../../utils/id";
 import PlannerTaskCard from "./PlannerTaskCard";
 import PlannerTaskForm from "./PlannerTaskForm";
 
@@ -16,7 +17,7 @@ function SomedayCardForm({ initial, colorLabels, onSave, onClose }) {
     const base = initial || {};
     onSave({
       ...base,
-      id:          base.id || crypto.randomUUID(),
+      id:          base.id || newId(),
       title:       title.trim(),
       note:        note.trim(),
       date:        null,

@@ -4,6 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { getSym, fmtAmtAuto } from "../../../utils/format";
 import { supaUpsert, supa } from "../../../lib/supabase";
 import { getSavedOrder } from "../../../utils/accountOrder";
+import { newId } from "../../../utils/id";
 import { useSave } from "../../../hooks/useSave";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { Ico } from "../../../components/Ico";
@@ -21,9 +22,9 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
   const [accId,   setAccId]   = useState(edit?.acc_id  || prefillAccId  || "");
   const [planCur, setPlanCur] = useState(edit?.plan_currency || BASE_CUR);
   const [items,   setItems]   = useState(() => {
-    if (edit?.items?.length) return edit.items.map(it => ({ id: it.id || crypto.randomUUID(), label: it.label || "", amount: it.amount != null ? String(it.amount) : "" }));
-    if (edit?.plan) return [{ id: crypto.randomUUID(), label: "", amount: String(edit.plan) }];
-    return [{ id: crypto.randomUUID(), label: "", amount: "" }];
+    if (edit?.items?.length) return edit.items.map(it => ({ id: it.id || newId(), label: it.label || "", amount: it.amount != null ? String(it.amount) : "" }));
+    if (edit?.plan) return [{ id: newId(), label: "", amount: String(edit.plan) }];
+    return [{ id: newId(), label: "", amount: "" }];
   });
   const [showCur, setShowCur] = useState(false);
   const [errors,  setErrors]  = useState({});
@@ -42,7 +43,7 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
 
   const total = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
   const setItem = (id, patch) => setItems(prev => prev.map(it => it.id === id ? { ...it, ...patch } : it));
-  const addItem = () => setItems(prev => [...prev, { id: crypto.randomUUID(), label: "", amount: "" }]);
+  const addItem = () => setItems(prev => [...prev, { id: newId(), label: "", amount: "" }]);
   const delItem = (id) => setItems(prev => prev.length === 1 ? prev : prev.filter(it => it.id !== id));
 
   saveRef.current = async () => {
@@ -50,7 +51,7 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
       .map(it => ({ id: it.id, label: it.label.trim(), amount: parseFloat(it.amount) || 0 }))
       .filter(it => it.amount > 0);
     const p = {
-      id:            edit?.id || crypto.randomUUID(),
+      id:            edit?.id || newId(),
       cat_id:        type !== "savings" ? catId : null,
       acc_id:        type === "savings" ? accId : null,
       type,

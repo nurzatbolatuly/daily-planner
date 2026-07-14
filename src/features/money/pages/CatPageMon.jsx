@@ -3,6 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { EXP_ICONS, INC_ICONS } from "../../../constants/icons";
 import { supaUpsert, supa } from "../../../lib/supabase";
+import { newId } from "../../../utils/id";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
@@ -36,7 +37,7 @@ export function CatPageMon({ expCats, incCats, onBack, edit, catType }) {
     setSaveError(null);
     const list = catType === "expense" ? expCats : incCats;
     const cat = {
-      id: edit?.id || crypto.randomUUID(),
+      id: edit?.id || newId(),
       name: name.trim(),
       icon,
       color,

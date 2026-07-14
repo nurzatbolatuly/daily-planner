@@ -4,6 +4,7 @@ import { BASE_CUR, COMMODITY_CURRENCIES } from "../../../constants/currencies";
 import { ACC_ICONS } from "../../../constants/icons";
 import { ACC_PURPOSES } from "../../../constants/money";
 import { getSym, fmtAmtAuto, round2 } from "../../../utils/format";
+import { newId } from "../../../utils/id";
 import { supa, supaRpc } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
@@ -42,7 +43,7 @@ export function AccPage({ onBack, edit }) {
   saveRef.current = async () => {
     const newBal = parseFloat(bal) || 0;
     const acc = {
-      id: edit?.id || crypto.randomUUID(),
+      id: edit?.id || newId(),
       name: name.trim(), icon, color, currency: cur,
       balance: newBal, in_total: inTotal,
       avg_rate: parseFloat(avgRate) || null,
@@ -51,7 +52,7 @@ export function AccPage({ onBack, edit }) {
     };
     const diff = isEdit ? round2(newBal - edit.balance) : 0;
     const adj = (isEdit && diff !== 0) ? {
-      id: crypto.randomUUID(),
+      id: newId(),
       from_id: acc.id,
       amount: Math.abs(diff),
       to_amt: diff,

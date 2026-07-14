@@ -5,6 +5,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, addDays } from "../../../utils/date";
 import { round2 } from "../../../utils/format";
 import { splitEqually } from "../../../utils/debtLedger";
+import { newId } from "../../../utils/id";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
 import { BALANCE_ADJUSTMENT_NOTE } from "../../../constants/money";
 import { Ico } from "../../../components/Ico";
@@ -59,7 +60,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
   saveRef.current = async () => {
     const acc = accounts.find(a => a.id === accId);
     const delta = type === "income" ? parseFloat(amt) : -parseFloat(amt);
-    const tx = { id: edit?.id || crypto.randomUUID(), type, amount: parseFloat(amt), currency: cur, category_id: cat, account_id: accId, date, note };
+    const tx = { id: edit?.id || newId(), type, amount: parseFloat(amt), currency: cur, category_id: cat, account_id: accId, date, note };
     const oldDelta = edit ? (edit.type === "income" ? -edit.amount : edit.amount) : 0;
     const newBal = round2(acc.balance + oldDelta + delta);
     await supaRpc("save_tx", { p_tx: tx, p_account_id: accId, p_new_balance: newBal });
@@ -73,7 +74,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
     if (type === "expense" && splitOn && splitPeople.length > 0) {
       const shares = splitEqually(parseFloat(amt), 1 + splitPeople.length);
       const debtRows = splitPeople.map((personId, i) => ({
-        id: crypto.randomUUID(),
+        id: newId(),
         person_id: personId,
         type: "paid_for_them",
         amount: shares[i + 1],

@@ -5,6 +5,7 @@ import { Spinner } from "../../components/Spinner";
 import { useMoneyData } from "./hooks/useMoneyData";
 import { TxPage } from "./pages/TxPage";
 import { AccPage } from "./pages/AccPage";
+import { AccDetailPage } from "./pages/AccDetailPage";
 import { TransferPageMon } from "./pages/TransferPageMon";
 import { TransferHistoryPageMon } from "./pages/TransferHistoryPageMon";
 import { MoneyHomeSection } from "./pages/MoneyHomeSection";
@@ -98,6 +99,7 @@ export default function MoneyManagerSection() {
       editTx:       (d) => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} debtEvents={data.debtEvents} onBack={goBack} edit={d}/>,
       addAcc:       ()  => <AccPage onBack={goBack}/>,
       editAcc:      (d) => <AccPage onBack={goBack} edit={d}/>,
+      accDetail:    (d) => <AccDetailPage account={data.accounts.find(a => a.id === d.id) || d} transactions={data.transactions} transfers={data.transfers} accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} debtEvents={data.debtEvents} debtPeople={data.debtPeople} navigate={navigate} onBack={goBack}/>,
       transfer:     (d) => <TransferPageMon accounts={data.accounts} transfers={data.transfers} expCats={data.expCats} goals={data.goals} transactions={data.transactions} fxAccount={data.accounts.find(a => a.is_fx_account)} onBack={goBack} prefill={d}/>,
       trHistory:    ()  => <TransferHistoryPageMon transfers={data.transfers} accounts={data.accounts} navigate={navigate} onReload={data.reload} onBack={goBack}/>,
       editTransfer: (d) => <TransferPageMon accounts={data.accounts} transfers={data.transfers} expCats={data.expCats} goals={data.goals} transactions={data.transactions} fxAccount={data.accounts.find(a => a.is_fx_account)} onBack={goBack} edit={d}/>,

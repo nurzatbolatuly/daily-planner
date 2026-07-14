@@ -8,6 +8,7 @@ import { Ico } from "../../../components/Ico";
 import { supaUpsert } from "../../../lib/supabase";
 import { fmtAmtAuto, getSym } from "../../../utils/format";
 import { splitEqually } from "../../../utils/debtLedger";
+import { newId } from "../../../utils/id";
 import { PersonRow } from "./PersonRow";
 
 // Тугл "Оплатил за других" в форме расхода: выбор участников (существующих
@@ -27,7 +28,7 @@ export function SplitToggle({ enabled, onToggle, people, setPeople, selectedIds,
     const name = newName.trim();
     if (!name || creating) return;
     setCreating(true);
-    const person = { id: crypto.randomUUID(), name, color: PALETTE[people.length % PALETTE.length] };
+    const person = { id: newId(), name, color: PALETTE[people.length % PALETTE.length] };
     try {
       await supaUpsert("debt_people", person);
       setPeople(prev => [...prev, person]);

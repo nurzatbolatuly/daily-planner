@@ -3,6 +3,7 @@ import { C } from "../../constants/theme";
 import { TIME_OF_DAY, WEEKDAYS, ORDER_UNSET } from "../../constants/planner";
 import { RU_MON_GEN } from "../../constants/locale";
 import { dateStr, todayStr } from "../../utils/date";
+import { newId } from "../../utils/id";
 import { Ico } from "../../components/Ico";
 
 function RoutineWeekPicker({ date, routineDays, setRoutineDays, weekMondayOf, ruMonGen, weekdays }) {
@@ -59,12 +60,12 @@ export default function PlannerTaskForm({ initialDate, initialTask, colorLabels,
         const offset = rd === 0 ? 6 : rd - 1;
         d.setDate(monday.getDate() + offset);
         const taskDate = dateStr(d);
-        onSave({ id: crypto.randomUUID(), title: title.trim(), note: note.trim(), date: taskDate, time: time||null, time_of_day: time?null:timeOfDay, color, status:"active", order:ORDER_UNSET, recur_days:routineDays }, true);
+        onSave({ id: newId(), title: title.trim(), note: note.trim(), date: taskDate, time: time||null, time_of_day: time?null:timeOfDay, color, status:"active", order:ORDER_UNSET, recur_days:routineDays }, true);
       });
       onClose(); return;
     }
     const base = initialTask || {};
-    onSave({ ...base, id: base.id || crypto.randomUUID(), title: title.trim(), note: note.trim(), date, time: time||null, time_of_day: time?null:timeOfDay, color, status: base.status||"active", order: base.order??ORDER_UNSET });
+    onSave({ ...base, id: base.id || newId(), title: title.trim(), note: note.trim(), date, time: time||null, time_of_day: time?null:timeOfDay, color, status: base.status||"active", order: base.order??ORDER_UNSET });
   };
 
   return (

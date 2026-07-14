@@ -4,6 +4,7 @@ import { todayStr, addDays, daysBetween } from "../../../utils/date";
 import { supaUpsert, supa } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
 import { isCommodity, getSym } from "../../../utils/format";
+import { newId } from "../../../utils/id";
 import { BASE_CUR, ALL_CURR } from "../../../constants/currencies";
 import { Ico } from "../../../components/Ico";
 import { PageHeader } from "../../../components/PageHeader";
@@ -48,7 +49,7 @@ export function TripEditPageMon({ onBack, edit }) {
         .map(([k, v]) => [k, parseFloat(v)])
     );
     const plan = {
-      id: edit?.id || crypto.randomUUID(),
+      id: edit?.id || newId(),
       name: name.trim(),
       start_date: startDate,
       end_date: endDate,

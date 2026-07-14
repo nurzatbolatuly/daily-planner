@@ -3,6 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { TRIP_CATS, TRIP_LABELS } from "../../../constants/money";
 import { isCommodity } from "../../../utils/format";
+import { newId } from "../../../utils/id";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
 import { Toggle } from "../../../components/Toggle";
@@ -35,7 +36,7 @@ export function TripExpenseFormMon({ exp, onSave, onCancel, rates = {}, onAddRat
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
     onSave({
-      id: exp?.id || crypto.randomUUID(),
+      id: exp?.id || newId(),
       label: label.trim(),
       cat,
       amount: parseFloat(amt),
