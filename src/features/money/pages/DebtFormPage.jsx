@@ -1,28 +1,37 @@
 import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { PALETTE } from "../../../constants/money";
+import { PALETTE, DEBT_BORROW_NOTE_PREFIX } from "../../../constants/money";
 import { todayStr } from "../../../utils/date";
-import { supaUpsert } from "../../../lib/supabase";
+import { round2 } from "../../../utils/format";
+import { supaUpsert, supaRpc } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
 import { BottomSheet } from "../../../components/BottomSheet";
 import { Ico } from "../../../components/Ico";
+import { AccSelect } from "../../../components/AccSelect";
 import { PersonRow } from "../components/PersonRow";
 
-// Ручное добавление долга ("я должен" / "мне должны") — off-book событие,
-// деньги не двигаются, поэтому пишется обычным upsert без RPC.
-export function DebtFormPage({ debtPeople = [], setDebtPeople, onBack }) {
+// Ручное добавление долга. "Мне должны" — off-book событие, деньги не двигаются,
+// пишется обычным upsert. "Я должен" (беру в долг) — реальные деньги поступают на
+// счёт, поэтому пишется атомарно: транзакция + баланс + debt_event через RPC
+// save_debt_return (она полностью общая — "return" в имени историческое, по факту
+// это "tx + balance + debt_event одной транзакцией БД", тот же паттерн переиспользует
+// и ReturnModal).
+export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], onBack }) {
   const [direction, setDirection] = useState("owed_to_me"); // owed_to_me | i_owe
   const [personId, setPersonId] = useState("");
   const [amount, setAmount] = useState("");
+  const [accId, setAccId] = useState("");
   const [note, setNote] = useState("");
   const [errors, setErrors] = useState({});
   const [pickerOpen, setPickerOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+
+  const account = accounts.find(a => a.id === accId);
 
   const saveRef = useRef(null);
   const { save: execSave, saving, saveError } = useSave(() => saveRef.current(), { errorMsg: "Не удалось сохранить долг" });
@@ -46,17 +55,48 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, onBack }) {
 
   saveRef.current = async () => {
     const amt = parseFloat(amount) || 0;
-    await supaUpsert("debt_events", {
-      id: crypto.randomUUID(),
-      person_id: personId,
-      type: direction === "owed_to_me" ? "paid_for_them" : "they_paid",
-      amount: direction === "owed_to_me" ? amt : -amt,
-      currency: BASE_CUR,
-      date: todayStr(),
-      note: note.trim(),
-      transaction_id: null,
-      account_id: null,
-    });
+    const person = debtPeople.find(p => p.id === personId);
+
+    if (direction === "i_owe") {
+      // Реальные деньги: сумма поступает на выбранный счёт.
+      const date = todayStr();
+      const tx = {
+        id: crypto.randomUUID(),
+        type: "income",
+        amount: amt,
+        currency: account.currency,
+        category_id: null,
+        account_id: accId,
+        date,
+        note: note.trim() ? `${DEBT_BORROW_NOTE_PREFIX} — ${person?.name || ""}: ${note.trim()}` : `${DEBT_BORROW_NOTE_PREFIX} — ${person?.name || ""}`,
+      };
+      const debtEvent = {
+        id: crypto.randomUUID(),
+        person_id: personId,
+        type: "they_paid",
+        amount: -amt,
+        currency: account.currency,
+        date,
+        note: note.trim(),
+        transaction_id: tx.id,
+        account_id: accId,
+      };
+      await supaRpc("save_debt_return", {
+        p_tx: tx, p_account_id: accId, p_new_balance: round2(account.balance + amt), p_debt_event: debtEvent,
+      });
+    } else {
+      await supaUpsert("debt_events", {
+        id: crypto.randomUUID(),
+        person_id: personId,
+        type: "paid_for_them",
+        amount: amt,
+        currency: BASE_CUR,
+        date: todayStr(),
+        note: note.trim(),
+        transaction_id: null,
+        account_id: null,
+      });
+    }
     onBack(true);
   };
 
@@ -64,9 +104,16 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, onBack }) {
     const e = {};
     if (!personId) e.person = "Выберите человека";
     if (!amount || parseFloat(amount) <= 0) e.amount = "Введите сумму";
+    if (direction === "i_owe" && !accId) e.acc = "Выберите счёт";
     setErrors(e);
     if (Object.keys(e).length > 0) return;
     execSave();
+  };
+
+  const changeDirection = (v) => {
+    setDirection(v);
+    setAccId("");
+    setErrors(p => ({ ...p, acc: "" }));
   };
 
   return (
@@ -76,7 +123,7 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, onBack }) {
 
         <div style={{ display:"flex", marginBottom:20, borderRadius:12, background:"rgba(255,255,255,0.04)", padding:4 }}>
           {[["owed_to_me","Мне должны"],["i_owe","Я должен"]].map(([v,l]) => (
-            <button key={v} onClick={() => setDirection(v)}
+            <button key={v} onClick={() => changeDirection(v)}
               style={{ flex:1, padding:"10px 0", borderRadius:9, border:"none", cursor:"pointer", fontSize:13, fontWeight:700, background:direction===v?C.green:"transparent", color:direction===v?"#fff":C.dim }}>
               {l}
             </button>
@@ -92,12 +139,23 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, onBack }) {
         </div>
 
         <div style={{ marginBottom:16 }}>
-          <FieldLabel error={errors.amount}>Сумма</FieldLabel>
+          <FieldLabel error={errors.amount}>{direction === "i_owe" && account ? `Сумма (${account.currency})` : "Сумма"}</FieldLabel>
           <NumInput
             value={amount} onChange={v => { setAmount(v); setErrors(p => ({...p, amount:""})); }} placeholder="0"
             style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.06)", border:`1px solid ${errors.amount?"rgba(244,67,54,0.5)":C.border}`, borderRadius:10, padding:"12px 14px", color:"#fff", fontSize:18, fontWeight:700, outline:"none" }}
           />
         </div>
+
+        {direction === "i_owe" && (
+          <>
+            <AccSelect accounts={accounts} value={accId}
+              onChange={v => { setAccId(v); setErrors(p => ({...p, acc:""})); }}
+              label="Куда поступят деньги" error={errors.acc}/>
+            <p style={{ margin:"-10px 0 16px", fontSize:11, color:C.dim, lineHeight:1.4 }}>
+              Сумма зачислится на счёт и увеличит ваш долг перед человеком
+            </p>
+          </>
+        )}
 
         <div style={{ marginBottom:24 }}>
           <FieldLabel>За что</FieldLabel>

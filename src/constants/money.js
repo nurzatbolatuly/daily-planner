@@ -63,5 +63,6 @@ export const DEBT_EVENT_TYPES = [
 ];
 
 export const DEBT_RETURN_NOTE_PREFIX = "Возврат долга";
+export const DEBT_BORROW_NOTE_PREFIX = "Получен в долг";
 
 export const PALETTE =["#4caf50", "#66bb6a", "#388e3c", "#1b5e20", "#f9a825", "#fbc02d", "#ff8f00", "#e65100", "#f44336", "#e53935", "#c62828", "#e91e63", "#c2185b", "#9c27b0", "#7b1fa2", "#673ab7", "#3f51b5", "#1976d2", "#0288d1", "#0097a7", "#00796b", "#5d4037", "#757575", "#546e7a", "#37474f", "#ffffff", "#000000", "#ff5722", "#795548", "#9e9e9e"];

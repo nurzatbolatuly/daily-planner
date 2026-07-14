@@ -114,7 +114,7 @@ export default function MoneyManagerSection() {
       menuRec:      ()  => <RecListPageMon recurring={data.recurring} accounts={data.accounts} expCats={data.expCats} navigate={navigate} onBack={() => goBack(false)}/>,
       menuDebts:    ()  => <DebtsListPage debtPeople={data.debtPeople} debtEvents={data.debtEvents} accounts={data.accounts} navigate={navigate} onBack={() => goBack(false)}/>,
       debtPersonDetail: (d) => <DebtPersonDetailPage person={data.debtPeople.find(p => p.id === d.id) || d} debtEvents={data.debtEvents} accounts={data.accounts} onReload={data.reload} onBack={goBack}/>,
-      addDebt:      ()  => <DebtFormPage debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} onBack={goBack}/>,
+      addDebt:      ()  => <DebtFormPage debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} accounts={data.accounts} onBack={goBack}/>,
       catTxs: (d) => {
         const week = new Date(); week.setDate(week.getDate() - 7);
         const liveTxs = data.transactions.filter(t => {

@@ -28,13 +28,18 @@ export function personHistory(events, personId) {
     .sort((a, b) => b.date.localeCompare(a.date) || String(b.created_at || "").localeCompare(String(a.created_at || "")));
 }
 
-// Сумма чужих долей (paid_for_them) по каждой транзакции, привязанной через transaction_id.
-// { [transaction_id]: сумма_долей_остальных }
+// Сумма чужих долей по каждой транзакции, привязанной через transaction_id: paid_for_them
+// добавляет долю (+), а прощение этой же доли (forgive с тем же transaction_id) её гасит (−).
+// Итог 0 для транзакции = никто больше не должен за неё → personalTxAmount вернёт полную сумму.
+// ⚠️ type:"return" тоже носит свой transaction_id, но это id СОБСТВЕННОЙ транзакции возврата,
+// а не исходного расхода — намеренно не участвует в этой сумме.
 export function receivableByTransaction(debtEvents = []) {
   const map = {};
   debtEvents.forEach(e => {
-    if (e.type !== "paid_for_them" || !e.transaction_id) return;
-    map[e.transaction_id] = (map[e.transaction_id] || 0) + e.amount;
+    if (!e.transaction_id) return;
+    if (e.type === "paid_for_them" || e.type === "forgive") {
+      map[e.transaction_id] = (map[e.transaction_id] || 0) + e.amount;
+    }
   });
   return map;
 }

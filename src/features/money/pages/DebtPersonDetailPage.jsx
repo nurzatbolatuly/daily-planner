@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr } from "../../../utils/date";
-import { fmtAmtAuto, getSym, round2, ratesFromAccounts } from "../../../utils/format";
+import { fmtAmtAuto, getSym, round2, toBase, ratesFromAccounts } from "../../../utils/format";
 import { supaUpsert } from "../../../lib/supabase";
 import { computeNetByPerson, personHistory } from "../../../utils/debtLedger";
 import { PageHeader } from "../../../components/PageHeader";
@@ -24,20 +24,48 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], o
   const label = net === 0 ? "В расчёте" : net > 0 ? "Должен вам" : "Вы должны";
   const color = net === 0 ? C.dim : net > 0 ? C.green : C.errorLight;
 
+  // Прощаем не общей суммой, а по каждому расходу отдельно: каждая непогашенная доля
+  // (paid_for_them) гасится своей записью с тем же transaction_id — это возвращает
+  // связанный расход обратно к полной сумме в Истории/Аналитике/Бюджете (см.
+  // debtLedger.receivableByTransaction). Остаток NET, не покрытый расходами (ручные
+  // долги без transaction_id, доли "они за меня" и т.п.) — одной обычной записью.
   const forgive = async () => {
     setForgiving(true);
     try {
-      await supaUpsert("debt_events", {
+      const alreadyForgivenTx = new Set(
+        history.filter(e => e.type === "forgive" && e.transaction_id).map(e => e.transaction_id)
+      );
+      const outstanding = history.filter(e => e.type === "paid_for_them" && e.transaction_id && !alreadyForgivenTx.has(e.transaction_id));
+
+      const rows = outstanding.map(e => ({
         id: crypto.randomUUID(),
         person_id: person.id,
         type: "forgive",
-        amount: round2(-net),
-        currency: BASE_CUR,
+        amount: round2(-e.amount),
+        currency: e.currency,
         date: todayStr(),
         note: "",
-        transaction_id: null,
+        transaction_id: e.transaction_id,
         account_id: null,
-      });
+      }));
+
+      const coveredBase = outstanding.reduce((s, e) => s + toBase(e.amount, e.currency, rates), 0);
+      const remainder = round2(net - coveredBase);
+      if (remainder !== 0) {
+        rows.push({
+          id: crypto.randomUUID(),
+          person_id: person.id,
+          type: "forgive",
+          amount: round2(-remainder),
+          currency: BASE_CUR,
+          date: todayStr(),
+          note: "",
+          transaction_id: null,
+          account_id: null,
+        });
+      }
+
+      if (rows.length) await supaUpsert("debt_events", rows);
       await onReload();
     } catch (e) { console.error("Forgive debt:", e); }
     setForgiving(false);
