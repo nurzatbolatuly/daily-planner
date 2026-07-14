@@ -69,7 +69,17 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
     // это просто Σ debt_events.amount, поэтому удаление старых записей этой транзакции
     // корректно уменьшает долг, если сплит выключили, поменяли людей или сумму.
     if (edit) {
-      await supabase.from("debt_events").delete().eq("transaction_id", tx.id);
+      // Долг привязан к транзакции одной записью не-сплит типа ("взял в долг у X" —
+      // they_paid, или "возврат долга" — return). Если её при любой правке транзакции
+      // (дата/сумма/комментарий) удалять и не пересоздавать, долг молча пропадёт из
+      // «Долги» — обновляем вместо этого, сохраняя направление (знак) события.
+      const linkedEvent = debtEvents.find(e => e.transaction_id === tx.id && e.type !== "paid_for_them");
+      if (linkedEvent) {
+        const sign = linkedEvent.amount < 0 ? -1 : 1;
+        await supabase.from("debt_events").update({ amount: round2(sign * Math.abs(parseFloat(amt))), currency: cur, date, note }).eq("id", linkedEvent.id);
+      } else {
+        await supabase.from("debt_events").delete().eq("transaction_id", tx.id);
+      }
     }
     if (type === "expense" && splitOn && splitPeople.length > 0) {
       const shares = splitEqually(parseFloat(amt), 1 + splitPeople.length);
@@ -98,6 +108,9 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
       p_account_id: acc ? acc.id : null,
       p_new_balance: acc ? round2(acc.balance + delta) : null,
     });
+    // Долг (сплит "оплатил за других" или "взял в долг у X") привязан через
+    // transaction_id — без этого удаление транзакции оставляет запись-сироту в «Долги».
+    await supabase.from("debt_events").delete().eq("transaction_id", edit.id);
     onBack(true);
   };
 

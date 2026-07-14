@@ -3,7 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr } from "../../../utils/date";
 import { fmtAmtAuto, getSym, round2, toBase, ratesFromAccounts } from "../../../utils/format";
-import { supaUpsert } from "../../../lib/supabase";
+import { supaUpsert, supabase } from "../../../lib/supabase";
 import { newId } from "../../../utils/id";
 import { computeNetByPerson, personHistory } from "../../../utils/debtLedger";
 import { PageHeader } from "../../../components/PageHeader";
@@ -13,7 +13,7 @@ import { ReturnModal } from "../components/ReturnModal";
 
 const sym = getSym(BASE_CUR);
 
-export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], onReload, onBack }) {
+export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], transactions = [], navigate, onReload, onBack }) {
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
   const net = useMemo(() => computeNetByPerson(debtEvents, rates)[person.id]?.net || 0, [debtEvents, rates, person.id]);
   const history = useMemo(() => personHistory(debtEvents, person.id), [debtEvents, person.id]);
@@ -21,6 +21,30 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], o
   const [returnOpen, setReturnOpen] = useState(false);
   const [confirmForgive, setConfirmForgive] = useState(false);
   const [forgiving, setForgiving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Событие с transaction_id двигало реальные деньги (сплит расхода, "взял в долг",
+  // возврат) — правим/удаляем через саму транзакцию (TxPage), чтобы баланс счёта
+  // и долг менялись вместе одним и тем же атомарным путём, а не дублировать эту
+  // логику здесь.
+  const openLinkedTx = (event) => {
+    const tx = transactions.find(t => t.id === event.transaction_id);
+    if (tx) navigate?.("editTx", tx);
+  };
+
+  // Off-book запись (transaction_id нет — ручное "Мне должны" из DebtFormPage,
+  // остаток при прощении) — деньги не двигались, можно удалить прямо здесь.
+  const deleteEvent = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await supabase.from("debt_events").delete().eq("id", deleteTarget.id);
+      setDeleteTarget(null);
+      await onReload();
+    } catch (e) { console.error("Delete debt event:", e); }
+    setDeleting(false);
+  };
 
   const label = net === 0 ? "В расчёте" : net > 0 ? "Должен вам" : "Вы должны";
   const color = net === 0 ? C.dim : net > 0 ? C.green : C.errorLight;
@@ -95,7 +119,7 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], o
         )}
 
         <p style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:C.dim }}>История</p>
-        <DebtHistory events={history}/>
+        <DebtHistory events={history} onOpenTx={openLinkedTx} onDelete={setDeleteTarget}/>
       </div>
 
       <ReturnModal
@@ -110,6 +134,14 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], o
         title="Простить долг?"
         message={`Остаток ${sym}${fmtAmtAuto(Math.abs(net))} будет списан без создания транзакции. Отменить нельзя.`}
         confirmLabel={forgiving ? "Списание..." : "Простить"}
+      />
+      <ConfirmSheet
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={deleteEvent}
+        title="Удалить запись?"
+        message="Запись будет удалена без движения денег по счетам. Отменить нельзя."
+        confirmLabel={deleting ? "Удаление..." : "Удалить"}
       />
     </div>
   );
