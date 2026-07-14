@@ -6,6 +6,7 @@ import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad } from "../../../utils/date";
 import { getSym, fmtAmtAuto, toBase, ratesFromAccounts, calcTotalBalance, fmtDateShort } from "../../../utils/format";
 import { computeDebtState } from "../../../utils/debtUtils";
+import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportPlansXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
@@ -177,7 +178,9 @@ function SelfDebtCard({ debtData, accounts, sym, navigate, rates, cardRef }) {
 }
 
 export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navigate, budgetTab, setBudgetTab }) {
-  const { accounts, transactions, transfers, expCats, incCats, monthPlans, tripPlans, goals } = data;
+  const { accounts, transactions: rawTransactions, transfers, expCats, incCats, monthPlans, tripPlans, goals, debtEvents } = data;
+  // Личная доля вместо полной суммы для сплит-расходов (см. MoneyHomeSection).
+  const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
 
   const [planMonth, setPlanMonth]   = useState(new Date().getMonth());
   const [planYear,  setPlanYear]    = useState(new Date().getFullYear());

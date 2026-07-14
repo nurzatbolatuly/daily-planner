@@ -4,6 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MON_GEN } from "../../../constants/locale";
 import { daysBetween, todayStr, monthKey, pad } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts } from "../../../utils/format";
+import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { supaUpsert } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
@@ -23,7 +24,9 @@ function fmtDeadline(s) {
   return `${d} ${RU_MON_GEN[m - 1]} ${y} г.`;
 }
 
-export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, transactions = [], navigate, onBack }) {
+export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, transactions: rawTransactions = [], debtEvents, navigate, onBack }) {
+  // Личная доля вместо полной суммы для сплит-расходов (см. MoneyHomeSection).
+  const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
   const [curValueOverride, setCurValueOverride] = useState(null);
   const [editingCurVal, setEditingCurVal]       = useState(false);
   const [curValInput, setCurValInput]           = useState(String(initialGoal.current_value || 0));

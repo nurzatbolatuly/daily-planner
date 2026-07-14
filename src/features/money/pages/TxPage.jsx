@@ -4,7 +4,8 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, addDays } from "../../../utils/date";
 import { round2 } from "../../../utils/format";
-import { supaRpc } from "../../../lib/supabase";
+import { splitEqually } from "../../../utils/debtLedger";
+import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
 import { BALANCE_ADJUSTMENT_NOTE } from "../../../constants/money";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
@@ -14,8 +15,9 @@ import { CurrencyPage } from "../../../components/CurrencyPage";
 import { CalendarPicker } from "../../../components/CalendarPicker";
 import { AccSelect } from "../../../components/AccSelect";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
+import { SplitToggle } from "../components/SplitToggle";
 
-export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill }) {
+export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debtPeople = [], setDebtPeople, debtEvents = [] }) {
   const [type, setType] = useState(edit?.type || prefill?.type || "expense");
   const [amt, setAmt] = useState(edit?.amount ? String(edit.amount) : prefill?.amount ? String(prefill.amount) : "");
   const [cur, setCur] = useState(edit?.currency || prefill?.currency || BASE_CUR);
@@ -27,6 +29,13 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill }) {
   const [showCal, setShowCal] = useState(false);
   const [errors, setErrors] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // При редактировании уже сплитованного расхода подтягиваем состав из debt_events этой транзакции.
+  const existingSplit = useMemo(
+    () => edit ? debtEvents.filter(e => e.transaction_id === edit.id && e.type === "paid_for_them").map(e => e.person_id) : [],
+    [edit, debtEvents]
+  );
+  const [splitOn, setSplitOn] = useState(existingSplit.length > 0);
+  const [splitPeople, setSplitPeople] = useState(existingSplit);
 
   // Refs hold latest closures so useSave can be called unconditionally at top level
   const saveRef = useRef(null);
@@ -54,6 +63,29 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill }) {
     const oldDelta = edit ? (edit.type === "income" ? -edit.amount : edit.amount) : 0;
     const newBal = round2(acc.balance + oldDelta + delta);
     await supaRpc("save_tx", { p_tx: tx, p_account_id: accId, p_new_balance: newBal });
+
+    // Пересобираем сплит с нуля вместо диффа старого/нового состава — NET по человеку
+    // это просто Σ debt_events.amount, поэтому удаление старых записей этой транзакции
+    // корректно уменьшает долг, если сплит выключили, поменяли людей или сумму.
+    if (edit) {
+      await supabase.from("debt_events").delete().eq("transaction_id", tx.id);
+    }
+    if (type === "expense" && splitOn && splitPeople.length > 0) {
+      const shares = splitEqually(parseFloat(amt), 1 + splitPeople.length);
+      const debtRows = splitPeople.map((personId, i) => ({
+        id: crypto.randomUUID(),
+        person_id: personId,
+        type: "paid_for_them",
+        amount: shares[i + 1],
+        currency: cur,
+        date,
+        note,
+        transaction_id: tx.id,
+        account_id: accId,
+      }));
+      await supaUpsert("debt_events", debtRows);
+    }
+
     onBack(true);
   };
 
@@ -137,6 +169,14 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill }) {
           <FieldLabel error={errors.cat}>Категории</FieldLabel>
           <CategoryPicker cats={cats} value={cat} onChange={id => { setCat(id); setErrors(p => ({...p, cat:""})); }}/>
         </div>
+        {type === "expense" && (
+          <SplitToggle
+            enabled={splitOn} onToggle={setSplitOn}
+            people={debtPeople} setPeople={setDebtPeople}
+            selectedIds={splitPeople} onChangeSelected={setSplitPeople}
+            amount={amt} currency={cur}
+          />
+        )}
         <div style={{ marginBottom:16 }}>
           <FieldLabel>Дата</FieldLabel>
           <div style={{ display:"flex", alignItems:"center", gap:8, overflowX:"auto", paddingBottom:4 }}>

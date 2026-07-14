@@ -5,6 +5,7 @@ import { RU_MONTHS } from "../../../constants/locale";
 import { SAVINGS_PURPOSES, ACC_PURPOSES } from "../../../constants/money";
 import { pad, todayStr } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts, calcTotalBalance, calcCatDelta } from "../../../utils/format";
+import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportTransactionsXLSX } from "../../../utils/export";
 import { Ico } from "../../../components/Ico";
@@ -14,7 +15,10 @@ import { BottomSheet } from "../../../components/BottomSheet";
 import { DonutChart } from "../components/DonutChart";
 
 export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate, onGoToBudget }) {
-  const { accounts, transactions, transfers, expCats, incCats, monthPlans } = data;
+  const { accounts, transactions: rawTransactions, transfers, expCats, incCats, monthPlans, debtEvents } = data;
+  // Личная доля вместо полной суммы для сплит-расходов — иначе чужие доли завышают
+  // категории/бюджет/over-budget баннер (см. utils/debtLedger.withPersonalAmounts).
+  const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
 
   const [txType, setTxType]           = useState("expense");
   const [period, setPeriod]           = useState("month");

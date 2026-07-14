@@ -23,6 +23,9 @@ import { CatTxsPageMon } from "./pages/CatTxsPageMon";
 import { GoalFormPage } from "./pages/GoalFormPage";
 import { GoalDetailPage } from "./pages/GoalDetailPage";
 import { GoalTopupPage } from "./pages/GoalTopupPage";
+import { DebtsListPage } from "./pages/DebtsListPage";
+import { DebtPersonDetailPage } from "./pages/DebtPersonDetailPage";
+import { DebtFormPage } from "./pages/DebtFormPage";
 
 const MON_NAV_HEIGHT = 60;
 
@@ -91,8 +94,8 @@ export default function MoneyManagerSection() {
   if (screen) {
     const { name, data: d } = screen;
     const screenMap = {
-      addTx:        (d) => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} onBack={goBack} prefill={d}/>,
-      editTx:       (d) => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d}/>,
+      addTx:        (d) => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} debtEvents={data.debtEvents} onBack={goBack} prefill={d}/>,
+      editTx:       (d) => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} debtEvents={data.debtEvents} onBack={goBack} edit={d}/>,
       addAcc:       ()  => <AccPage onBack={goBack}/>,
       editAcc:      (d) => <AccPage onBack={goBack} edit={d}/>,
       transfer:     (d) => <TransferPageMon accounts={data.accounts} transfers={data.transfers} expCats={data.expCats} goals={data.goals} transactions={data.transactions} fxAccount={data.accounts.find(a => a.is_fx_account)} onBack={goBack} prefill={d}/>,
@@ -109,6 +112,9 @@ export default function MoneyManagerSection() {
       tripDetail:   (d) => <TripDetailPageMon plan={d} accounts={data.accounts} navigate={navigate} onBack={goBack}/>,
       menuCats:     ()  => <CatsListPageMon expCats={data.expCats} incCats={data.incCats} dispatch={data} navigate={navigate} onBack={() => goBack(false)}/>,
       menuRec:      ()  => <RecListPageMon recurring={data.recurring} accounts={data.accounts} expCats={data.expCats} navigate={navigate} onBack={() => goBack(false)}/>,
+      menuDebts:    ()  => <DebtsListPage debtPeople={data.debtPeople} debtEvents={data.debtEvents} accounts={data.accounts} navigate={navigate} onBack={() => goBack(false)}/>,
+      debtPersonDetail: (d) => <DebtPersonDetailPage person={data.debtPeople.find(p => p.id === d.id) || d} debtEvents={data.debtEvents} accounts={data.accounts} onReload={data.reload} onBack={goBack}/>,
+      addDebt:      ()  => <DebtFormPage debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} onBack={goBack}/>,
       catTxs: (d) => {
         const week = new Date(); week.setDate(week.getDate() - 7);
         const liveTxs = data.transactions.filter(t => {
@@ -122,11 +128,11 @@ export default function MoneyManagerSection() {
           if (d.period === "range") return d.rangeStart && d.rangeEnd ? t.date >= d.rangeStart && t.date <= d.rangeEnd : true;
           return true;
         });
-        return <CatTxsPageMon cat={d.cat} txs={liveTxs} periodLabel={d.periodLabel} txType={d.txType} accounts={data.accounts} navigate={navigate} onBack={() => goBack(false)}/>;
+        return <CatTxsPageMon cat={d.cat} txs={liveTxs} periodLabel={d.periodLabel} txType={d.txType} accounts={data.accounts} debtEvents={data.debtEvents} navigate={navigate} onBack={() => goBack(false)}/>;
       },
       addGoal:      ()  => <GoalFormPage accounts={data.accounts} onBack={goBack}/>,
       editGoal:     (d) => <GoalFormPage accounts={data.accounts} onBack={goBack} onDelete={goToGoalsList} edit={d}/>,
-      goalDetail:   (d) => <GoalDetailPage goal={data.goals.find(g => g.id === d.id) || d} goalTopups={data.goalTopups} accounts={data.accounts} transactions={data.transactions} navigate={navigate} onBack={goBack}/>,
+      goalDetail:   (d) => <GoalDetailPage goal={data.goals.find(g => g.id === d.id) || d} goalTopups={data.goalTopups} accounts={data.accounts} transactions={data.transactions} debtEvents={data.debtEvents} navigate={navigate} onBack={goBack}/>,
       addTopup:     (d) => <GoalTopupPage goal={d.goal} onBack={goBack}/>,
       editTopup:    (d) => <GoalTopupPage goal={d.goal} onBack={goBack} edit={d.topup}/>,
     };

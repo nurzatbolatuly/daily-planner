@@ -15,13 +15,15 @@ export function useMoneyData() {
   const [recurring, setRecurring] = useState([]);
   const [goals, setGoals] = useState([]);
   const [goalTopups, setGoalTopups] = useState([]);
+  const [debtPeople, setDebtPeople] = useState([]);
+  const [debtEvents, setDebtEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const [acc, txs, trs, ec, ic, mp, tp, rec, gl, gt] = await Promise.all([
+      const [acc, txs, trs, ec, ic, mp, tp, rec, gl, gt, dp, de] = await Promise.all([
         supa.select("accounts", "order=created_at.asc"),
         supa.select("transactions", "order=created_at.desc"),
         supa.select("transfers", "order=created_at.desc"),
@@ -32,6 +34,8 @@ export function useMoneyData() {
         supa.select("recurring"),
         supa.select("goals", "order=created_at.asc"),
         supa.select("goal_topups", "order=date.desc"),
+        supa.select("debt_people", "order=created_at.asc"),
+        supa.select("debt_events", "order=date.desc"),
       ]);
       // Всегда выставляем массивы целиком (даже пустые), иначе удаление ПОСЛЕДНЕЙ
       // строки таблицы оставляет устаревший стейт. Категории — единственное
@@ -46,6 +50,8 @@ export function useMoneyData() {
       setRecurring(rec || []);
       setGoals(gl || []);
       setGoalTopups(gt || []);
+      setDebtPeople(dp || []);
+      setDebtEvents(de || []);
     } catch(e) {
       console.error("Load money data:", e);
       setLoadError("Не удалось загрузить данные. Проверьте соединение.");
@@ -97,5 +103,5 @@ export function useMoneyData() {
     })();
   }, [recurring, accounts]);
 
-  return { accounts, setAccounts, transactions, setTransactions, transfers, setTransfers, expCats, setExpCats, incCats, setIncCats, monthPlans, setMonthPlans, tripPlans, setTripPlans, recurring, setRecurring, goals, setGoals, goalTopups, setGoalTopups, loading, loadError, reload: load };
+  return { accounts, setAccounts, transactions, setTransactions, transfers, setTransfers, expCats, setExpCats, incCats, setIncCats, monthPlans, setMonthPlans, tripPlans, setTripPlans, recurring, setRecurring, goals, setGoals, goalTopups, setGoalTopups, debtPeople, setDebtPeople, debtEvents, setDebtEvents, loading, loadError, reload: load };
 }

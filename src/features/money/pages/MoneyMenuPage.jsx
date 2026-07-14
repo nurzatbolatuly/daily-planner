@@ -2,8 +2,9 @@ import { C } from "../../../constants/theme";
 import { Ico } from "../../../components/Ico";
 
 const MENU_ITEMS = [
-  { label: "Категории",          key: "menuCats" },
-  { label: "Регулярные платежи", key: "menuRec"  },
+  { label: "Категории",          key: "menuCats"  },
+  { label: "Регулярные платежи", key: "menuRec"   },
+  { label: "Долги",              key: "menuDebts" },
 ];
 
 export function MoneyMenuPage({ navigate }) {
