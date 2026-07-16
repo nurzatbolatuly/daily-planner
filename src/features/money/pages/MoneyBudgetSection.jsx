@@ -9,13 +9,23 @@ import { computeDebtState } from "../../../utils/debtUtils";
 import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportPlansXLSX } from "../../../utils/export";
+import { newId } from "../../../utils/id";
+import { supaUpsert } from "../../../lib/supabase";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 import { CalendarPicker } from "../../../components/CalendarPicker";
 import { NumInput } from "../../../components/NumInput";
+import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { GoalListPage } from "./GoalListPage";
 
-function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, toggle, navigate, planMonthKey, sym, rates }) {
+// Месяц+1 от (year, month), month — 0-индексный (как Date.getMonth()). Возвращает "YYYY-MM".
+function nextMonthKey(year, month) {
+  const y = month === 11 ? year + 1 : year;
+  const m = month === 11 ? 0 : month + 1;
+  return `${y}-${pad(m + 1)}`;
+}
+
+function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, toggle, navigate, planMonthKey, sym, rates, onCopy, copyingId, copiedId }) {
   return (
     <div style={{ marginBottom: 16 }}>
       <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, color: accentColor }}>{label}</p>
@@ -63,10 +73,20 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
                         <p style={{ margin: "3px 0 0 34px", fontSize: 12, color: C.dim }}>Нет разбивки</p>
                       )}
                       {planData ? (
-                        <button onClick={() => navigate("editPlan", planData)}
-                          style={{ marginTop: 8, marginLeft: 34, padding: "6px 14px", borderRadius: 8, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, color: C.green, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                          Редактировать
-                        </button>
+                        <div style={{ display: "flex", gap: 8, marginTop: 8, marginLeft: 34 }}>
+                          <button onClick={() => navigate("editPlan", planData)}
+                            style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, color: C.green, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                            Редактировать
+                          </button>
+                          <button
+                            onClick={() => onCopy(planData)}
+                            disabled={copyingId === planData.id}
+                            title="Скопировать план на следующий месяц"
+                            style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, color: copiedId === planData.id ? C.green : C.dim, fontSize: 12, fontWeight: 600, cursor: copyingId === planData.id ? "default" : "pointer", opacity: copyingId === planData.id ? 0.5 : 1 }}>
+                            <Ico n={copiedId === planData.id ? "check" : "copy"} s={13} c={copiedId === planData.id ? C.green : C.dim}/>
+                            {copiedId === planData.id ? "Скопировано" : copyingId === planData.id ? "Копирую…" : "На след. месяц"}
+                          </button>
+                        </div>
                       ) : (
                         <button onClick={() => navigate("addPlan", { month: planMonthKey, cat_id: cat?.id, acc_id: accId, type })}
                           style={{ marginTop: 8, marginLeft: 34, padding: "6px 14px", borderRadius: 8, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, color: C.green, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
@@ -191,6 +211,12 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
   const [monthRates, setMonthRates] = useState({});
   const [rateInputs, setRateInputs] = useState({});
   const [ratesOpen,  setRatesOpen]  = useState(false);
+  const [copyingId,  setCopyingId]  = useState(null);
+  const [copiedId,   setCopiedId]   = useState(null);
+  const [copyConfirm, setCopyConfirm] = useState(null); // { planData, targetMonthKey, existingId, label }
+  const copiedTimerRef = useRef(null);
+
+  useEffect(() => () => { if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current); }, []);
 
   const toggle      = key => setExpanded(p => ({ ...p, [key]: !p[key] }));
   const sym         = getSym(BASE_CUR);
@@ -339,6 +365,41 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
     else setPlanMonth(m => m + 1);
   };
 
+  const copyPlan = async (planData, targetMonthKey, existingId) => {
+    setCopyingId(planData.id);
+    try {
+      const newPlan = {
+        id:            existingId || newId(),
+        cat_id:        planData.cat_id,
+        acc_id:        planData.acc_id,
+        type:          planData.type,
+        plan:          planData.plan,
+        plan_currency: planData.plan_currency,
+        month:         targetMonthKey,
+        items:         (planData.items || []).map(it => ({ ...it, id: newId() })),
+      };
+      await supaUpsert("month_plans", newPlan);
+      await data.reload();
+      setCopiedId(planData.id);
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopiedId(null), 1500);
+    } finally {
+      setCopyingId(null);
+    }
+  };
+
+  const handleCopyClick = (planData) => {
+    const targetMonthKey = nextMonthKey(planYear, planMonth);
+    const existing = monthPlans.find(p => p.month === targetMonthKey && p.type === planData.type &&
+      (planData.type === "savings" ? p.acc_id === planData.acc_id : p.cat_id === planData.cat_id));
+    if (existing) {
+      const [ty, tm] = targetMonthKey.split("-").map(Number);
+      setCopyConfirm({ planData, targetMonthKey, existingId: existing.id, label: `${RU_MONTHS[tm - 1]} ${ty}` });
+    } else {
+      copyPlan(planData, targetMonthKey, null);
+    }
+  };
+
   const exportXLSX = () => {
     exportPlansXLSX({
       expRows, incRows, savingsRows,
@@ -348,7 +409,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
     });
   };
 
-  const tableProps = { expanded, toggle, navigate, planMonthKey, sym, rates: planRates };
+  const tableProps = { expanded, toggle, navigate, planMonthKey, sym, rates: planRates, onCopy: handleCopyClick, copyingId, copiedId };
 
   return (
     <div style={{ paddingBottom: 80 }}>
@@ -670,6 +731,19 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
           </button>
         </div>
       )}
+
+      <ConfirmSheet
+        open={!!copyConfirm}
+        onClose={() => setCopyConfirm(null)}
+        onConfirm={() => {
+          const cc = copyConfirm;
+          setCopyConfirm(null);
+          copyPlan(cc.planData, cc.targetMonthKey, cc.existingId);
+        }}
+        title="Перезаписать план?"
+        message={copyConfirm ? `На ${copyConfirm.label} уже есть план для этой категории. Он будет заменён скопированным.` : ""}
+        confirmLabel="Перезаписать"
+      />
     </div>
   );
 });
