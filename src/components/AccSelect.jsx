@@ -8,7 +8,7 @@ import { BottomSheet } from "./BottomSheet";
 import { CatIcon } from "./CatIcon";
 import { Ico } from "./Ico";
 
-export function AccSelect({ accounts, value, onChange, onCurrencyChange, label, error }) {
+export function AccSelect({ accounts, value, onChange, onCurrencyChange, label, error, allowNone, noneLabel }) {
   const [open, setOpen] = useState(false);
   const savedOrdered = getSavedOrder(accounts);
   const ordered = ACC_PURPOSES.flatMap(p =>
@@ -24,10 +24,19 @@ export function AccSelect({ accounts, value, onChange, onCurrencyChange, label, 
             <CatIcon k={sel.icon} size={32} color={sel.color}/>
             <div><p style={{ margin:0, fontSize:14, color:"#fff" }}>{sel.name}</p><p style={{ margin:0, fontSize:13, color:C.mid }}>{isCommodity(sel.currency) ? fmtGrams(sel.balance) : fmtBal(sel.balance, sel.currency)}</p></div>
           </div>
-        ) : <span style={{ fontSize:14, color:C.dim }}>Select account</span>}
+        ) : <span style={{ fontSize:14, color:C.dim }}>{allowNone ? (noneLabel||"Без счёта") : "Select account"}</span>}
         <Ico n="chevD" s={16} c={C.dim}/>
       </div>
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Select account">
+        {allowNone && (
+          <div onClick={() => { onChange(""); setOpen(false); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 12px", borderRadius:12, marginBottom:6, cursor:"pointer", background:!value?"rgba(76,175,80,0.1)":"rgba(255,255,255,0.03)", border:`1px solid ${!value?"rgba(76,175,80,0.4)":C.border}` }}>
+            <div style={{ width:40, height:40, borderRadius:20, background:"rgba(255,255,255,0.06)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Ico n="x" s={18} c={C.dim}/>
+            </div>
+            <div style={{ flex:1 }}><p style={{ margin:0, fontSize:14, color:"#fff" }}>{noneLabel||"Без счёта"}</p></div>
+            {!value && <Ico n="check" s={18} c={C.green}/>}
+          </div>
+        )}
         {ordered.map(a => (
           <div key={a.id} onClick={() => { onChange(a.id); onCurrencyChange?.(a.currency); setOpen(false); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 12px", borderRadius:12, marginBottom:6, cursor:"pointer", background:value===a.id?"rgba(76,175,80,0.1)":"rgba(255,255,255,0.03)", border:`1px solid ${value===a.id?"rgba(76,175,80,0.4)":C.border}` }}>
             <CatIcon k={a.icon} size={40} color={a.color}/>

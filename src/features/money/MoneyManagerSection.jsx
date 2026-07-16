@@ -14,12 +14,10 @@ import { MoneyBudgetSection } from "./pages/MoneyBudgetSection";
 import { MoneyAnalyticsSection } from "./pages/MoneyAnalyticsSection";
 import { MoneyMenuPage } from "./pages/MoneyMenuPage";
 import { CatPageMon } from "./pages/CatPageMon";
-import { RecPageMon } from "./pages/RecPageMon";
 import { PlanRowPageMon } from "./pages/PlanRowPageMon";
 import { TripEditPageMon } from "./pages/TripEditPageMon";
 import { TripDetailPageMon } from "./pages/TripDetailPageMon";
 import { CatsListPageMon } from "./pages/CatsListPageMon";
-import { RecListPageMon } from "./pages/RecListPageMon";
 import { CatTxsPageMon } from "./pages/CatTxsPageMon";
 import { GoalFormPage } from "./pages/GoalFormPage";
 import { GoalDetailPage } from "./pages/GoalDetailPage";
@@ -105,15 +103,12 @@ export default function MoneyManagerSection() {
       editTransfer: (d) => <TransferPageMon accounts={data.accounts} transfers={data.transfers} expCats={data.expCats} goals={data.goals} transactions={data.transactions} fxAccount={data.accounts.find(a => a.is_fx_account)} onBack={goBack} edit={d}/>,
       addCat:       (d) => <CatPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} catType={d?.catType}/>,
       editCat:      (d) => <CatPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d} catType={d?.catType}/>,
-      addRec:       ()  => <RecPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack}/>,
-      editRec:      (d) => <RecPageMon accounts={data.accounts} expCats={data.expCats} onBack={goBack} edit={d}/>,
       addPlan:      (d) => <PlanRowPageMon expCats={data.expCats} incCats={data.incCats} accounts={data.accounts} onBack={goBack} month={d?.month} prefillCatId={d?.cat_id} prefillAccId={d?.acc_id} prefillType={d?.type}/>,
       editPlan:     (d) => <PlanRowPageMon expCats={data.expCats} incCats={data.incCats} accounts={data.accounts} onBack={goBack} edit={d}/>,
       addTrip:      ()  => <TripEditPageMon onBack={goBackToTrips}/>,
       editTrip:     (d) => <TripEditPageMon onBack={goBackToTrips} edit={d}/>,
       tripDetail:   (d) => <TripDetailPageMon plan={d} accounts={data.accounts} navigate={navigate} onBack={goBack}/>,
       menuCats:     ()  => <CatsListPageMon expCats={data.expCats} incCats={data.incCats} dispatch={data} navigate={navigate} onBack={() => goBack(false)}/>,
-      menuRec:      ()  => <RecListPageMon recurring={data.recurring} accounts={data.accounts} expCats={data.expCats} navigate={navigate} onBack={() => goBack(false)}/>,
       menuDebts:    ()  => <DebtsListPage debtPeople={data.debtPeople} debtEvents={data.debtEvents} accounts={data.accounts} navigate={navigate} onBack={() => goBack(false)}/>,
       debtPersonDetail: (d) => <DebtPersonDetailPage person={data.debtPeople.find(p => p.id === d.id) || d} debtEvents={data.debtEvents} accounts={data.accounts} transactions={data.transactions} navigate={navigate} onReload={data.reload} onBack={goBack}/>,
       addDebt:      ()  => <DebtFormPage debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} accounts={data.accounts} onBack={goBack}/>,

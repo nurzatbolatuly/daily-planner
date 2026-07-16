@@ -16,11 +16,12 @@ import { AccSelect } from "../../../components/AccSelect";
 import { PersonRow } from "../components/PersonRow";
 
 // Ручное добавление долга. "Мне должны" — off-book событие, деньги не двигаются,
-// пишется обычным upsert. "Я должен" (беру в долг) — реальные деньги поступают на
-// счёт, поэтому пишется атомарно: транзакция + баланс + debt_event через RPC
-// save_debt_return (она полностью общая — "return" в имени историческое, по факту
-// это "tx + balance + debt_event одной транзакцией БД", тот же паттерн переиспользует
-// и ReturnModal).
+// пишется обычным upsert. "Я должен" (беру в долг) — счёт необязателен: если выбран,
+// реальные деньги поступают на него, и запись пишется атомарно (транзакция + баланс +
+// debt_event через RPC save_debt_return — она полностью общая, "return" в имени
+// историческое, по факту это "tx + balance + debt_event одной транзакцией БД", тот же
+// паттерн переиспользует и ReturnModal). Если счёт не выбран — тоже off-book upsert,
+// как и в направлении "Мне должны".
 export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], onBack }) {
   const [direction, setDirection] = useState("owed_to_me"); // owed_to_me | i_owe
   const [personId, setPersonId] = useState("");
@@ -58,8 +59,8 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
     const amt = parseFloat(amount) || 0;
     const person = debtPeople.find(p => p.id === personId);
 
-    if (direction === "i_owe") {
-      // Реальные деньги: сумма поступает на выбранный счёт.
+    if (direction === "i_owe" && accId) {
+      // Счёт выбран: реальные деньги поступают на него.
       const date = todayStr();
       const tx = {
         id: newId(),
@@ -85,6 +86,19 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
       await supaRpc("save_debt_return", {
         p_tx: tx, p_account_id: accId, p_new_balance: round2(account.balance + amt), p_debt_event: debtEvent,
       });
+    } else if (direction === "i_owe") {
+      // Счёт не выбран: off-book запись, деньги не двигаются.
+      await supaUpsert("debt_events", {
+        id: newId(),
+        person_id: personId,
+        type: "they_paid",
+        amount: -amt,
+        currency: BASE_CUR,
+        date: todayStr(),
+        note: note.trim(),
+        transaction_id: null,
+        account_id: null,
+      });
     } else {
       await supaUpsert("debt_events", {
         id: newId(),
@@ -105,7 +119,6 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
     const e = {};
     if (!personId) e.person = "Выберите человека";
     if (!amount || parseFloat(amount) <= 0) e.amount = "Введите сумму";
-    if (direction === "i_owe" && !accId) e.acc = "Выберите счёт";
     setErrors(e);
     if (Object.keys(e).length > 0) return;
     execSave();
@@ -151,9 +164,12 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
           <>
             <AccSelect accounts={accounts} value={accId}
               onChange={v => { setAccId(v); setErrors(p => ({...p, acc:""})); }}
-              label="Куда поступят деньги" error={errors.acc}/>
+              label="Куда поступят деньги (необязательно)" error={errors.acc}
+              allowNone noneLabel="Без счёта"/>
             <p style={{ margin:"-10px 0 16px", fontSize:11, color:C.dim, lineHeight:1.4 }}>
-              Сумма зачислится на счёт и увеличит ваш долг перед человеком
+              {accId
+                ? "Сумма зачислится на счёт и увеличит ваш долг перед человеком"
+                : "Деньги нигде не будут учтены, увеличится только долг перед человеком"}
             </p>
           </>
         )}
