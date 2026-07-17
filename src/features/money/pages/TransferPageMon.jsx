@@ -2,10 +2,11 @@ import { useState, useRef, useMemo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, localDate } from "../../../utils/date";
-import { avgRateFn, fmtAmt, fmtAmtAuto, fmtBal, getSym, isCommodity, round2, toBase, ratesFromAccounts } from "../../../utils/format";
+import { avgRateFn, fmtAmt, fmtAmtAuto, fmtBal, fmtM, getSym, isCommodity, round2, ratesFromAccounts } from "../../../utils/format";
 import { newId } from "../../../utils/id";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
 import { FEE_TX_NOTE, SAVINGS_PURPOSES } from "../../../constants/money";
+import { computeDebtState } from "../../../utils/debtUtils";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
@@ -13,16 +14,6 @@ import { NumInput } from "../../../components/NumInput";
 import { AccSelect } from "../../../components/AccSelect";
 import { CatIcon } from "../../../components/CatIcon";
 import { Toggle } from "../../../components/Toggle";
-
-function calcOutstandingDebt(accId, transfers, rates) {
-  const out = transfers
-    .filter(t => t.from_id === accId && !t.is_adjustment)
-    .reduce((s, t) => s + toBase(t.amount, t.from_currency, rates), 0);
-  const repaid = transfers
-    .filter(t => t.to_id === accId && t.is_debt_repayment && !t.is_adjustment)
-    .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
-  return Math.max(0, out - repaid);
-}
 
 // Анализ сделки: сторона продажи (PnL источника) + сторона покупки (новая средняя получателя).
 // refToAvgRate — актуальная цена/курс получателя: toAcc.avg_rate если есть история,
@@ -129,7 +120,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
   const [fromId,   setFromId]   = useState(edit?.from_id || accounts[0]?.id || "");
   const [toId,     setToId]     = useState(edit?.to_id   || prefill?.to_id || accounts[1]?.id || "");
   const [amt,      setAmt]      = useState(edit ? String(edit.amount) : prefill?.amount ? String(prefill.amount) : "");
-  const [toAmt,    setToAmt]    = useState(edit?.to_amt  ? String(edit.to_amt) : "");
+  const [toAmt,    setToAmt]    = useState(edit?.to_amt  ? String(edit.to_amt) : prefill?.toAmt ? String(prefill.toAmt) : "");
   const [rate,     setRate]     = useState(edit?.rate    ? String(edit.rate)   : "");
   // Текущий курс/цена счёта-получателя — только для точного P&L, не влияет на балансы
   const [toRate,   setToRate]   = useState("");
@@ -159,12 +150,12 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
   // Флаг "Возврат долга" показывается когда счёт-получатель — накопительный
   const toAccIsSavings = toAcc ? SAVINGS_PURPOSES.includes(toAcc.purpose) : false;
 
-  // Текущий накопленный долг по счёту-получателю — для авто-подсказки тоггла
+  // Текущий накопленный долг по счёту-получателю — для авто-подсказки тоггла.
+  // Переиспользуем computeDebtState (тот же источник правды, что и SelfDebtCard) — долг
+  // в родной валюте/граммах счёта, не в KZT.
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
-  const toAccOutstandingDebt = useMemo(() => {
-    if (!toAccIsSavings || !toId) return 0;
-    return calcOutstandingDebt(toId, transfers, rates);
-  }, [toId, toAccIsSavings, transfers, rates]);
+  const debtState = useMemo(() => computeDebtState(transfers, accounts, rates), [transfers, accounts, rates]);
+  const toAccOutstandingDebt = (toAccIsSavings && toId) ? (debtState.byAcc[toId]?.total || 0) : 0;
   const fromIsKzt = fromAcc?.currency === BASE_CUR;
   const toIsKzt   = toAcc?.currency   === BASE_CUR;
   const fromIsCom = isCommodity(fromAcc?.currency);
@@ -474,7 +465,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
     // Авто-предлагаем тоггл если у этого счёта есть непогашенный долг
     const acc = accounts.find(a => a.id === v);
     if (acc && SAVINGS_PURPOSES.includes(acc.purpose)) {
-      setIsDebtRepayment(calcOutstandingDebt(v, transfers, rates) > 0);
+      setIsDebtRepayment((debtState.byAcc[v]?.total || 0) > 0);
     } else {
       setIsDebtRepayment(false);
     }
@@ -591,7 +582,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
             />
             {toAccOutstandingDebt > 0 && (
               <p style={{ margin: "8px 0 0", fontSize: 11, color: isDebtRepayment ? C.amber : C.dim, lineHeight: 1.4 }}>
-                Непогашенный долг: {getSym(BASE_CUR)}{fmtAmtAuto(toAccOutstandingDebt)}
+                Непогашенный долг: {fmtM(toAccOutstandingDebt, toAcc?.currency)}
               </p>
             )}
             {isDebtRepayment && (

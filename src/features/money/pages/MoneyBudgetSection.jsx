@@ -4,7 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad } from "../../../utils/date";
-import { getSym, fmtAmtAuto, toBase, ratesFromAccounts, calcTotalBalance, fmtDateShort } from "../../../utils/format";
+import { getSym, fmtAmtAuto, fmtM, toBase, ratesFromAccounts, calcTotalBalance, fmtDateShort } from "../../../utils/format";
 import { computeDebtState } from "../../../utils/debtUtils";
 import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { getSavedOrder } from "../../../utils/accountOrder";
@@ -113,7 +113,7 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
 }
 
 // Карточка долга самому себе — показывается когда были исходящие переводы с накопительных счетов
-function SelfDebtCard({ debtData, accounts, sym, navigate, rates, cardRef }) {
+function SelfDebtCard({ debtData, accounts, sym, navigate, cardRef }) {
   const [open, setOpen] = useState(false);
   const { totalDebt, byAcc } = debtData;
   if (totalDebt <= 0) return null;
@@ -160,7 +160,7 @@ function SelfDebtCard({ debtData, accounts, sym, navigate, rates, cardRef }) {
                   <CatIcon k={acc.icon || "other"} size={22} color={acc.color || C.amber}/>
                   <span style={{ fontSize: 13, fontWeight: 600, color: C.main }}>{acc.name}</span>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>{sym}{fmtAmtAuto(total)}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>{fmtM(total, acc.currency)}</span>
               </div>
               {/* Список переводов */}
               {items.map(t => {
@@ -175,18 +175,21 @@ function SelfDebtCard({ debtData, accounts, sym, navigate, rates, cardRef }) {
                       <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", flexShrink: 0 }}>{fmtDateShort(t.created_at)}</span>
                     </div>
                     <span style={{ fontSize: 11, color: "rgba(245,158,11,0.65)", flexShrink: 0, marginLeft: 8 }}>
-                      {sym}{fmtAmtAuto(toBase(t.amount, t.from_currency, rates))}
+                      {fmtM(t.amount, t.from_currency)}
                     </span>
                   </div>
                 );
               })}
-              {/* Кнопка возврата для конкретного счёта */}
+              {/* Кнопка возврата для конкретного счёта — подставляет ровно ту сумму/валюту,
+                  что была снята (грамм для металла, исходная валюта для остальных), а не KZT-эквивалент */}
               <div style={{ padding: "8px 16px 12px" }}>
                 <button
-                  onClick={() => navigate("transfer", { to_id: acc.id, amount: total, is_debt_repayment: true })}
+                  onClick={() => navigate("transfer", acc.currency === BASE_CUR
+                    ? { to_id: acc.id, amount: total, is_debt_repayment: true }
+                    : { to_id: acc.id, toAmt: total, is_debt_repayment: true })}
                   style={{ width: "100%", padding: "10px", borderRadius: 10, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.32)", color: C.amber, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
                 >
-                  Вернуть {sym}{fmtAmtAuto(total)} в «{acc.name}» →
+                  Вернуть {fmtM(total, acc.currency)} в «{acc.name}» →
                 </button>
               </div>
             </div>
@@ -668,13 +671,13 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
           {activePill === "savings" && savingsRows.length > 0 && (
             <>
               <PlanTable {...tableProps} rows={savingsRows} totalPlan={totalPlanSav} totalAct={totalActSav} label="Накопления / Инвест." accentColor={C.blue}/>
-              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={accountRates} cardRef={debtCardRef}/>
+              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} cardRef={debtCardRef}/>
             </>
           )}
           {activePill === "savings" && savingsRows.length === 0 && (
             <>
               <p style={{ textAlign: "center", padding: "32px 0", color: C.dim, fontSize: 13 }}>Нет накопительных счетов</p>
-              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} rates={accountRates} cardRef={debtCardRef}/>
+              <SelfDebtCard debtData={selfDebtData} accounts={accounts} sym={sym} navigate={navigate} cardRef={debtCardRef}/>
             </>
           )}
           {activePill === "income" && (
