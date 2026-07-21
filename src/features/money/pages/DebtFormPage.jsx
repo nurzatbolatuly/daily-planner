@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { PALETTE, DEBT_BORROW_NOTE_PREFIX } from "../../../constants/money";
+import { PALETTE, DEBT_BORROW_NOTE_PREFIX, DEBT_LEND_NOTE_PREFIX } from "../../../constants/money";
 import { todayStr } from "../../../utils/date";
 import { round2 } from "../../../utils/format";
 import { newId } from "../../../utils/id";
@@ -15,13 +15,13 @@ import { Ico } from "../../../components/Ico";
 import { AccSelect } from "../../../components/AccSelect";
 import { PersonRow } from "../components/PersonRow";
 
-// Ручное добавление долга. "Мне должны" — off-book событие, деньги не двигаются,
-// пишется обычным upsert. "Я должен" (беру в долг) — счёт необязателен: если выбран,
-// реальные деньги поступают на него, и запись пишется атомарно (транзакция + баланс +
-// debt_event через RPC save_debt_return — она полностью общая, "return" в имени
-// историческое, по факту это "tx + balance + debt_event одной транзакцией БД", тот же
-// паттерн переиспользует и ReturnModal). Если счёт не выбран — тоже off-book upsert,
-// как и в направлении "Мне должны".
+// Ручное добавление долга. Оба направления симметричны: счёт необязателен — если выбран,
+// реальные деньги двигаются, и запись пишется атомарно (транзакция + баланс + debt_event
+// через RPC save_debt_return — она полностью общая, "return" в имени историческое, по факту
+// это "tx + balance + debt_event одной транзакцией БД", тот же паттерн переиспользует и
+// ReturnModal). "Я должен" (беру в долг) со счётом → доходная транзакция. "Мне должны"
+// (дал в долг) со счётом → расходная транзакция. Если счёт не выбран — off-book upsert,
+// деньги нигде не учитываются.
 export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], onBack }) {
   const [direction, setDirection] = useState("owed_to_me"); // owed_to_me | i_owe
   const [personId, setPersonId] = useState("");
@@ -99,7 +99,40 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
         transaction_id: null,
         account_id: null,
       });
+    } else if (accId) {
+      // Счёт выбран: реальные деньги списываются с него.
+      const date = todayStr();
+      const tx = {
+        id: newId(),
+        type: "expense",
+        amount: amt,
+        currency: account.currency,
+        category_id: null,
+        account_id: accId,
+        date,
+        note: note.trim() ? `${DEBT_LEND_NOTE_PREFIX} — ${person?.name || ""}: ${note.trim()}` : `${DEBT_LEND_NOTE_PREFIX} — ${person?.name || ""}`,
+      };
+      const debtEvent = {
+        id: newId(),
+        person_id: personId,
+        // "lent", не "paid_for_them" — та привязка означает "доля сплита" для TxPage
+        // (existingSplit/save реконструируют её как сплит между несколькими людьми и
+        // пересчитают сумму как равную долю при любой правке транзакции). Это отдельная
+        // ручная выдача в долг, не сплит, поэтому нужен отдельный тип, как и "they_paid"
+        // у противоположного направления.
+        type: "lent",
+        amount: amt,
+        currency: account.currency,
+        date,
+        note: note.trim(),
+        transaction_id: tx.id,
+        account_id: accId,
+      };
+      await supaRpc("save_debt_return", {
+        p_tx: tx, p_account_id: accId, p_new_balance: round2(account.balance - amt), p_debt_event: debtEvent,
+      });
     } else {
+      // Счёт не выбран: off-book запись, деньги не двигаются.
       await supaUpsert("debt_events", {
         id: newId(),
         person_id: personId,
@@ -153,7 +186,7 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
         </div>
 
         <div style={{ marginBottom:16 }}>
-          <FieldLabel error={errors.amount}>{direction === "i_owe" && account ? `Сумма (${account.currency})` : "Сумма"}</FieldLabel>
+          <FieldLabel error={errors.amount}>{account ? `Сумма (${account.currency})` : "Сумма"}</FieldLabel>
           <NumInput
             value={amount} onChange={v => { setAmount(v); setErrors(p => ({...p, amount:""})); }} placeholder="0"
             style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.06)", border:`1px solid ${errors.amount?"rgba(244,67,54,0.5)":C.border}`, borderRadius:10, padding:"12px 14px", color:"#fff", fontSize:18, fontWeight:700, outline:"none" }}
@@ -170,6 +203,20 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
               {accId
                 ? "Сумма зачислится на счёт и увеличит ваш долг перед человеком"
                 : "Деньги нигде не будут учтены, увеличится только долг перед человеком"}
+            </p>
+          </>
+        )}
+
+        {direction === "owed_to_me" && (
+          <>
+            <AccSelect accounts={accounts} value={accId}
+              onChange={v => { setAccId(v); setErrors(p => ({...p, acc:""})); }}
+              label="Откуда списать деньги (необязательно)" error={errors.acc}
+              allowNone noneLabel="Без счёта"/>
+            <p style={{ margin:"-10px 0 16px", fontSize:11, color:C.dim, lineHeight:1.4 }}>
+              {accId
+                ? "Сумма спишется со счёта и увеличит долг человека перед вами"
+                : "Деньги нигде не будут учтены, увеличится только долг человека перед вами"}
             </p>
           </>
         )}

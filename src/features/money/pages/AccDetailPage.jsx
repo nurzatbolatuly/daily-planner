@@ -58,13 +58,15 @@ function selfDebtBadge(t, account) {
 
 // Долги людям: транзакция привязана к debt_events через transaction_id.
 // "they_paid" пишется только DebtFormPage (направление "Я должен" — взял в долг).
+// "lent" пишется только DebtFormPage (направление "Мне должны" — дал в долг).
 // "return" пишется только ReturnModal — направление определяется типом транзакции
 // (income = мне вернули, expense = я вернул).
 function personDebtBadge(tx, debtEvents, debtPeople) {
-  const evt = debtEvents.find(e => e.transaction_id === tx.id && (e.type === "they_paid" || e.type === "return"));
+  const evt = debtEvents.find(e => e.transaction_id === tx.id && (e.type === "they_paid" || e.type === "lent" || e.type === "return"));
   if (!evt) return null;
   const name = debtPeople.find(p => p.id === evt.person_id)?.name || "—";
   if (evt.type === "they_paid") return { label: `Взял в долг у ${name}`, color: C.errorLight, bg: "rgba(244,67,54,0.12)" };
+  if (evt.type === "lent") return { label: `Дал в долг · ${name}`, color: C.amber, bg: "rgba(245,158,11,0.12)" };
   if (tx.type === "income") return { label: `${name} вернул(а) долг`, color: C.green, bg: "rgba(76,175,80,0.12)" };
   return { label: `Вернул(а) долг · ${name}`, color: C.blue, bg: "rgba(96,165,250,0.12)" };
 }
