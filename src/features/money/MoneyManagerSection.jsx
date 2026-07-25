@@ -25,6 +25,7 @@ import { GoalTopupPage } from "./pages/GoalTopupPage";
 import { DebtsListPage } from "./pages/DebtsListPage";
 import { DebtPersonDetailPage } from "./pages/DebtPersonDetailPage";
 import { DebtFormPage } from "./pages/DebtFormPage";
+import { PriceCatalogSection } from "../priceCatalog/PriceCatalogSection";
 
 const MON_NAV_HEIGHT = 60;
 
@@ -112,6 +113,7 @@ export default function MoneyManagerSection() {
       menuDebts:    ()  => <DebtsListPage debtPeople={data.debtPeople} debtEvents={data.debtEvents} accounts={data.accounts} navigate={navigate} onBack={() => goBack(false)}/>,
       debtPersonDetail: (d) => <DebtPersonDetailPage person={data.debtPeople.find(p => p.id === d.id) || d} debtEvents={data.debtEvents} accounts={data.accounts} transactions={data.transactions} navigate={navigate} onReload={data.reload} onBack={goBack}/>,
       addDebt:      ()  => <DebtFormPage debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} accounts={data.accounts} onBack={goBack}/>,
+      priceCatalog: ()  => <PriceCatalogSection onBack={() => goBack(false)}/>,
       catTxs: (d) => {
         const week = new Date(); week.setDate(week.getDate() - 7);
         const liveTxs = data.transactions.filter(t => {
