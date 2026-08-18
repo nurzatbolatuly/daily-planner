@@ -3,7 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS, RU_MONTHS_S, RU_MON_GEN } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
-import { pad, monthKey, localDate, daysBetween, todayStr } from "../../../utils/date";
+import { pad, monthKey, localDate, monthsUntil, todayStr } from "../../../utils/date";
 import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/format";
 import { computeDebtState } from "../../../utils/debtUtils";
 import { withPersonalAmounts } from "../../../utils/debtLedger";
@@ -211,7 +211,7 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
       const remaining  = Math.max(targetBase - totalSaved, 0);
       const pct        = targetBase > 0 ? Math.min(totalSaved / targetBase, 1) : 0;
       const monthsToDeadline = goal.deadline
-        ? Math.max(daysBetween(today, goal.deadline) / 30, 0.5)
+        ? Math.max(monthsUntil(today, goal.deadline), 1)
         : null;
       const monthlyNeeded = monthsToDeadline && remaining > 0 ? remaining / monthsToDeadline : null;
       return { goal, totalSaved, targetBase, remaining, monthlyNeeded, pct };

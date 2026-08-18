@@ -2,9 +2,10 @@ import { C } from "../../../constants/theme";
 import { Ico } from "../../../components/Ico";
 
 const MENU_ITEMS = [
-  { label: "Категории",    key: "menuCats"     },
-  { label: "Долги",        key: "menuDebts"    },
-  { label: "Каталог цен",  key: "priceCatalog" },
+  { label: "Категории",              key: "menuCats"     },
+  { label: "Долги",                  key: "menuDebts"    },
+  { label: "Каталог цен",            key: "priceCatalog" },
+  { label: "Кредитный калькулятор",  key: "loanCalc"     },
 ];
 
 export function MoneyMenuPage({ navigate }) {

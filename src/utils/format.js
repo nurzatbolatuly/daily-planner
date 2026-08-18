@@ -71,6 +71,43 @@ export const calcTotalBalance = (accounts = []) =>
     return s + (a.avg_rate ? (a.balance || 0) * a.avg_rate : 0);
   }, 0);
 
+// Дельта баланса счёта от операций ПОСЛЕ указанного месяца (mk = "YYYY-MM") — на сколько нужно
+// "отмотать" текущий balance назад, чтобы получить остаток на конец этого месяца. Balance в БД
+// хранит только текущее значение (нет истории по месяцам), поэтому остаток за прошлый месяц
+// реконструируется отменой эффекта более поздних транзакций/переводов.
+const accountDeltasAfterMonth = (transactions, transfers, mk) => {
+  const deltas = {};
+  const add = (id, amt) => { if (id) deltas[id] = (deltas[id] || 0) + amt; };
+
+  transactions.forEach(t => {
+    if (monthKey(t.date) > mk) add(t.account_id, t.type === "income" ? t.amount : -t.amount);
+  });
+  transfers.forEach(t => {
+    if (monthKey(t.created_at) > mk) {
+      // Корректировка баланса (AccPage) — своя схема: to_id всегда null, дельта = to_amt (знаковая).
+      if (t.is_adjustment) add(t.from_id, t.to_amt);
+      else {
+        add(t.from_id, -t.amount);
+        add(t.to_id, t.to_amt ?? t.amount);
+      }
+    }
+  });
+  return deltas;
+};
+
+// Суммарный баланс в BASE_CUR на КОНЕЦ указанного месяца (mk = "YYYY-MM"), а не на текущий момент.
+// Для текущего/будущего месяца отменять нечего — результат совпадает с calcTotalBalance.
+// Курс конвертации — текущий avg_rate счёта (исторических курсов в БД нет, тот же подход, что и
+// везде в проекте для прошлых периодов).
+export const calcTotalBalanceAtMonth = (accounts = [], transactions = [], transfers = [], mk) => {
+  const deltas = accountDeltasAfterMonth(transactions, transfers, mk);
+  return accounts.filter(a => a.in_total).reduce((s, a) => {
+    const bal = (a.balance || 0) - (deltas[a.id] || 0);
+    if (a.currency === BASE_CUR) return s + bal;
+    return s + (a.avg_rate ? bal * a.avg_rate : 0);
+  }, 0);
+};
+
 export function fmtDateFull(d) {
   const dt = new Date(d);
   return `${dt.getDate()} ${RU_MON_GEN[dt.getMonth()]}, ${RU_DAYS_FULL[dt.getDay()]}`;

@@ -1,0 +1,69 @@
+// Аннуитетный кредитный калькулятор (равные ежемесячные платежи) — стандартная схема
+// большинства потребительских кредитов/рассрочек.
+
+// Ежемесячный платёж по известной ставке.
+export function monthlyPayment(principal, monthlyRate, months) {
+  if (principal <= 0 || months <= 0) return 0;
+  if (monthlyRate <= 0) return principal / months;
+  const k = Math.pow(1 + monthlyRate, months);
+  return principal * monthlyRate * k / (k - 1);
+}
+
+// Обратная задача: по известному платежу подобрать месячную ставку.
+// monthlyPayment(...) монотонно растёт со ставкой при фиксированных principal/months,
+// поэтому ставка ищется бисекцией. null — если платёж не покрывает даже тело долга
+// без процентов (минимум = principal/months), т.е. ставка не может быть неотрицательной.
+export function monthlyRateFromPayment(principal, payment, months) {
+  if (principal <= 0 || months <= 0 || payment <= 0) return null;
+  if (payment <= principal / months) return 0;
+
+  let lo = 0, hi = 1;
+  while (monthlyPayment(principal, hi, months) < payment && hi < 1000) hi *= 2;
+
+  for (let i = 0; i < 100; i++) {
+    const mid = (lo + hi) / 2;
+    if (monthlyPayment(principal, mid, months) < payment) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+export const monthlyToAnnualRate = mr => mr * 12 * 100;
+export const annualToMonthlyRate = ar => ar / 100 / 12;
+
+// Сводка по кредиту: платёж, общая сумма выплат, переплата.
+export function loanSummary(principal, monthlyRate, months) {
+  const payment = monthlyPayment(principal, monthlyRate, months);
+  const total   = payment * months;
+  const overpay = Math.max(total - principal, 0);
+  return { payment, total, overpay };
+}
+
+// Симуляция графика с ежемесячным доп. платежом сверх обязательного (частичное досрочное
+// погашение). strategy "term" — платёж не меняется, срок сокращается (макс. экономия на
+// процентах, стандартная рекомендация); strategy "payment" — срок не меняется, при каждом
+// доп. платеже пересчитывается платёж на оставшийся срок (график тот же, взнос меньше).
+// startMonth — с какого платежа по счёту начинаются доп. взносы (1 = с первого).
+export function simulateEarlyRepayment(principal, monthlyRate, months, extraPerMonth, { strategy = "term", startMonth = 1 } = {}) {
+  const basePayment = monthlyPayment(principal, monthlyRate, months);
+  let balance  = principal;
+  let payment  = basePayment;
+  let month    = 0;
+  let totalPaid = 0;
+
+  while (balance > 0.01 && month < 1200) {
+    month++;
+    const interest      = balance * monthlyRate;
+    const principalPart = Math.min(payment - interest, balance);
+    const extraRaw       = month >= startMonth ? extraPerMonth : 0;
+    const extra          = Math.min(extraRaw, Math.max(balance - principalPart, 0));
+
+    balance   = Math.max(balance - principalPart - extra, 0);
+    totalPaid += interest + principalPart + extra;
+
+    if (extra > 0 && strategy === "payment" && balance > 0) {
+      payment = monthlyPayment(balance, monthlyRate, Math.max(months - month, 1));
+    }
+  }
+
+  return { months: month, totalPaid, finalPayment: payment, overpay: Math.max(totalPaid - principal, 0) };
+}

@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MON_GEN } from "../../../constants/locale";
-import { daysBetween, todayStr, monthKey, pad } from "../../../utils/date";
+import { daysBetween, monthsUntil, todayStr, monthKey, pad } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts } from "../../../utils/format";
 import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { supaUpsert } from "../../../lib/supabase";
@@ -44,7 +44,7 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
   const targetBase    = toBase(initialGoal.target, initialGoal.currency, rates);
   const pct           = targetBase > 0 ? Math.min(totalSaved / targetBase, 1) : 0;
   const remaining     = Math.max(targetBase - totalSaved, 0);
-  const monthsLeft    = initialGoal.deadline ? Math.max(daysBetween(todayStr(), initialGoal.deadline) / 30, 1) : null;
+  const monthsLeft    = initialGoal.deadline ? Math.max(monthsUntil(todayStr(), initialGoal.deadline), 1) : null;
   const monthlyNeeded = monthsLeft && remaining > 0 ? remaining / monthsLeft : null;
 
   const safetyNetRec = useMemo(() => {

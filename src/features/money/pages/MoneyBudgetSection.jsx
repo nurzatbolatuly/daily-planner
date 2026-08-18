@@ -4,7 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad } from "../../../utils/date";
-import { getSym, fmtAmtAuto, fmtM, toBase, ratesFromAccounts, calcTotalBalance, fmtDateShort } from "../../../utils/format";
+import { getSym, fmtAmtAuto, fmtM, toBase, ratesFromAccounts, calcTotalBalanceAtMonth, fmtDateShort } from "../../../utils/format";
 import { computeDebtState } from "../../../utils/debtUtils";
 import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { getSavedOrder } from "../../../utils/accountOrder";
@@ -344,7 +344,10 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
   const activeIncome  = planIncRemaining;
   const activeExpense = planExpRemaining;
   const activeSavings = planSavRemaining;
-  const totalBalance     = useMemo(() => calcTotalBalance(accounts), [accounts]);
+  const totalBalance     = useMemo(
+    () => calcTotalBalanceAtMonth(accounts, rawTransactions, transfers, planMonthKey),
+    [accounts, rawTransactions, transfers, planMonthKey]
+  );
   const totalAvailable   = activeIncome + totalBalance;
   const activeFree       = totalAvailable - activeExpense - activeSavings;
   const activeOverBudget = activeExpense + activeSavings > totalAvailable;

@@ -3,7 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MON_GEN } from "../../../constants/locale";
 import { GOAL_TYPES, SAVINGS_PURPOSES } from "../../../constants/money";
-import { todayStr, daysBetween } from "../../../utils/date";
+import { todayStr, monthsUntil } from "../../../utils/date";
 import { fmtBal, getSym, fmtAmtAuto } from "../../../utils/format";
 import { supaUpsert, supabase } from "../../../lib/supabase";
 import { getSavedOrder } from "../../../utils/accountOrder";
@@ -52,7 +52,7 @@ export function GoalFormPage({ onBack, onDelete, edit, accounts = [] }) {
   const selectedAcc     = savingsAccounts.find(a => a.id === accountId);
 
   const targetNum = parseFloat(target) || 0;
-  const mLeft     = deadline && targetNum > 0 ? Math.max(daysBetween(todayStr(), deadline) / 30, 1) : null;
+  const mLeft     = deadline && targetNum > 0 ? Math.max(monthsUntil(todayStr(), deadline), 1) : null;
   const monthly   = mLeft != null ? targetNum / mLeft : null;
 
   const saveRef   = useRef(null);

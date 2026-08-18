@@ -58,14 +58,3 @@ export function withPersonalAmounts(transactions, debtEvents) {
   if (!Object.keys(receivable).length) return transactions;
   return transactions.map(t => receivable[t.id] ? { ...t, amount: round2(t.amount - receivable[t.id]) } : t);
 }
-
-// Делит сумму на N равных долей (с точностью до копейки — остаток от округления
-// уходит в последнюю долю, чтобы Σ долей === totalAmount).
-export function splitEqually(totalAmount, count) {
-  if (count <= 0) return [];
-  const base = round2(totalAmount / count);
-  const shares = new Array(count).fill(base);
-  const rounding = round2(totalAmount - base * count);
-  shares[count - 1] = round2(shares[count - 1] + rounding);
-  return shares;
-}

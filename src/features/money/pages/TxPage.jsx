@@ -4,7 +4,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, addDays } from "../../../utils/date";
 import { round2 } from "../../../utils/format";
-import { splitEqually } from "../../../utils/debtLedger";
+import { computeSplit } from "../../../utils/splitCalc";
 import { newId } from "../../../utils/id";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
 import { BALANCE_ADJUSTMENT_NOTE } from "../../../constants/money";
@@ -30,13 +30,19 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
   const [showCal, setShowCal] = useState(false);
   const [errors, setErrors] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(false);
-  // При редактировании уже сплитованного расхода подтягиваем состав из debt_events этой транзакции.
-  const existingSplit = useMemo(
-    () => edit ? debtEvents.filter(e => e.transaction_id === edit.id && e.type === "paid_for_them").map(e => e.person_id) : [],
+  // При редактировании уже сплитованного расхода подтягиваем состав из debt_events этой
+  // транзакции. Метод деления (проценты/доли) там не хранится — только итоговые суммы,
+  // поэтому восстанавливаем сплит в режиме "Суммами" с текущими значениями (см. splitCalc.js).
+  const existingSplitEvents = useMemo(
+    () => edit ? debtEvents.filter(e => e.transaction_id === edit.id && e.type === "paid_for_them") : [],
     [edit, debtEvents]
   );
+  const existingSplit = useMemo(() => existingSplitEvents.map(e => e.person_id), [existingSplitEvents]);
   const [splitOn, setSplitOn] = useState(existingSplit.length > 0);
   const [splitPeople, setSplitPeople] = useState(existingSplit);
+  const [splitMethod, setSplitMethod] = useState(existingSplit.length > 0 ? "exact" : "equal");
+  const [splitValues, setSplitValues] = useState(() => Object.fromEntries(existingSplitEvents.map(e => [e.person_id, String(e.amount)])));
+  const [meIncluded, setMeIncluded] = useState(true);
 
   // Refs hold latest closures so useSave can be called unconditionally at top level
   const saveRef = useRef(null);
@@ -82,12 +88,13 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
       }
     }
     if (type === "expense" && splitOn && splitPeople.length > 0) {
-      const shares = splitEqually(parseFloat(amt), 1 + splitPeople.length);
-      const debtRows = splitPeople.map((personId, i) => ({
+      const entries = splitPeople.map(id => ({ id, value: parseFloat(splitValues[id]) || 0 }));
+      const split = computeSplit(parseFloat(amt), entries, splitMethod, meIncluded, splitValues.__me__);
+      const debtRows = split.others.map(o => ({
         id: newId(),
-        person_id: personId,
+        person_id: o.id,
         type: "paid_for_them",
-        amount: shares[i + 1],
+        amount: o.amount,
         currency: cur,
         date,
         note,
@@ -119,6 +126,11 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
     if (!amt || parseFloat(amt) <= 0) e.amt = "Введите сумму";
     if (!cat) e.cat = "Выберите категорию";
     if (!accId) e.acc = "Выберите счёт";
+    if (type === "expense" && splitOn && splitPeople.length > 0) {
+      const entries = splitPeople.map(id => ({ id, value: parseFloat(splitValues[id]) || 0 }));
+      const split = computeSplit(parseFloat(amt) || 0, entries, splitMethod, meIncluded, splitValues.__me__);
+      if (!split.valid) e.split = "Проверьте разделение суммы — доли не сходятся с итогом";
+    }
     setErrors(e);
     if (Object.keys(e).length > 0) return;
     execSave();
@@ -188,7 +200,11 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
             enabled={splitOn} onToggle={setSplitOn}
             people={debtPeople} setPeople={setDebtPeople}
             selectedIds={splitPeople} onChangeSelected={setSplitPeople}
+            method={splitMethod} onMethodChange={setSplitMethod}
+            values={splitValues} onChangeValues={setSplitValues}
+            meIncluded={meIncluded} onToggleMeIncluded={setMeIncluded}
             amount={amt} currency={cur}
+            error={errors.split}
           />
         )}
         <div style={{ marginBottom:16 }}>
