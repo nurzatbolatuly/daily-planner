@@ -67,3 +67,23 @@ export function simulateEarlyRepayment(principal, monthlyRate, months, extraPerM
 
   return { months: month, totalPaid, finalPayment: payment, overpay: Math.max(totalPaid - principal, 0) };
 }
+
+// Разовое досрочное погашение — в отличие от simulateEarlyRepayment (доп. платёж КАЖДЫЙ месяц),
+// здесь довнесение происходит ОДИН раз, на конкретном платеже по счёту (lumpMonth, 1 = следующий).
+// Платёж не пересчитывается (как strategy:"term" выше) — срок сокращается, экономия максимальна.
+export function simulateLumpSumRepayment(principal, monthlyRate, months, lumpSum, lumpMonth) {
+  const payment = monthlyPayment(principal, monthlyRate, months);
+  let balance = principal, month = 0, totalPaid = 0;
+
+  while (balance > 0.01 && month < 1200) {
+    month++;
+    const interest      = balance * monthlyRate;
+    const principalPart = Math.min(payment - interest, balance);
+    const lump           = month === lumpMonth ? Math.min(lumpSum, Math.max(balance - principalPart, 0)) : 0;
+
+    balance   = Math.max(balance - principalPart - lump, 0);
+    totalPaid += interest + principalPart + lump;
+  }
+
+  return { months: month, totalPaid, overpay: Math.max(totalPaid - principal, 0) };
+}

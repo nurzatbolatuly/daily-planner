@@ -11,6 +11,12 @@ export const DEF_EXP = [
     {id: "c12", name: "Непредвиденное", icon: "unplanned", color: "#546e7a"},
 ];
 
+// Фиксированная категория для оплаты ежемесячных платежей/кредитов (MonthlyPaymentsListPage,
+// LoanDetailPage) — id постоянный, чтобы её можно было один раз создать (useMoneyData) и потом
+// находить по id, без выбора категории пользователем при каждой оплате.
+export const BILLS_CATEGORY_ID = "cat-monthly-payments";
+export const BILLS_CATEGORY = { id: BILLS_CATEGORY_ID, name: "Платежи", icon: "payments", color: "#0097a7" };
+
 export const DEF_INC = [
     {id: "i1", name: "Зарплата", icon: "salary", color: "#4caf50", plan_currency: "KZT"},
     {id: "i2", name: "Фриланс", icon: "freelance", color: "#1976d2", plan_currency: "USD"},

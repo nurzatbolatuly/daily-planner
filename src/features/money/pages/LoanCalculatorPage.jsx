@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { getSym, fmtAmtAuto } from "../../../utils/format";
-import { monthlyRateFromPayment, monthlyToAnnualRate, annualToMonthlyRate, loanSummary, simulateEarlyRepayment } from "../../../utils/loan";
+import { todayStr } from "../../../utils/date";
+import { newId } from "../../../utils/id";
+import { supaUpsert } from "../../../lib/supabase";
+import { useSave } from "../../../hooks/useSave";
+import { monthlyRateFromPayment, monthlyToAnnualRate, annualToMonthlyRate, loanSummary, simulateEarlyRepayment, simulateLumpSumRepayment } from "../../../utils/loan";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
+import { BottomSheet } from "../../../components/BottomSheet";
 
 const sym = getSym(BASE_CUR);
 
@@ -20,12 +25,17 @@ const STRATEGIES = [
   { key: "payment", label: "Уменьшить платёж" },
 ];
 
+const PREPAY_MODES = [
+  { key: "monthly", label: "Ежемесячно" },
+  { key: "lump",    label: "Разовый платёж" },
+];
+
 const inputStyle = {
   width: "100%", boxSizing: "border-box", background: C.monCard, border: `1px solid ${C.border}`,
   borderRadius: 10, padding: "12px 14px", color: "#fff", fontSize: 15, outline: "none",
 };
 
-export function LoanCalculatorPage({ onBack }) {
+export function LoanCalculatorPage({ onBack, saveMode = false }) {
   const [mode, setMode] = useState("payment");
 
   const [amount, setAmount]     = useState("");
@@ -34,19 +44,64 @@ export function LoanCalculatorPage({ onBack }) {
   const [rate, setRate]         = useState("");
   const [payment, setPayment]   = useState("");
 
+  const [prepayMode, setPrepayMode] = useState("monthly"); // "monthly" | "lump"
   const [extra, setExtra]           = useState("");
   const [strategy, setStrategy]     = useState("term");
   const [startMonth, setStartMonth] = useState("");
+  const [lumpAmt, setLumpAmt]           = useState("");
+  const [lumpMonthNum, setLumpMonthNum] = useState("1");
+
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [loanName, setLoanName] = useState("");
+  const [loanDay, setLoanDay] = useState(String(new Date().getDate()));
+  const [loanNameError, setLoanNameError] = useState("");
+
+  const openSave = () => {
+    setLoanName("");
+    setLoanDay(String(new Date().getDate()));
+    setLoanNameError("");
+    setSaveOpen(true);
+  };
+
+  const saveLoanRef = useRef(null);
+  const { save: execSaveLoan, saving: savingLoan, saveError: saveLoanError } = useSave(
+    () => saveLoanRef.current(),
+    { errorMsg: "Не удалось сохранить кредит" }
+  );
+  saveLoanRef.current = async () => {
+    const loan = {
+      id: newId(),
+      name: loanName.trim(),
+      principal,
+      currency: BASE_CUR,
+      rate_annual: rateN,
+      term_months: monthsN,
+      remaining_principal: principal,
+      day: parseInt(loanDay, 10) || 1,
+      acc_id: null,
+      cat_id: null,
+      start_date: todayStr(),
+      status: "active",
+      last_paid_month: "",
+      note: "",
+    };
+    await supaUpsert("loans", loan);
+    onBack(true);
+  };
+  const saveLoan = () => {
+    if (!loanName.trim()) { setLoanNameError("Введите название"); return; }
+    execSaveLoan();
+  };
 
   const amountN   = parseFloat(amount) || 0;
   const downN     = Math.min(parseFloat(downPay) || 0, amountN);
   const principal = Math.max(amountN - downN, 0);
   const monthsN   = parseInt(months, 10) || 0;
+  const rateN     = parseFloat(rate) || 0;
 
   let result = null;
 
   if (mode === "payment") {
-    const rateN = parseFloat(rate) || 0;
     if (principal > 0 && monthsN > 0) {
       const { payment: pay, total, overpay } = loanSummary(principal, annualToMonthlyRate(rateN), monthsN);
       result = { payment: pay, total, overpay };
@@ -62,8 +117,7 @@ export function LoanCalculatorPage({ onBack }) {
         result = { annualRate, total, overpay };
       }
     }
-  } else {
-    const rateN  = parseFloat(rate) || 0;
+  } else if (prepayMode === "monthly") {
     const extraN = parseFloat(extra) || 0;
     const startN = Math.max(parseInt(startMonth, 10) || 1, 1);
     if (principal > 0 && monthsN > 0 && extraN > 0) {
@@ -73,6 +127,20 @@ export function LoanCalculatorPage({ onBack }) {
       result = {
         basePayment: base.payment, baseOverpay: base.overpay,
         newMonths: sim.months, newPayment: sim.finalPayment, newOverpay: sim.overpay,
+        savings: Math.max(base.overpay - sim.overpay, 0),
+        monthsSaved: Math.max(monthsN - sim.months, 0),
+      };
+    }
+  } else {
+    const lumpN      = parseFloat(lumpAmt) || 0;
+    const lumpMonthN = Math.max(parseInt(lumpMonthNum, 10) || 1, 1);
+    if (principal > 0 && monthsN > 0 && lumpN > 0) {
+      const monthlyRate = annualToMonthlyRate(rateN);
+      const base = loanSummary(principal, monthlyRate, monthsN);
+      const sim  = simulateLumpSumRepayment(principal, monthlyRate, monthsN, lumpN, lumpMonthN);
+      result = {
+        baseOverpay: base.overpay,
+        newMonths: sim.months, newOverpay: sim.overpay,
         savings: Math.max(base.overpay - sim.overpay, 0),
         monthsSaved: Math.max(monthsN - sim.months, 0),
       };
@@ -131,23 +199,47 @@ export function LoanCalculatorPage({ onBack }) {
 
         {mode === "prepay" && (
           <>
-            <FieldLabel>Доп. платёж в месяц, сверх обязательного</FieldLabel>
-            <NumInput value={extra} onChange={setExtra} placeholder="0" style={{ ...inputStyle, marginBottom: 14 }}/>
-
-            <FieldLabel>Стратегия</FieldLabel>
+            <FieldLabel>Тип досрочного погашения</FieldLabel>
             <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-              {STRATEGIES.map(s => (
-                <button key={s.key} onClick={() => setStrategy(s.key)}
+              {PREPAY_MODES.map(m => (
+                <button key={m.key} onClick={() => setPrepayMode(m.key)}
                   style={{ flex: 1, padding: "9px 8px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700,
-                           background: strategy === s.key ? "rgba(96,165,250,0.18)" : "rgba(255,255,255,0.06)",
-                           color: strategy === s.key ? C.blue : C.dim }}>
-                  {s.label}
+                           background: prepayMode === m.key ? "rgba(96,165,250,0.18)" : "rgba(255,255,255,0.06)",
+                           color: prepayMode === m.key ? C.blue : C.dim }}>
+                  {m.label}
                 </button>
               ))}
             </div>
 
-            <FieldLabel>Начать с платежа № (необязательно, по умолчанию — с первого)</FieldLabel>
-            <NumInput value={startMonth} onChange={setStartMonth} placeholder="1" style={{ ...inputStyle, marginBottom: 14 }}/>
+            {prepayMode === "monthly" ? (
+              <>
+                <FieldLabel>Доп. платёж в месяц, сверх обязательного</FieldLabel>
+                <NumInput value={extra} onChange={setExtra} placeholder="0" style={{ ...inputStyle, marginBottom: 14 }}/>
+
+                <FieldLabel>Стратегия</FieldLabel>
+                <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                  {STRATEGIES.map(s => (
+                    <button key={s.key} onClick={() => setStrategy(s.key)}
+                      style={{ flex: 1, padding: "9px 8px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700,
+                               background: strategy === s.key ? "rgba(96,165,250,0.18)" : "rgba(255,255,255,0.06)",
+                               color: strategy === s.key ? C.blue : C.dim }}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+
+                <FieldLabel>Начать с платежа № (необязательно, по умолчанию — с первого)</FieldLabel>
+                <NumInput value={startMonth} onChange={setStartMonth} placeholder="1" style={{ ...inputStyle, marginBottom: 14 }}/>
+              </>
+            ) : (
+              <>
+                <FieldLabel>Сумма разового платежа</FieldLabel>
+                <NumInput value={lumpAmt} onChange={setLumpAmt} placeholder="0" style={{ ...inputStyle, marginBottom: 14 }}/>
+
+                <FieldLabel>На каком платеже по счёту вносится (1 = на первом)</FieldLabel>
+                <NumInput value={lumpMonthNum} onChange={setLumpMonthNum} placeholder="1" style={{ ...inputStyle, marginBottom: 14 }}/>
+              </>
+            )}
           </>
         )}
 
@@ -199,7 +291,7 @@ export function LoanCalculatorPage({ onBack }) {
               <p style={{ margin: "0 0 14px", fontSize: 26, fontWeight: 800, color: C.green }}>
                 {sym}{fmtAmtAuto(result.savings)}
               </p>
-              {strategy === "term" ? (
+              {prepayMode === "lump" || strategy === "term" ? (
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.dim, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
                   <span>Новый срок</span>
                   <span style={{ color: "#fff" }}>{result.newMonths} мес. вместо {monthsN} {result.monthsSaved > 0 && <span style={{ color: C.green }}>(−{result.monthsSaved})</span>}</span>
@@ -218,6 +310,13 @@ export function LoanCalculatorPage({ onBack }) {
           )}
         </div>
 
+        {saveMode && mode === "payment" && result && (
+          <button onClick={openSave}
+            style={{ width: "100%", padding: 13, borderRadius: 12, background: "transparent", border: `1px dashed rgba(76,175,80,0.4)`, color: C.green, fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 12 }}>
+            Сохранить как кредит
+          </button>
+        )}
+
         {mode === "prepay" && (
           <p style={{ margin: "12px 2px 0", fontSize: 11, color: C.dim, lineHeight: 1.5 }}>
             По ст. 39 Закона РК «О банках и банковской деятельности» банк не вправе брать комиссию
@@ -227,6 +326,33 @@ export function LoanCalculatorPage({ onBack }) {
           </p>
         )}
       </div>
+
+      <BottomSheet open={saveOpen} onClose={() => setSaveOpen(false)} title="Сохранить как кредит">
+        <FieldLabel error={loanNameError}>Название</FieldLabel>
+        <input
+          value={loanName}
+          onChange={e => { setLoanName(e.target.value); setLoanNameError(""); }}
+          placeholder="Например, Рассрочка на телефон"
+          style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${loanNameError?"rgba(244,67,54,0.5)":C.border}`, outline:"none", color:"#fff", fontSize:16, padding:"4px 0", marginBottom:16, boxSizing:"border-box" }}
+        />
+        <div style={{ marginBottom:20 }}>
+          <FieldLabel>День оплаты</FieldLabel>
+          <input
+            type="number" min="1" max="31"
+            value={loanDay}
+            onChange={e => setLoanDay(e.target.value)}
+            style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${C.border}`, outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0", boxSizing:"border-box" }}
+          />
+        </div>
+        <p style={{ margin:"-8px 0 20px", fontSize:12, color:C.dim, lineHeight:1.4 }}>
+          Счёт списания и категория выбираются при оплате очередного платежа — не здесь.
+        </p>
+        {saveLoanError && <p style={{ color:C.errorLight, fontSize:13, textAlign:"center", marginBottom:8 }}>{saveLoanError}</p>}
+        <button onClick={saveLoan} disabled={savingLoan}
+          style={{ width:"100%", padding:"15px", borderRadius:30, background:savingLoan?C.savingDisabled:C.green, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>
+          {savingLoan ? "Сохранение..." : "Создать кредит"}
+        </button>
+      </BottomSheet>
     </div>
   );
 }

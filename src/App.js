@@ -1,7 +1,6 @@
-import { Component, useState, useEffect, useRef, useLayoutEffect } from "react";
+import { Component, useState, useEffect } from "react";
 import { C } from "./constants/theme";
 import { ensureAuth } from "./lib/supabase";
-import PlannerSection from "./features/planner/PlannerSection";
 import MoneyManagerSection from "./features/money/MoneyManagerSection";
 
 class ErrorBoundary extends Component {
@@ -24,26 +23,13 @@ class ErrorBoundary extends Component {
 }
 
 export default function App() {
-  const [section, setSection] = useState(() => localStorage.getItem("app.section") || "planner");
   const [authStatus, setAuthStatus] = useState("loading"); // "loading" | "ok" | "error"
   const [authError, setAuthError]   = useState(null);
-  const headerRef = useRef(null);
 
   useEffect(() => {
     ensureAuth()
       .then(() => setAuthStatus("ok"))
       .catch((e) => { setAuthError(e.message); setAuthStatus("error"); });
-  }, []);
-
-  useLayoutEffect(() => {
-    const el = headerRef.current;
-    if (!el) return;
-    const update = () =>
-      document.documentElement.style.setProperty("--app-header-h", `${el.offsetHeight}px`);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
   }, []);
 
   if (authStatus === "loading") {
@@ -68,21 +54,9 @@ export default function App() {
 
   return (
     <div style={{ fontFamily:"'DM Sans',system-ui,sans-serif", display:"flex", flexDirection:"column", height:"100dvh", overflow:"hidden" }}>
-      {/* Section switcher — in flow, not fixed */}
-      <div ref={headerRef} style={{ flexShrink:0, display:"flex", background:"rgba(8,8,20,0.97)", backdropFilter:"blur(16px)", borderBottom:"1px solid rgba(255,255,255,0.07)", padding:"6px 16px 6px", zIndex:100 }}>
-        <button onClick={() => { setSection("planner"); localStorage.setItem("app.section","planner"); }} style={{ flex:1, padding:"8px 0", borderRadius:10, border:"none", cursor:"pointer", fontSize:14, fontWeight:700, background:section==="planner"?"rgba(99,102,241,0.2)":"transparent", color:section==="planner"?"#a5b4fc":"rgba(255,255,255,0.3)", transition:"all 0.2s" }}>
-          📋 Планнер
-        </button>
-        <button onClick={() => { setSection("money"); localStorage.setItem("app.section","money"); }} style={{ flex:1, padding:"8px 0", borderRadius:10, border:"none", cursor:"pointer", fontSize:14, fontWeight:700, background:section==="money"?"rgba(76,175,80,0.2)":"transparent", color:section==="money"?"#86efac":"rgba(255,255,255,0.3)", transition:"all 0.2s" }}>
-          💰 Финансы
-        </button>
-      </div>
-
-      {/* Content — fills remaining height, each section manages its own scroll */}
       <div style={{ flex:1, overflow:"auto" }}>
-        <ErrorBoundary key={section}>
-          {section === "planner" && <PlannerSection/>}
-          {section === "money"   && <MoneyManagerSection/>}
+        <ErrorBoundary>
+          <MoneyManagerSection/>
         </ErrorBoundary>
       </div>
     </div>

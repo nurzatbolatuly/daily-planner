@@ -27,6 +27,9 @@ import { DebtPersonDetailPage } from "./pages/DebtPersonDetailPage";
 import { DebtFormPage } from "./pages/DebtFormPage";
 import { PriceCatalogSection } from "../priceCatalog/PriceCatalogSection";
 import { LoanCalculatorPage } from "./pages/LoanCalculatorPage";
+import { MonthlyPaymentsListPage } from "./pages/MonthlyPaymentsListPage";
+import { BillFormPage } from "./pages/BillFormPage";
+import { LoanDetailPage } from "./pages/LoanDetailPage";
 
 const MON_NAV_HEIGHT = 60;
 
@@ -115,7 +118,11 @@ export default function MoneyManagerSection() {
       debtPersonDetail: (d) => <DebtPersonDetailPage person={data.debtPeople.find(p => p.id === d.id) || d} debtEvents={data.debtEvents} accounts={data.accounts} transactions={data.transactions} navigate={navigate} onReload={data.reload} onBack={goBack}/>,
       addDebt:      ()  => <DebtFormPage debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} accounts={data.accounts} onBack={goBack}/>,
       priceCatalog: ()  => <PriceCatalogSection onBack={() => goBack(false)}/>,
-      loanCalc:     ()  => <LoanCalculatorPage onBack={goBack}/>,
+      loanCalc:     (d) => <LoanCalculatorPage onBack={goBack} saveMode={!!d?.saveMode}/>,
+      menuMonthly:  ()  => <MonthlyPaymentsListPage recurring={data.recurring} loans={data.loans} accounts={data.accounts} navigate={navigate} onReload={data.reload} onBack={() => goBack(false)}/>,
+      addBill:      ()  => <BillFormPage onBack={goBack}/>,
+      editBill:     (d) => <BillFormPage onBack={goBack} edit={d}/>,
+      loanDetail:   (d) => <LoanDetailPage loan={data.loans.find(l => l.id === d.id) || d} accounts={data.accounts} navigate={navigate} onReload={data.reload} onBack={goBack}/>,
       catTxs: (d) => {
         const week = new Date(); week.setDate(week.getDate() - 7);
         const liveTxs = data.transactions.filter(t => {
