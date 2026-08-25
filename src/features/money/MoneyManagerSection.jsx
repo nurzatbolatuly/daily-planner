@@ -30,6 +30,9 @@ import { LoanCalculatorPage } from "./pages/LoanCalculatorPage";
 import { MonthlyPaymentsListPage } from "./pages/MonthlyPaymentsListPage";
 import { BillFormPage } from "./pages/BillFormPage";
 import { LoanDetailPage } from "./pages/LoanDetailPage";
+import { CashflowPage } from "./pages/CashflowPage";
+import { PlannedIncomeFormPage } from "./pages/PlannedIncomeFormPage";
+import { PlannedExpenseFormPage } from "./pages/PlannedExpenseFormPage";
 
 const MON_NAV_HEIGHT = 60;
 
@@ -49,6 +52,11 @@ export default function MoneyManagerSection() {
     return t === "plans" ? "budget" : t;
   });
   const [budgetTab, setBudgetTab] = useState(() => localStorage.getItem("mon.budgetTab") || "month");
+  // Выбранный месяц в бюджете — лежит здесь, а не внутри MoneyBudgetSection, потому что
+  // экран размонтируется при переходе на addPlan/editPlan и обратно (см. `if (screen)` ниже),
+  // и локальный useState сбрасывался бы на текущий месяц при каждом возврате.
+  const [planMonth, setPlanMonth] = useState(new Date().getMonth());
+  const [planYear,  setPlanYear]  = useState(new Date().getFullYear());
 
   const [stack, setStack] = useState([]);
   const screen = stack[stack.length - 1] || null;
@@ -123,6 +131,11 @@ export default function MoneyManagerSection() {
       addBill:      ()  => <BillFormPage onBack={goBack}/>,
       editBill:     (d) => <BillFormPage onBack={goBack} edit={d}/>,
       loanDetail:   (d) => <LoanDetailPage loan={data.loans.find(l => l.id === d.id) || d} accounts={data.accounts} navigate={navigate} onReload={data.reload} onBack={goBack}/>,
+      cashflow:     ()  => <CashflowPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} recurring={data.recurring} loans={data.loans} monthPlans={data.monthPlans} plannedIncomes={data.plannedIncomes} plannedExpenses={data.plannedExpenses} navigate={navigate} onReload={data.reload} onBack={() => goBack(false)}/>,
+      addPlannedIncome:  ()  => <PlannedIncomeFormPage incCats={data.incCats} onBack={goBack}/>,
+      editPlannedIncome: (d) => <PlannedIncomeFormPage incCats={data.incCats} onBack={goBack} edit={d}/>,
+      addPlannedExpense:  ()  => <PlannedExpenseFormPage expCats={data.expCats} onBack={goBack}/>,
+      editPlannedExpense: (d) => <PlannedExpenseFormPage expCats={data.expCats} onBack={goBack} edit={d}/>,
       catTxs: (d) => {
         const week = new Date(); week.setDate(week.getDate() - 7);
         const liveTxs = data.transactions.filter(t => {
@@ -153,7 +166,7 @@ export default function MoneyManagerSection() {
       <div ref={contentRef} style={{ overflowY: "auto", height: `calc(100dvh - var(--app-header-h) - var(--mon-nav-h, ${MON_NAV_HEIGHT}px))` }}>
         {monTab === "home"      && <MoneyHomeSection      data={data} navigate={navigate} onGoToBudget={() => setMonTabP("budget")}/>}
         {monTab === "accounts"  && <MoneyAccountsSection  data={data} navigate={navigate}/>}
-        {monTab === "budget"    && <MoneyBudgetSection    data={data} navigate={navigate} budgetTab={budgetTab} setBudgetTab={setBudgetTabP}/>}
+        {monTab === "budget"    && <MoneyBudgetSection    data={data} navigate={navigate} budgetTab={budgetTab} setBudgetTab={setBudgetTabP} planMonth={planMonth} setPlanMonth={setPlanMonth} planYear={planYear} setPlanYear={setPlanYear}/>}
         {monTab === "analytics" && <MoneyAnalyticsSection data={data} navigate={navigate}/>}
         {monTab === "menu"      && <MoneyMenuPage         navigate={navigate}/>}
       </div>

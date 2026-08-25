@@ -15,7 +15,7 @@ const sym = getSym(BASE_CUR);
 
 export function BillFormPage({ onBack, edit }) {
   const [name, setName] = useState(edit?.name || "");
-  const [day, setDay] = useState(edit?.day || 1);
+  const [day, setDay] = useState(edit?.day || 14);
   const [amt, setAmt] = useState(edit?.amount ? String(edit.amount) : "");
   const [active, setActive] = useState(edit?.active !== false);
   const [errors, setErrors] = useState({});

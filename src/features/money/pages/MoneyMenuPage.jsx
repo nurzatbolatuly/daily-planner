@@ -4,6 +4,7 @@ import { Ico } from "../../../components/Ico";
 const MENU_ITEMS = [
   { label: "Категории",              key: "menuCats"     },
   { label: "Ежемесячные платежи",    key: "menuMonthly"  },
+  { label: "Денежный поток",         key: "cashflow"     },
   { label: "Долги",                  key: "menuDebts"    },
   { label: "Каталог цен",            key: "priceCatalog" },
   { label: "Кредитный калькулятор",  key: "loanCalc"     },

@@ -66,10 +66,22 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
   const regularPaymentsCount = payments.filter(p => !p.is_early_repayment).length;
   const remainingMonths = Math.max(loan.term_months - regularPaymentsCount, 1);
 
-  // Оплатить очередной платёж
+  // Оплатить очередной платёж. Сумма по умолчанию — плановый аннуитетный платёж, но
+  // редактируемая: банк списывает округлённую сумму, а не то, что выходит при делении
+  // платежа на тело/проценты с копейками. Пользователь правит сумму под факт из банка —
+  // проценты по-прежнему считаются формулой от remaining_principal, а тело = введённая
+  // сумма минус проценты (clamp на случай последнего платежа). Плановый currentPayment
+  // при этом не трогаем — он всегда считается от исходного principal/term_months.
   const [payOpen, setPayOpen] = useState(false);
   const [payAccId, setPayAccId] = useState("");
-  const openPay = () => { setPayAccId(loan.acc_id || accounts[0]?.id || ""); setPayOpen(true); };
+  const [payAmtInput, setPayAmtInput] = useState("");
+  const openPay = () => {
+    setPayAccId(loan.acc_id || accounts[0]?.id || "");
+    setPayAmtInput(String(round2(currentPayment)));
+    setPayOpen(true);
+  };
+  const payInterestPart  = round2(loan.remaining_principal * monthlyRate);
+  const payPrincipalPart = round2(Math.max(Math.min((parseFloat(payAmtInput) || 0) - payInterestPart, loan.remaining_principal), 0));
 
   const payRef = useRef(null);
   const { save: execPay, saving: paying, saveError: payError, setSaveError: setPayError } = useSave(
@@ -79,9 +91,9 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
   payRef.current = async () => {
     const acc = accounts.find(a => a.id === payAccId);
     if (!acc) return;
-    const interestPart  = round2(loan.remaining_principal * monthlyRate);
-    const principalPart = round2(Math.min(currentPayment - interestPart, loan.remaining_principal));
-    const payAmt         = round2(interestPart + principalPart);
+    const interestPart  = payInterestPart;
+    const principalPart = payPrincipalPart;
+    const payAmt         = round2(parseFloat(payAmtInput) || 0);
     const newRemaining   = round2(Math.max(loan.remaining_principal - principalPart, 0));
     const newStatus      = newRemaining <= 0.01 ? "closed" : "active";
     const tx = {
@@ -103,7 +115,7 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
     await fetchPayments();
     onReload();
   };
-  const pay = () => { if (payAccId) execPay(); };
+  const pay = () => { if (payAccId && (parseFloat(payAmtInput) || 0) > 0) execPay(); };
 
   // Досрочное погашение разовым платежом. Число "через сколько платежей" — только для
   // предпросмотра (что будет, если внести сумму после N плановых платежей); само действие
@@ -320,10 +332,16 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
       {/* Pay sheet */}
       <BottomSheet open={payOpen} onClose={() => { setPayOpen(false); setPayError(null); }} title="Оплатить кредит">
         <AccSelect accounts={accounts} value={payAccId} onChange={setPayAccId} label="Счёт списания"/>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: C.dim }}>
-          Платёж: <span style={{ color: "#fff", fontWeight: 600 }}>{sym}{fmtAmtAuto(currentPayment)}</span>
-          {" "}(тело {sym}{fmtAmtAuto(round2(Math.min(currentPayment - loan.remaining_principal * monthlyRate, loan.remaining_principal)))}
-          {" "}· проценты {sym}{fmtAmtAuto(round2(loan.remaining_principal * monthlyRate))})
+        <FieldLabel>Сумма платежа</FieldLabel>
+        <NumInput
+          value={payAmtInput}
+          onChange={setPayAmtInput}
+          placeholder={String(round2(currentPayment))}
+          style={{ width: "100%", background: "none", border: "none", borderBottom: `1px solid ${C.border}`, outline: "none", color: "#fff", fontSize: 22, fontWeight: 600, padding: "4px 0", marginBottom: 8, boxSizing: "border-box" }}
+        />
+        <p style={{ margin: "0 0 16px", fontSize: 12, color: C.dim, lineHeight: 1.4 }}>
+          Плановый платёж {sym}{fmtAmtAuto(currentPayment)} — если банк списал другую сумму (округление), укажите её здесь.
+          {" "}(тело {sym}{fmtAmtAuto(payPrincipalPart)} · проценты {sym}{fmtAmtAuto(payInterestPart)})
         </p>
         {payError && <p style={{ color: C.errorLight, fontSize: 13, textAlign: "center", marginBottom: 8 }}>{payError}</p>}
         <button onClick={pay} disabled={paying}

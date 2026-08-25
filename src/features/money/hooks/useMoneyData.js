@@ -16,13 +16,15 @@ export function useMoneyData() {
   const [debtEvents, setDebtEvents] = useState([]);
   const [recurring, setRecurring] = useState([]);
   const [loans, setLoans] = useState([]);
+  const [plannedIncomes, setPlannedIncomes] = useState([]);
+  const [plannedExpenses, setPlannedExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const [acc, txs, trs, ec, ic, mp, tp, gl, gt, dp, de, rc, ln] = await Promise.all([
+      const [acc, txs, trs, ec, ic, mp, tp, gl, gt, dp, de, rc, ln, pi, pe] = await Promise.all([
         supa.select("accounts", "order=created_at.asc"),
         supa.select("transactions", "order=created_at.desc"),
         supa.select("transfers", "order=created_at.desc"),
@@ -36,6 +38,8 @@ export function useMoneyData() {
         supa.select("debt_events", "order=date.desc"),
         supa.select("recurring", "order=day.asc"),
         supa.select("loans", "order=day.asc"),
+        supa.select("planned_incomes", "order=expected_date.asc"),
+        supa.select("planned_expenses", "order=expected_date.asc"),
       ]);
       // Всегда выставляем массивы целиком (даже пустые), иначе удаление ПОСЛЕДНЕЙ
       // строки таблицы оставляет устаревший стейт. Категории — единственное
@@ -62,6 +66,8 @@ export function useMoneyData() {
       setDebtEvents(de || []);
       setRecurring(rc || []);
       setLoans(ln || []);
+      setPlannedIncomes(pi || []);
+      setPlannedExpenses(pe || []);
     } catch(e) {
       console.error("Load money data:", e);
       setLoadError("Не удалось загрузить данные. Проверьте соединение.");
@@ -72,5 +78,5 @@ export function useMoneyData() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
 
-  return { accounts, setAccounts, transactions, setTransactions, transfers, setTransfers, expCats, setExpCats, incCats, setIncCats, monthPlans, setMonthPlans, tripPlans, setTripPlans, goals, setGoals, goalTopups, setGoalTopups, debtPeople, setDebtPeople, debtEvents, setDebtEvents, recurring, setRecurring, loans, setLoans, loading, loadError, reload: load };
+  return { accounts, setAccounts, transactions, setTransactions, transfers, setTransfers, expCats, setExpCats, incCats, setIncCats, monthPlans, setMonthPlans, tripPlans, setTripPlans, goals, setGoals, goalTopups, setGoalTopups, debtPeople, setDebtPeople, debtEvents, setDebtEvents, recurring, setRecurring, loans, setLoans, plannedIncomes, setPlannedIncomes, plannedExpenses, setPlannedExpenses, loading, loadError, reload: load };
 }

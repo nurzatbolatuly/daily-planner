@@ -8,14 +8,16 @@ import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts, calcTotalBalance
 import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportTransactionsXLSX } from "../../../utils/export";
+import { projectRecurringItems, projectPlanItems, buildDayMap, addMonths } from "../../../utils/cashflowTimeline";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 import { CalendarPicker } from "../../../components/CalendarPicker";
 import { BottomSheet } from "../../../components/BottomSheet";
 import { DonutChart } from "../components/DonutChart";
+import { CashflowRuler } from "../components/CashflowRuler";
 
 export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate, onGoToBudget }) {
-  const { accounts, transactions: rawTransactions, transfers, expCats, incCats, monthPlans, debtEvents } = data;
+  const { accounts, transactions: rawTransactions, transfers, expCats, incCats, monthPlans, debtEvents, recurring, loans, plannedIncomes, plannedExpenses } = data;
   // Личная доля вместо полной суммы для сплит-расходов — иначе чужие доли завышают
   // категории/бюджет/over-budget баннер (см. utils/debtLedger.withPersonalAmounts).
   const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
@@ -105,6 +107,21 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
     return planInc > 0 && overBy > 0 ? { overBy } : null;
   }, [monthPlans, transactions, transfers, accounts, rates]);
 
+  // Мини-лента "Денежный поток" — тот же движок, что и на полной странице (CashflowPage), просто
+  // узкое окно вперёд и клик по чему угодно ведёт на полную страницу. Начинается сегодня — прошлое
+  // на ленте не показываем (см. CashflowPage.rulerRange); у виджета нет своего списка "ближайшие
+  // события", поэтому здесь, в отличие от полной страницы, не нужен отдельный более широкий диапазон
+  // для проекции назад ради просроченных.
+  const cashflowRange = useMemo(() => ({ start: todayStr(), end: addMonths(todayStr(), 2) }), []);
+  const cashflowProjectedItems = useMemo(() => [
+    ...projectRecurringItems(recurring, loans, cashflowRange.start, cashflowRange.end),
+    ...projectPlanItems(monthPlans, cashflowRange.start, cashflowRange.end),
+  ], [recurring, loans, monthPlans, cashflowRange]);
+  const cashflowDayMap = useMemo(
+    () => buildDayMap(plannedIncomes, plannedExpenses, cashflowProjectedItems),
+    [plannedIncomes, plannedExpenses, cashflowProjectedItems]
+  );
+
   const prevP = () => {
     if (period === "month") { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); } else setViewMonth(m => m - 1); }
     else setViewYear(y => y - 1);
@@ -159,6 +176,15 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
         </div>
       )}
 
+      {/* Денежный поток — мини-лента */}
+      <div onClick={() => navigate("cashflow")} style={{ margin: "12px 12px 0", background: C.monCard, borderRadius: 20, cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px 8px" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>Денежный поток</span>
+          <Ico n="chevR" s={16} c={C.dim}/>
+        </div>
+        <CashflowRuler rangeStart={cashflowRange.start} rangeEnd={cashflowRange.end} dayMap={cashflowDayMap} onTapDay={() => navigate("cashflow")} compact/>
+      </div>
+
       {/* Chart card */}
       <div style={{ margin: "12px 12px 0", background: C.monCard, borderRadius: 20 }}>
         <div style={{ display: "flex", padding: "10px 12px 0", gap: 2 }}>
@@ -197,7 +223,12 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
 
         {/* Category list header with filter button */}
         {catData.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "10px 16px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: txFilter.catIds.length > 0 ? "space-between" : "flex-end", padding: "10px 16px 0", gap: 8 }}>
+            {txFilter.catIds.length > 0 && (
+              <span style={{ fontSize: 12, color: C.dim }}>
+                Сумма по выбранным ({txFilter.catIds.length}): <span style={{ fontWeight: 700, color: C.main }}>{sym}{fmtAmtAuto(grandTotal)}</span>
+              </span>
+            )}
             <button onClick={() => setShowFilter(true)}
               style={{ display: "flex", alignItems: "center", gap: 4, background: isFilterActive ? "rgba(76,175,80,0.15)" : "none", border: isFilterActive ? `1px solid rgba(76,175,80,0.3)` : "1px solid transparent", borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: isFilterActive ? C.green : C.dim }}>
               <Ico n="filter" s={14} c={isFilterActive ? C.green : C.dim}/>

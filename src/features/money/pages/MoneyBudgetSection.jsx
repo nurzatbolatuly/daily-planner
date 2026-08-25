@@ -66,7 +66,14 @@ function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, to
                       {its.map(it => (
                         <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0 3px 34px" }}>
                           <span style={{ fontSize: 12, color: C.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: 8 }}>• {it.label || "—"}</span>
-                          <span style={{ fontSize: 12, color: C.mid, flexShrink: 0 }}>{getSym(planCurrency)}{fmtAmtAuto(it.amount)}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                            {it.date && (
+                              <span style={{ fontSize: 10, color: C.dim, background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "1px 6px", whiteSpace: "nowrap" }}>
+                                {parseInt(it.date.split("-")[2], 10)} число
+                              </span>
+                            )}
+                            <span style={{ fontSize: 12, color: C.mid }}>{getSym(planCurrency)}{fmtAmtAuto(it.amount)}</span>
+                          </div>
                         </div>
                       ))}
                       {its.length === 0 && planData && (
@@ -200,13 +207,11 @@ function SelfDebtCard({ debtData, accounts, sym, navigate, cardRef }) {
   );
 }
 
-export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navigate, budgetTab, setBudgetTab }) {
+export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navigate, budgetTab, setBudgetTab, planMonth, setPlanMonth, planYear, setPlanYear }) {
   const { accounts, transactions: rawTransactions, transfers, expCats, incCats, monthPlans, tripPlans, goals, debtEvents } = data;
   // Личная доля вместо полной суммы для сплит-расходов (см. MoneyHomeSection).
   const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
 
-  const [planMonth, setPlanMonth]   = useState(new Date().getMonth());
-  const [planYear,  setPlanYear]    = useState(new Date().getFullYear());
   const [expanded,   setExpanded]   = useState({});
   const [activePill,        setActivePill]        = useState("expense");
   const [activePerspective, setActivePerspective] = useState("plan");

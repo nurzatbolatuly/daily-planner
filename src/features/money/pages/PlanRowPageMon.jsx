@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { getSym, fmtAmtAuto } from "../../../utils/format";
+import { pad } from "../../../utils/date";
 import { supaUpsert, supa } from "../../../lib/supabase";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { newId } from "../../../utils/id";
@@ -16,15 +17,21 @@ import { CategoryPicker } from "../../../components/CategoryPicker";
 import { CurrencyPage } from "../../../components/CurrencyPage";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 
+// День платежа хранится как полная дата в items[].date ("YYYY-MM-DD") — но редактируется как
+// просто "число месяца", т.к. месяц статьи и так фиксирован (= месяц плана). Тут — обратное
+// извлечение числа из даты для поля ввода.
+const dayOf = (dateStr) => dateStr ? String(parseInt(dateStr.split("-")[2], 10)) : "";
+
 export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, month, prefillCatId, prefillAccId, prefillType }) {
   const [type,    setType]    = useState(edit?.type || prefillType || "expense");
   const [catId,   setCatId]   = useState(edit?.cat_id  || prefillCatId  || "");
   const [accId,   setAccId]   = useState(edit?.acc_id  || prefillAccId  || "");
   const [planCur, setPlanCur] = useState(edit?.plan_currency || BASE_CUR);
+  const planMonthKey = edit?.month || month;
   const [items,   setItems]   = useState(() => {
-    if (edit?.items?.length) return edit.items.map(it => ({ id: it.id || newId(), label: it.label || "", amount: it.amount != null ? String(it.amount) : "" }));
-    if (edit?.plan) return [{ id: newId(), label: "", amount: String(edit.plan) }];
-    return [{ id: newId(), label: "", amount: "" }];
+    if (edit?.items?.length) return edit.items.map(it => ({ id: it.id || newId(), label: it.label || "", amount: it.amount != null ? String(it.amount) : "", day: dayOf(it.date), done: it.done || false }));
+    if (edit?.plan) return [{ id: newId(), label: "", amount: String(edit.plan), day: "", done: false }];
+    return [{ id: newId(), label: "", amount: "", day: "", done: false }];
   });
   const [showCur, setShowCur] = useState(false);
   const [errors,  setErrors]  = useState({});
@@ -43,12 +50,25 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
 
   const total = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
   const setItem = (id, patch) => setItems(prev => prev.map(it => it.id === id ? { ...it, ...patch } : it));
-  const addItem = () => setItems(prev => [...prev, { id: newId(), label: "", amount: "" }]);
+  const addItem = () => setItems(prev => [...prev, { id: newId(), label: "", amount: "", day: "", done: false }]);
   const delItem = (id) => setItems(prev => prev.length === 1 ? prev : prev.filter(it => it.id !== id));
 
+  // День статьи (опционально) → полная дата в границах месяца плана, зажатая по факт. числу
+  // дней в месяце (как day у recurring/loans) — год/месяц берутся из planMonthKey, не вводятся.
+  const dateFromDay = (day) => {
+    const n = parseInt(day, 10);
+    if (!n) return null;
+    const [y, mo] = planMonthKey.split("-").map(Number);
+    const daysInMonth = new Date(y, mo, 0).getDate();
+    return `${planMonthKey}-${pad(Math.min(n, daysInMonth))}`;
+  };
+
   saveRef.current = async () => {
+    // done не редактируется в этой форме (нет поля) — просто переносится как было, чтобы правка
+    // плана (название/сумма/день) не сбрасывала отметку "уже зафиксировано", поставленную с ленты
+    // "Денежный поток" (CashflowPage.markPlanItemDone).
     const cleanItems = items
-      .map(it => ({ id: it.id, label: it.label.trim(), amount: parseFloat(it.amount) || 0 }))
+      .map(it => ({ id: it.id, label: it.label.trim(), amount: parseFloat(it.amount) || 0, date: type === "savings" ? null : dateFromDay(it.day), done: it.done || false }))
       .filter(it => it.amount > 0);
     const p = {
       id:            edit?.id || newId(),
@@ -57,7 +77,7 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
       type,
       plan:          cleanItems.reduce((s, it) => s + it.amount, 0),
       plan_currency: planCur,
-      month:         edit?.month || month,
+      month:         planMonthKey,
       items:         cleanItems,
     };
     await supaUpsert("month_plans", p);
@@ -107,12 +127,24 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
         {items.map(it => (
           <div key={it.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
             <input value={it.label} onChange={e => setItem(it.id, { label:e.target.value })} placeholder={type === "savings" ? "Цель (напр. резервный фонд)" : "Статья (напр. продукты)"} style={{ ...inputBox, flex:1, minWidth:0 }}/>
-            <NumInput value={it.amount} onChange={v => { setItem(it.id, { amount:v }); setErrors(p => ({...p, items:""})); }} placeholder="0" style={{ ...inputBox, width:110, fontWeight:600, textAlign:"right" }}/>
+            <NumInput value={it.amount} onChange={v => { setItem(it.id, { amount:v }); setErrors(p => ({...p, items:""})); }} placeholder="0" style={{ ...inputBox, width:96, fontWeight:600, textAlign:"right" }}/>
+            {type !== "savings" && (
+              <input
+                type="number" min="1" max="31" value={it.day}
+                onChange={e => setItem(it.id, { day:e.target.value })}
+                placeholder="День"
+                title="День платежа (опционально) — статья появится на ленте «Денежный поток»"
+                style={{ ...inputBox, width:52, textAlign:"center" }}
+              />
+            )}
             <button onClick={() => delItem(it.id)} disabled={items.length===1} style={{ background:"none", border:"none", cursor:items.length===1?"default":"pointer", padding:4, display:"flex", opacity:items.length===1?0.3:1 }}>
               <Ico n="x" s={16} c="rgba(244,67,54,0.6)"/>
             </button>
           </div>
         ))}
+        {type !== "savings" && (
+          <p style={{ margin:"-4px 0 8px", fontSize:11, color:C.dim }}>«День» — опционально, число месяца плана. Если указано, статья появится на ленте «Денежный поток».</p>
+        )}
         {errors.items && <p style={{ color:C.red, fontSize:12, marginBottom:8 }}>{errors.items}</p>}
         <button onClick={addItem} style={{ width:"100%", padding:"10px", borderRadius:10, background:"transparent", border:`1px dashed rgba(76,175,80,0.4)`, color:C.green, fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:12 }}>+ Добавить статью</button>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 14px", borderRadius:10, background:"rgba(255,255,255,0.04)", marginBottom:24 }}>
