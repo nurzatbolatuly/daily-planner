@@ -5,8 +5,9 @@ import { BILLS_CATEGORY_ID } from "../../../constants/money";
 import { supabase, supa, supaRpc, supaUpsert } from "../../../lib/supabase";
 import { newId } from "../../../utils/id";
 import { todayStr, monthKey } from "../../../utils/date";
-import { getSym, fmtAmtAuto, round2 } from "../../../utils/format";
-import { monthlyPayment, annualToMonthlyRate, loanSummary, simulateLumpSumRepayment } from "../../../utils/loan";
+import { getSym, fmtAmtAuto, fmtDateShort, round2 } from "../../../utils/format";
+import { addMonths } from "../../../utils/cashflowTimeline";
+import { monthlyPayment, annualToMonthlyRate, loanSummary, simulateLumpSumRepayment, remainingAfterPayments } from "../../../utils/loan";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { Ico } from "../../../components/Ico";
@@ -14,6 +15,7 @@ import { FieldLabel } from "../../../components/FieldLabel";
 import { BottomSheet } from "../../../components/BottomSheet";
 import { AccSelect } from "../../../components/AccSelect";
 import { NumInput } from "../../../components/NumInput";
+import { CalendarPicker } from "../../../components/CalendarPicker";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 
 function fmtDate(s) {
@@ -34,6 +36,10 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
   const linkedAcc = accounts.find(a => a.id === loan.acc_id);
   const mk = monthKey(todayStr());
   const paidThisMonth = loan.last_paid_month === mk;
+  // Дата первого платежа ещё не наступила (новый кредит, первый платёж в след. месяце) —
+  // платить рано, показываем дату старта вместо "Оплачено"/"Оплатить" (см. ту же ловушку
+  // в MonthlyPaymentsListPage.jsx и фильтр по start_date в utils/cashflowTimeline.js).
+  const notStarted = !!loan.start_date && monthKey(loan.start_date) > mk;
 
   // Ленивая загрузка истории платежей ТОЛЬКО этого кредита — не раздувает общий стор useMoneyData.
   const [payments, setPayments] = useState([]);
@@ -62,8 +68,10 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
   }, [payments]);
 
   // Оставшийся срок = исходный срок минус уже сделанные ОБЫЧНЫЕ платежи (досрочные его не считают —
-  // они гасят тело сверх графика, не заменяют собой плановый платёж).
-  const regularPaymentsCount = payments.filter(p => !p.is_early_repayment).length;
+  // они гасят тело сверх графика, не заменяют собой плановый платёж) минус платежи, уже сделанные
+  // ДО того как кредит попал в приложение (months_paid_at_creation, импорт старой рассрочки —
+  // у них нет строк в loan_payments, только это число на самом кредите).
+  const regularPaymentsCount = payments.filter(p => !p.is_early_repayment).length + (loan.months_paid_at_creation || 0);
   const remainingMonths = Math.max(loan.term_months - regularPaymentsCount, 1);
 
   // Оплатить очередной платёж. Сумма по умолчанию — плановый аннуитетный платёж, но
@@ -180,15 +188,26 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
   };
 
   // Правка базовых полей (название/счёт/день/категория) — без пересчёта условий кредита.
+  // Дата первого платежа/месяцев уже оплачено — тоже здесь (v18): нужны для кредитов,
+  // созданных ДО появления этих полей на экране создания, чтобы не пересоздавать запись.
+  // Пересчёт remaining_principal/last_paid_month из них происходит ТОЛЬКО если у кредита ещё
+  // нет ни одного платежа в приложении (payments.length === 0, см. editRef.current ниже) —
+  // иначе это стёрло бы прогресс, уже отслеженный реальными оплатами через LoanDetailPage.
   const [editOpen, setEditOpen] = useState(false);
   const [editName, setEditName] = useState(loan.name);
   const [editAccId, setEditAccId] = useState(loan.acc_id || "");
   const [editDay, setEditDay] = useState(String(loan.day));
+  const [editStartDate, setEditStartDate] = useState(loan.start_date || todayStr());
+  const [showEditStartCal, setShowEditStartCal] = useState(false);
+  const [editMonthsPaid, setEditMonthsPaid] = useState(String(loan.months_paid_at_creation || 0));
   const [editNameError, setEditNameError] = useState("");
   const openEdit = () => {
     setEditName(loan.name); setEditAccId(loan.acc_id || ""); setEditDay(String(loan.day));
+    setEditStartDate(loan.start_date || todayStr());
+    setEditMonthsPaid(String(loan.months_paid_at_creation || 0));
     setEditNameError(""); setEditOpen(true);
   };
+  const noAppPayments = payments.length === 0;
 
   const editRef = useRef(null);
   const { save: execEdit, saving: savingEdit, saveError: editError } = useSave(
@@ -196,10 +215,24 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
     { errorMsg: "Не удалось сохранить" }
   );
   editRef.current = async () => {
-    await supaUpsert("loans", {
+    const editMonthsPaidN = Math.min(Math.max(parseInt(editMonthsPaid, 10) || 0, 0), loan.term_months);
+    const updated = {
       ...loan, name: editName.trim(), acc_id: editAccId || null,
       day: parseInt(editDay, 10) || 1,
-    });
+      start_date: editStartDate,
+      months_paid_at_creation: editMonthsPaidN,
+    };
+    // Кредит ещё ни разу не оплачивался в приложении — можно безопасно пересчитать остаток
+    // тела/статус "оплачено в этом месяце" от новых значений, как при создании (LoanCalculatorPage).
+    if (noAppPayments) {
+      const remaining = editMonthsPaidN > 0
+        ? round2(remainingAfterPayments(loan.principal, monthlyRate, loan.term_months, editMonthsPaidN))
+        : loan.principal;
+      updated.remaining_principal = remaining;
+      updated.last_paid_month = editMonthsPaidN > 0 ? monthKey(addMonths(editStartDate, editMonthsPaidN - 1)) : "";
+      updated.status = remaining <= 0.01 ? "closed" : "active";
+    }
+    await supaUpsert("loans", updated);
     setEditOpen(false);
     onReload();
   };
@@ -257,7 +290,9 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
                 <p style={{ margin: 0, fontSize: 11, color: C.dim }}>Платёж {loan.day} числа</p>
                 <p style={{ margin: "2px 0 0", fontSize: 16, fontWeight: 700, color: "#fff" }}>{sym}{fmtAmtAuto(currentPayment)}</p>
               </div>
-              {paidThisMonth ? (
+              {notStarted ? (
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.dim }}>Первый платёж {fmtDateShort(loan.start_date)}</span>
+              ) : paidThisMonth ? (
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.green }}>Оплачено в этом месяце</span>
               ) : (
                 <button onClick={openPay}
@@ -318,6 +353,9 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
                   <span style={{ fontSize: 14, color: C.main }}>{sym}{fmtAmtAuto(p.amount)}</span>
                   {p.is_early_repayment && (
                     <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: "rgba(76,175,80,0.15)", padding: "2px 6px", borderRadius: 6 }}>ДОСРОЧНО</span>
+                  )}
+                  {!p.transaction_id && (
+                    <span style={{ fontSize: 10, fontWeight: 700, color: C.dim, background: "rgba(255,255,255,0.06)", padding: "2px 6px", borderRadius: 6 }}>БЕЗ СЧЁТА</span>
                   )}
                 </div>
                 <p style={{ margin: "2px 0 0", fontSize: 12, color: C.dim }}>
@@ -410,6 +448,26 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
             style={{ width: "100%", background: "none", border: "none", borderBottom: `1px solid ${C.border}`, outline: "none", color: "#fff", fontSize: 22, fontWeight: 600, padding: "4px 0", boxSizing: "border-box" }}
           />
         </div>
+
+        <div style={{ marginBottom: 8 }}>
+          <FieldLabel>Дата первого платежа</FieldLabel>
+          <button onClick={() => setShowEditStartCal(true)}
+            style={{ width: "100%", background: "none", border: "none", borderBottom: `1px solid ${C.border}`, outline: "none", color: "#fff", fontSize: 22, fontWeight: 600, padding: "4px 0", textAlign: "left", cursor: "pointer" }}>
+            {fmtDateShort(editStartDate)}
+          </button>
+        </div>
+
+        <div style={{ marginBottom: 8 }}>
+          <FieldLabel>Сколько месяцев уже оплачено</FieldLabel>
+          <NumInput value={editMonthsPaid} onChange={setEditMonthsPaid} placeholder="0"
+            style={{ width: "100%", background: "none", border: "none", borderBottom: `1px solid ${C.border}`, outline: "none", color: "#fff", fontSize: 22, fontWeight: 600, padding: "4px 0", boxSizing: "border-box" }}/>
+        </div>
+        <p style={{ margin: "-4px 0 16px", fontSize: 12, color: C.dim, lineHeight: 1.4 }}>
+          {noAppPayments
+            ? "Остаток долга и статус «оплачено в этом месяце» пересчитаются от этих двух полей."
+            : "У кредита уже есть платежи в приложении — остаток долга ими же и отслеживается, эти поля изменят только дату старта и оставшийся срок в расчётах, не остаток."}
+        </p>
+
         {editError && <p style={{ color: C.errorLight, fontSize: 13, textAlign: "center", marginBottom: 8 }}>{editError}</p>}
         <button onClick={saveEdit} disabled={savingEdit}
           style={{ width: "100%", padding: 15, borderRadius: 30, background: savingEdit ? C.savingDisabled : C.green, border: "none", color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
@@ -422,6 +480,12 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
           Удалить кредит
         </button>
       </BottomSheet>
+
+      {showEditStartCal && (
+        <CalendarPicker mode="single" value={editStartDate}
+          onChange={v => { setEditStartDate(v); setShowEditStartCal(false); }}
+          onClose={() => setShowEditStartCal(false)}/>
+      )}
 
       <ConfirmSheet
         open={confirmDelete}

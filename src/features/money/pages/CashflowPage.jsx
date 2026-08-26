@@ -7,9 +7,11 @@ import { newId } from "../../../utils/id";
 import { todayStr, monthKey } from "../../../utils/date";
 import { fmtAmtAuto, fmtM, getSym, round2, ratesFromAccounts, calcTotalBalance, fmtDateShort } from "../../../utils/format";
 import { projectRecurringItems, projectPlanItems, buildDayMap, expenseUntilNextIncome, addMonths } from "../../../utils/cashflowTimeline";
+import { monthlyPayment, annualToMonthlyRate } from "../../../utils/loan";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { BottomSheet } from "../../../components/BottomSheet";
+import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { AccSelect } from "../../../components/AccSelect";
 import { NumInput } from "../../../components/NumInput";
 import { CategoryPicker } from "../../../components/CategoryPicker";
@@ -19,16 +21,22 @@ import { CashflowRuler } from "../components/CashflowRuler";
 const sym = getSym(BASE_CUR);
 
 // Строка внутри дневной шторки/списка. Клик по строке:
-//  - если ещё pending и с ней можно что-то сделать (canAct) → открывает FixSheet (запись
-//    транзакции: сумма/категория/счёт, см. ниже);
-//  - иначе (уже исполнено, или loan) → уводит на существующий экран редактирования/деталей.
-// Отдельная круглая кнопка-галочка справа — быстрая отметка "уже сделано" БЕЗ указания счёта
-// (для разбора накопившегося прошлого одним тапом, без формы).
-function ItemRow({ item, isIncome, onOpen, onFix, onMarkDone, canAct }) {
+//  - если ещё pending и с ней можно записать полноценную транзакцию (canFix) → открывает FixSheet
+//    (сумма/категория/счёт, см. ниже);
+//  - иначе (уже исполнено, или loan — там своя форма в LoanDetailPage) → уводит на существующий
+//    экран редактирования/деталей.
+// Отдельная круглая кнопка-галочка справа (canMark) — быстрая отметка "уже сделано" БЕЗ указания
+// счёта (для разбора накопившегося прошлого, без формы выбора счёта/суммы — но с подтверждением,
+// см. markConfirm/ConfirmSheet ниже, чтобы случайный тап не был необратимым). canFix и canMark — РАЗНЫЕ
+// флаги: у loan canFix всегда false (тап по строке ведёт в LoanDetailPage, там нужен выбор счёта
+// и можно поправить сумму под факт из банка), но canMark может быть true — галочка живёт на строке
+// независимо от того, что происходит по тапу на неё саму.
+function ItemRow({ item, isIncome, onOpen, onFix, onMarkDone, canFix, canMark }) {
   const pending = item.status === "pending";
-  const actionable = pending && canAct;
+  const fixable = pending && canFix;
+  const markable = pending && canMark;
   return (
-    <div onClick={() => (actionable ? onFix(item, isIncome) : onOpen(item))}
+    <div onClick={() => (fixable ? onFix(item, isIncome) : onOpen(item))}
       style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 4px", borderBottom: `1px solid ${C.border}`, cursor: "pointer" }}>
       <div style={{ width: 8, height: 8, borderRadius: 4, background: isIncome ? C.emerald : C.errorLight, flexShrink: 0, opacity: pending ? 1 : 0.35 }}/>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -40,7 +48,7 @@ function ItemRow({ item, isIncome, onOpen, onFix, onMarkDone, canAct }) {
       <span style={{ fontSize: 14, fontWeight: 600, color: pending ? "#fff" : C.dim, textDecoration: pending ? "none" : "line-through" }}>
         {fmtM(item.amount, item.currency)}
       </span>
-      {actionable && (
+      {markable && (
         <button onClick={e => { e.stopPropagation(); onMarkDone(item); }}
           title="Отметить выполненным без счёта"
           style={{ width: 26, height: 26, borderRadius: 13, background: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
@@ -123,15 +131,22 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
     return rows.slice(0, 40);
   }, [dayMap, today, todayMk]);
 
-  // Можно ли что-то сделать со строкой (открыть FixSheet / отметить без счёта): recurring — только
-  // вхождение ТЕКУЩЕГО календарного месяца (см. isCurrentCycle — ровно то, что реально оплатит RPC).
-  // Loan — никогда (оплата только через LoanDetailPage, там нужен расчёт split тело/проценты).
+  // Можно ли открыть FixSheet (записать полноценную транзакцию прямо со строки): recurring —
+  // только вхождение ТЕКУЩЕГО календарного месяца (см. isCurrentCycle — ровно то, что реально
+  // оплатит RPC). Loan — никогда (оплата только через LoanDetailPage: там нужен выбор счёта и
+  // расчёт split тело/проценты, с возможностью поправить сумму под факт из банка).
   // planned_income/planned_expense/plan_item — всегда.
-  const canAct = (item) => {
+  const canFix = (item) => {
     if (item.kind === "loan") return false;
     if (item.kind === "recurring") return isCurrentCycle(item);
     return true;
   };
+
+  // Можно ли отметить строку выполненной БЕЗ счёта (круглая галочка) — отдельно от canFix, т.к.
+  // у loan своя форма (LoanDetailPage), но галочка на строке всё равно нужна для разбора
+  // накопившегося прошлого. last_paid_month хранит только "оплачено в ЭТОМ КАЛЕНДАРНОМ МЕСЯЦЕ или
+  // нет" (как last_fired у recurring) — поэтому та же isCurrentCycle-граница, что и у recurring.
+  const canMarkDone = (item) => item.kind === "loan" ? isCurrentCycle(item) : canFix(item);
 
   const [daySheetDate, setDaySheetDate] = useState(null);
   const [addChoiceOpen, setAddChoiceOpen] = useState(false);
@@ -139,6 +154,7 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
   const [fixAccId, setFixAccId] = useState("");
   const [fixAmt, setFixAmt] = useState("");
   const [fixCatId, setFixCatId] = useState("");
+  const [markConfirm, setMarkConfirm] = useState(null); // { item, isIncome }
 
   const openDetail = (item) => {
     setDaySheetDate(null);
@@ -163,6 +179,12 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
     setFixCatId(presetCat || "");
   };
 
+  // Галочка на строке только ЗАПРАШИВАЕТ отметку — сама смена статуса (markDone) происходит
+  // только после подтверждения в ConfirmSheet (см. markConfirm/execMarkDone ниже). Раньше это было
+  // одно нажатие без подтверждения — оказалось слишком легко задеть по ошибке, а для loan откатить
+  // (remaining_principal уже пересчитан, в loan_payments уже запись) одним тапом нельзя.
+  const requestMarkDone = (item, isIncome) => setMarkConfirm({ item, isIncome });
+
   // Отметить выполненным БЕЗ счёта — никакой транзакции не создаётся, баланс не трогается, только
   // статус. Для разбора накопившегося прошлого одним тапом (уже оплатил/получил вне приложения).
   const markDone = async (item) => {
@@ -178,6 +200,8 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
       if (p.is_recurring) await spawnNextPlanned("planned_expenses", p);
     } else if (item.kind === "plan_item") {
       await markPlanItemDone(item);
+    } else if (item.kind === "loan") {
+      await markLoanDone(item);
     }
     onReload();
   };
@@ -192,6 +216,41 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
     const plan = item.raw;
     const newItems = (plan.items || []).map(it => it.id === item.itemId ? { ...it, done: true } : it);
     return supaUpsert("month_plans", { ...plan, items: newItems });
+  };
+
+  // Отметить кредит оплаченным БЕЗ счёта и БЕЗ транзакции — но, в отличие от recurring/planned,
+  // тело/проценты нужно честно пересчитать (иначе remaining_principal разойдётся с графиком),
+  // поэтому не просто supa.update, а отдельная RPC (mark_loan_paid, копия pay_loan без
+  // transactions/accounts). Формула — та же, что в LoanDetailPage.payRef (плановый аннуитетный
+  // платёж, проценты от remaining_principal, тело — остаток платежа).
+  const markLoanDone = (item) => {
+    const l = item.raw;
+    const monthlyRate = annualToMonthlyRate(l.rate_annual);
+    const payment = monthlyPayment(l.principal, monthlyRate, l.term_months);
+    const interestPart = round2(l.remaining_principal * monthlyRate);
+    const principalPart = round2(Math.max(Math.min(payment - interestPart, l.remaining_principal), 0));
+    const newRemaining = round2(Math.max(l.remaining_principal - principalPart, 0));
+    const newStatus = newRemaining <= 0.01 ? "closed" : "active";
+    return supaRpc("mark_loan_paid", {
+      p_loan_id: l.id, p_month: todayMk,
+      p_payment: { id: newId(), date: todayStr(), amount: round2(payment), principal_part: principalPart, interest_part: interestPart, is_early_repayment: false, note: "Без счёта" },
+      p_new_remaining: newRemaining, p_new_status: newStatus,
+    });
+  };
+
+  // Текст предупреждения в ConfirmSheet — у loan честно предупреждаем, что это не косметика:
+  // остаток долга и история платежей пересчитаются так же, как при настоящей оплате.
+  const markConfirmMessage = (item) => item.kind === "loan"
+    ? "Транзакция не создастся, счёт не тронем — но остаток кредита и история платежей пересчитаются, как при настоящей оплате."
+    : "Транзакция не создастся, баланс счёта не изменится — обновится только статус строки.";
+
+  const markConfirmRef = useRef(null);
+  const { save: execMarkDone, saving: markingDone, saveError: markError, setSaveError: setMarkError } = useSave(
+    () => markConfirmRef.current(), { errorMsg: "Не удалось отметить" }
+  );
+  markConfirmRef.current = async () => {
+    await markDone(markConfirm.item);
+    setMarkConfirm(null);
   };
 
   const saveRef = useRef(null);
@@ -289,7 +348,7 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
         {upcoming.map(({ date, item, isIncome }) => (
           <div key={`${date}-${item.id}`}>
             <p style={{ margin: "10px 0 0", fontSize: 11, color: C.dim }}>{fmtDateShort(date)}</p>
-            <ItemRow item={item} isIncome={isIncome} onOpen={openDetail} onFix={openFix} onMarkDone={markDone} canAct={canAct(item)}/>
+            <ItemRow item={item} isIncome={isIncome} onOpen={openDetail} onFix={openFix} onMarkDone={requestMarkDone} canFix={canFix(item)} canMark={canMarkDone(item)}/>
           </div>
         ))}
       </div>
@@ -297,18 +356,14 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
       {/* Day detail sheet */}
       <BottomSheet open={!!daySheetDate} onClose={() => setDaySheetDate(null)} title={daySheetDate || ""}>
         {daySheetItems && [...daySheetItems.income.map(it => ({ it, isIncome: true })), ...daySheetItems.expense.map(it => ({ it, isIncome: false }))].map(({ it, isIncome }) => (
-          <ItemRow key={it.id} item={it} isIncome={isIncome} onOpen={openDetail} onFix={openFix} onMarkDone={markDone} canAct={canAct(it)}/>
+          <ItemRow key={it.id} item={it} isIncome={isIncome} onOpen={openDetail} onFix={openFix} onMarkDone={requestMarkDone} canFix={canFix(it)} canMark={canMarkDone(it)}/>
         ))}
       </BottomSheet>
 
-      {/* Add choice sheet — "уже произошло" переиспользует существующий TxPage (addTx), ничего не
-          дублирует; "ожидается" — планирование на будущую дату (planned_incomes/expenses) */}
+      {/* Add choice sheet — планирование на будущую дату (planned_incomes/expenses); мгновенные
+          транзакции сюда не заводятся вручную — они фиксируются кнопками-галочками на уже
+          запланированных строках (см. ItemRow/markDone/openFix выше) */}
       <BottomSheet open={addChoiceOpen} onClose={() => setAddChoiceOpen(false)} title="Добавить">
-        <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: C.dim }}>Уже произошло</p>
-        <AddRow title="Доход" subtitle="Зафиксировать сразу — обычная транзакция" onClick={() => { setAddChoiceOpen(false); navigate("addTx", { type: "income" }); }}/>
-        <AddRow title="Расход" subtitle="Зафиксировать сразу — обычная транзакция" onClick={() => { setAddChoiceOpen(false); navigate("addTx", { type: "expense" }); }} last/>
-
-        <p style={{ margin: "16px 0 8px", fontSize: 12, fontWeight: 700, color: C.dim }}>Ожидается</p>
         <AddRow title="Ожидаемый доход" subtitle="Зарплата, фриланс — с датой поступления" onClick={() => { setAddChoiceOpen(false); navigate("addPlannedIncome"); }}/>
         <AddRow title="Плановый расход" subtitle="Разовый или регулярный, с конкретной датой" onClick={() => { setAddChoiceOpen(false); navigate("addPlannedExpense"); }} last/>
       </BottomSheet>
@@ -345,6 +400,21 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
           </>
         )}
       </BottomSheet>
+
+      {/* Подтверждение "отметить без счёта" — защита от случайного тапа по галочке (см.
+          requestMarkDone/markConfirm выше): для loan это не косметика, там уже честно
+          пересчитывается остаток долга (mark_loan_paid), откатить одним тапом нельзя. */}
+      <ConfirmSheet
+        open={!!markConfirm}
+        onClose={() => { setMarkConfirm(null); setMarkError(null); }}
+        onConfirm={execMarkDone}
+        tone="confirm"
+        disabled={markingDone}
+        error={markError}
+        title={markConfirm ? `Отметить «${markConfirm.item.name}» без счёта?` : ""}
+        message={markConfirm ? markConfirmMessage(markConfirm.item) : ""}
+        confirmLabel={markingDone ? "Отмечаем..." : "Отметить выполненным"}
+      />
     </div>
   );
 }

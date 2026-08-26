@@ -5,7 +5,7 @@ import { BILLS_CATEGORY_ID } from "../../../constants/money";
 import { supaRpc } from "../../../lib/supabase";
 import { newId } from "../../../utils/id";
 import { todayStr, monthKey } from "../../../utils/date";
-import { fmtM, fmtAmtAuto, getSym, round2, toBase, ratesFromAccounts } from "../../../utils/format";
+import { fmtM, fmtAmtAuto, fmtDateShort, getSym, round2, toBase, ratesFromAccounts } from "../../../utils/format";
 import { monthlyPayment, annualToMonthlyRate } from "../../../utils/loan";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
@@ -33,20 +33,28 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
       });
     const loanRows = loans
       .filter(l => l.status === "active")
-      .map(l => ({
-        kind: "loan", id: l.id, name: l.name, day: l.day,
-        // Аннуитетный платёж фиксирован на весь срок — считается от ИСХОДНОГО principal,
-        // не от remaining_principal (см. подробный комментарий в LoanDetailPage.jsx).
-        amount: monthlyPayment(l.principal, annualToMonthlyRate(l.rate_annual), l.term_months),
-        currency: l.currency || BASE_CUR,
-        paid: l.last_paid_month === mk, raw: l,
-      }));
-    // Неоплаченные — сверху по дню оплаты, оплаченные в этом месяце — вниз.
+      .map(l => {
+        // Кредит, у которого дата первого платежа ещё не наступила (новый кредит, первый
+        // платёж в следующем месяце) — не должен предлагать оплату уже сейчас, см. day-based
+        // ловушку в utils/cashflowTimeline.js. notStarted-строка визуально как оплаченная
+        // (приглушена, без кнопки), но с отдельной подписью даты старта.
+        const notStarted = !!l.start_date && monthKey(l.start_date) > mk;
+        return {
+          kind: "loan", id: l.id, name: l.name, day: l.day,
+          // Аннуитетный платёж фиксирован на весь срок — считается от ИСХОДНОГО principal,
+          // не от remaining_principal (см. подробный комментарий в LoanDetailPage.jsx).
+          amount: monthlyPayment(l.principal, annualToMonthlyRate(l.rate_annual), l.term_months),
+          currency: l.currency || BASE_CUR,
+          paid: notStarted ? true : l.last_paid_month === mk, notStarted, raw: l,
+        };
+      });
+    // Неоплаченные — сверху по дню оплаты, оплаченные (и ещё не стартовавшие) — вниз.
     return [...bills, ...loanRows].sort((a, b) => (a.paid !== b.paid ? (a.paid ? 1 : -1) : a.day - b.day));
   }, [recurring, loans, accounts, mk]);
 
+  // Кредиты, у которых первый платёж ещё не наступил, не входят в обязательства ЭТОГО месяца.
   const totalKzt = useMemo(
-    () => items.reduce((s, it) => s + toBase(it.amount, it.currency, rates), 0),
+    () => items.reduce((s, it) => s + (it.notStarted ? 0 : toBase(it.amount, it.currency, rates)), 0),
     [items, rates]
   );
 
@@ -115,10 +123,12 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ margin:0, fontSize:15, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{it.name}</p>
-                <p style={{ margin:"2px 0 0", fontSize:12, color: it.paid ? C.green : C.dim }}>{it.paid ? "Оплачено в этом месяце" : "Не оплачено"}</p>
+                <p style={{ margin:"2px 0 0", fontSize:12, color: it.notStarted ? C.dim : it.paid ? C.green : C.dim }}>
+                  {it.notStarted ? `Первый платёж ${fmtDateShort(it.raw.start_date)}` : it.paid ? "Оплачено в этом месяце" : "Не оплачено"}
+                </p>
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
-                <p style={{ margin:0, fontSize:15, fontWeight:700, color: it.paid ? C.dim : "#fff", textDecoration: it.paid ? "line-through" : "none" }}>
+                <p style={{ margin:0, fontSize:15, fontWeight:700, color: it.paid ? C.dim : "#fff", textDecoration: it.paid && !it.notStarted ? "line-through" : "none" }}>
                   {fmtM(it.amount, it.currency)}
                 </p>
                 {!it.paid && (

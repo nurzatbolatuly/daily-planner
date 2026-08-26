@@ -68,6 +68,22 @@ export function simulateEarlyRepayment(principal, monthlyRate, months, extraPerM
   return { months: month, totalPaid, finalPayment: payment, overpay: Math.max(totalPaid - principal, 0) };
 }
 
+// Остаток тела после N обычных (без досрочных) аннуитетных платежей — используется при
+// создании кредита, если он уже отчасти оплачен ДО того как попал в приложение (импорт старой
+// рассрочки/кредита с историей в 3-4+ месяца): считает тело по графику вперёд на paymentsCount
+// платежей, чтобы remaining_principal сразу отражал реальный остаток, а не исходный principal.
+export function remainingAfterPayments(principal, monthlyRate, months, paymentsCount) {
+  const payment = monthlyPayment(principal, monthlyRate, months);
+  let balance = principal;
+  const n = Math.min(Math.max(paymentsCount, 0), months);
+  for (let i = 0; i < n; i++) {
+    const interest = balance * monthlyRate;
+    const principalPart = Math.min(payment - interest, balance);
+    balance = Math.max(balance - principalPart, 0);
+  }
+  return balance;
+}
+
 // Разовое досрочное погашение — в отличие от simulateEarlyRepayment (доп. платёж КАЖДЫЙ месяц),
 // здесь довнесение происходит ОДИН раз, на конкретном платеже по счёту (lumpMonth, 1 = следующий).
 // Платёж не пересчитывается (как strategy:"term" выше) — срок сокращается, экономия максимальна.

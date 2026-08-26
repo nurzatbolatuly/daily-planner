@@ -1,16 +1,18 @@
 import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { getSym, fmtAmtAuto } from "../../../utils/format";
-import { todayStr } from "../../../utils/date";
+import { getSym, fmtAmtAuto, fmtDateShort, round2 } from "../../../utils/format";
+import { monthKey, pad } from "../../../utils/date";
+import { addMonths } from "../../../utils/cashflowTimeline";
 import { newId } from "../../../utils/id";
 import { supaUpsert } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
-import { monthlyRateFromPayment, monthlyToAnnualRate, annualToMonthlyRate, loanSummary, simulateEarlyRepayment, simulateLumpSumRepayment } from "../../../utils/loan";
+import { monthlyRateFromPayment, monthlyToAnnualRate, annualToMonthlyRate, loanSummary, simulateEarlyRepayment, simulateLumpSumRepayment, remainingAfterPayments } from "../../../utils/loan";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
 import { BottomSheet } from "../../../components/BottomSheet";
+import { CalendarPicker } from "../../../components/CalendarPicker";
 
 const sym = getSym(BASE_CUR);
 
@@ -35,6 +37,16 @@ const inputStyle = {
   borderRadius: 10, padding: "12px 14px", color: "#fff", fontSize: 15, outline: "none",
 };
 
+// Дефолтный день ежемесячного платежа — 14 число, тот же дефолт, что и у recurring-платежей
+// (`BillFormPage`: `edit?.day || 14`). Дата первого платежа по умолчанию — 14-е ТЕКУЩЕГО месяца
+// (не следующего — как и у BillFormPage, это просто отправная точка для CalendarPicker, а не
+// попытка угадать реальный график; пользователь поправит на настоящую дату при необходимости).
+const DEFAULT_PAYMENT_DAY = 14;
+const defaultLoanStartDate = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(DEFAULT_PAYMENT_DAY)}`;
+};
+
 export function LoanCalculatorPage({ onBack, saveMode = false }) {
   const [mode, setMode] = useState("payment");
 
@@ -53,12 +65,15 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
 
   const [saveOpen, setSaveOpen] = useState(false);
   const [loanName, setLoanName] = useState("");
-  const [loanDay, setLoanDay] = useState(String(new Date().getDate()));
+  const [loanStartDate, setLoanStartDate] = useState(defaultLoanStartDate());
+  const [showStartCal, setShowStartCal] = useState(false);
+  const [monthsPaid, setMonthsPaid] = useState("0");
   const [loanNameError, setLoanNameError] = useState("");
 
   const openSave = () => {
     setLoanName("");
-    setLoanDay(String(new Date().getDate()));
+    setLoanStartDate(defaultLoanStartDate());
+    setMonthsPaid("0");
     setLoanNameError("");
     setSaveOpen(true);
   };
@@ -69,6 +84,18 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
     { errorMsg: "Не удалось сохранить кредит" }
   );
   saveLoanRef.current = async () => {
+    const monthlyRate = annualToMonthlyRate(rateN);
+    // Тело считается по графику вперёд на уже оплаченные месяцы — remaining_principal сразу
+    // отражает реальный остаток старой рассрочки, а не исходную сумму займа.
+    const remaining = monthsPaidN > 0
+      ? round2(remainingAfterPayments(principal, monthlyRate, monthsN, monthsPaidN))
+      : principal;
+    // last_paid_month — месяц ПОСЛЕДНЕГО из уже оплаченных платежей (считая от даты первого
+    // платежа), чтобы "оплачено в этом месяце" сразу показывало верный статус, а не считало
+    // текущий месяц неоплаченным. Для нового кредита (0 месяцев оплачено) остаётся "" —
+    // до наступления даты первого платежа кредит нигде не показывается как просроченный,
+    // см. фильтр по start_date в utils/cashflowTimeline.js.
+    const lastPaidMonth = monthsPaidN > 0 ? monthKey(addMonths(loanStartDate, monthsPaidN - 1)) : "";
     const loan = {
       id: newId(),
       name: loanName.trim(),
@@ -76,13 +103,14 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
       currency: BASE_CUR,
       rate_annual: rateN,
       term_months: monthsN,
-      remaining_principal: principal,
-      day: parseInt(loanDay, 10) || 1,
+      remaining_principal: remaining,
+      day: new Date(loanStartDate + "T12:00:00").getDate(),
       acc_id: null,
       cat_id: null,
-      start_date: todayStr(),
-      status: "active",
-      last_paid_month: "",
+      start_date: loanStartDate,
+      status: remaining <= 0.01 ? "closed" : "active",
+      last_paid_month: lastPaidMonth,
+      months_paid_at_creation: monthsPaidN,
       note: "",
     };
     await supaUpsert("loans", loan);
@@ -98,6 +126,10 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
   const principal = Math.max(amountN - downN, 0);
   const monthsN   = parseInt(months, 10) || 0;
   const rateN     = parseFloat(rate) || 0;
+
+  // Сколько платежей по графику уже сделано ДО того, как кредит попал в приложение (импорт
+  // старой рассрочки) — зажимается в [0, срок]. Для нового кредита остаётся 0.
+  const monthsPaidN = Math.min(Math.max(parseInt(monthsPaid, 10) || 0, 0), monthsN);
 
   let result = null;
 
@@ -335,15 +367,28 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
           placeholder="Например, Рассрочка на телефон"
           style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${loanNameError?"rgba(244,67,54,0.5)":C.border}`, outline:"none", color:"#fff", fontSize:16, padding:"4px 0", marginBottom:16, boxSizing:"border-box" }}
         />
-        <div style={{ marginBottom:20 }}>
-          <FieldLabel>День оплаты</FieldLabel>
-          <input
-            type="number" min="1" max="31"
-            value={loanDay}
-            onChange={e => setLoanDay(e.target.value)}
-            style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${C.border}`, outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0", boxSizing:"border-box" }}
-          />
+        <div style={{ marginBottom:8 }}>
+          <FieldLabel>Дата первого платежа</FieldLabel>
+          <button onClick={() => setShowStartCal(true)}
+            style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${C.border}`, outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0", textAlign:"left", cursor:"pointer" }}>
+            {fmtDateShort(loanStartDate)}
+          </button>
         </div>
+        <p style={{ margin:"-4px 0 20px", fontSize:12, color:C.dim, lineHeight:1.4 }}>
+          Новый кредит — выберите будущую дату, если первый платёж только в следующем месяце.
+          Уже действующая рассрочка — укажите дату самого первого платежа по графику (в прошлом).
+        </p>
+
+        <div style={{ marginBottom:8 }}>
+          <FieldLabel>Сколько месяцев уже оплачено</FieldLabel>
+          <NumInput value={monthsPaid} onChange={setMonthsPaid} placeholder="0"
+            style={{ ...inputStyle, fontSize:22, fontWeight:600 }}/>
+        </div>
+        <p style={{ margin:"-4px 0 20px", fontSize:12, color:C.dim, lineHeight:1.4 }}>
+          0 — для нового кредита. Если добавляете уже действующую рассрочку, укажите число платежей,
+          сделанных по графику до этого момента — остаток тела долга посчитается автоматически.
+        </p>
+
         <p style={{ margin:"-8px 0 20px", fontSize:12, color:C.dim, lineHeight:1.4 }}>
           Счёт списания и категория выбираются при оплате очередного платежа — не здесь.
         </p>
@@ -353,6 +398,12 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
           {savingLoan ? "Сохранение..." : "Создать кредит"}
         </button>
       </BottomSheet>
+
+      {showStartCal && (
+        <CalendarPicker mode="single" value={loanStartDate}
+          onChange={v => { setLoanStartDate(v); setShowStartCal(false); }}
+          onClose={() => setShowStartCal(false)}/>
+      )}
     </div>
   );
 }

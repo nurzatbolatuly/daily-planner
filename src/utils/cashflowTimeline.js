@@ -58,6 +58,10 @@ export function projectRecurringItems(recurring = [], loans = [], rangeStart, ra
     loans.filter(l => l.status === "active").forEach(l => {
       const day = Math.min(l.day, daysInMonth);
       const date = `${curY}-${pad(curM + 1)}-${pad(day)}`;
+      // До даты первого платежа (start_date) кредит ещё не должен появляться на ленте — иначе
+      // новый кредит с датой первого платежа в след. месяце показывался бы просроченным уже
+      // сегодня (day-of-month сам по себе не знает, что кредит ещё не "начался").
+      if (l.start_date && date < l.start_date) return;
       if (date >= rangeStart && date <= rangeEnd) {
         // Аннуитетный платёж фиксирован на весь срок — от исходного principal, не remaining_principal.
         const amount = monthlyPayment(l.principal, annualToMonthlyRate(l.rate_annual), l.term_months);
