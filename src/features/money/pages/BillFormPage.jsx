@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { getSym } from "../../../utils/format";
+import { getSym, fmtDateShort } from "../../../utils/format";
 import { supaUpsert, supa } from "../../../lib/supabase";
 import { newId } from "../../../utils/id";
 import { useSave } from "../../../hooks/useSave";
@@ -10,6 +10,7 @@ import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { Toggle } from "../../../components/Toggle";
+import { CalendarPicker } from "../../../components/CalendarPicker";
 
 const sym = getSym(BASE_CUR);
 
@@ -18,6 +19,10 @@ export function BillFormPage({ onBack, edit }) {
   const [day, setDay] = useState(edit?.day || 14);
   const [amt, setAmt] = useState(edit?.amount ? String(edit.amount) : "");
   const [active, setActive] = useState(edit?.active !== false);
+  // Необязательная дата первого платежа (v19) — как у кредитов (loans.start_date). Пустая —
+  // платёж ведёт себя как раньше, "стартовавшим" считается всегда.
+  const [startDate, setStartDate] = useState(edit?.start_date || "");
+  const [showStartCal, setShowStartCal] = useState(false);
   const [errors, setErrors] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -34,6 +39,7 @@ export function BillFormPage({ onBack, edit }) {
       cat_id: edit?.cat_id ?? null,
       acc_id: edit?.acc_id ?? null,
       active,
+      start_date: startDate || null,
       last_fired: edit?.last_fired || "",
     };
     await supaUpsert("recurring", rec);
@@ -93,6 +99,24 @@ export function BillFormPage({ onBack, edit }) {
           </div>
         </div>
 
+        <div style={{ marginBottom:24 }}>
+          <FieldLabel>Дата первого платежа (необязательно)</FieldLabel>
+          <button onClick={() => setShowStartCal(true)}
+            style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${C.border}`, outline:"none", color: startDate ? "#fff" : C.dim, fontSize:22, fontWeight:600, padding:"4px 0", textAlign:"left", cursor:"pointer" }}>
+            {startDate ? fmtDateShort(startDate) : "Не указана"}
+          </button>
+          <p style={{ margin:"6px 0 0", fontSize:12, color:C.dim, lineHeight:1.4 }}>
+            Если платёж ещё не начался (например, первый взнос в следующем месяце) — не будет
+            считаться неоплаченным до этой даты.
+          </p>
+          {startDate && (
+            <button onClick={() => setStartDate("")}
+              style={{ marginTop:6, background:"none", border:"none", color:C.dim, fontSize:12, textDecoration:"underline", cursor:"pointer", padding:0 }}>
+              Очистить
+            </button>
+          )}
+        </div>
+
         <div style={{ padding:"14px 16px", borderRadius:12, background:C.monCard, marginBottom:24 }}>
           <Toggle value={active} onChange={setActive} label="Активен"/>
           <p style={{ margin:"8px 0 0", fontSize:12, color:C.dim, lineHeight:1.4 }}>
@@ -120,6 +144,12 @@ export function BillFormPage({ onBack, edit }) {
           message="Регулярный платёж будет удалён. Уже созданные транзакции останутся."
         />
       </div>
+
+      {showStartCal && (
+        <CalendarPicker mode="single" value={startDate || undefined}
+          onChange={v => { setStartDate(v); setShowStartCal(false); }}
+          onClose={() => setShowStartCal(false)}/>
+      )}
     </div>
   );
 }

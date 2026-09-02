@@ -2,7 +2,7 @@ import { useState, useMemo, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
-import { SAVINGS_PURPOSES, ACC_PURPOSES } from "../../../constants/money";
+import { ACC_PURPOSES } from "../../../constants/money";
 import { pad, todayStr } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts, calcTotalBalance, calcCatDelta } from "../../../utils/format";
 import { withPersonalAmounts } from "../../../utils/debtLedger";
@@ -16,10 +16,10 @@ import { BottomSheet } from "../../../components/BottomSheet";
 import { DonutChart } from "../components/DonutChart";
 import { CashflowRuler } from "../components/CashflowRuler";
 
-export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate, onGoToBudget }) {
-  const { accounts, transactions: rawTransactions, transfers, expCats, incCats, monthPlans, debtEvents, recurring, loans, plannedIncomes, plannedExpenses } = data;
+export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate }) {
+  const { accounts, transactions: rawTransactions, expCats, incCats, monthPlans, debtEvents, recurring, loans, plannedIncomes, plannedExpenses } = data;
   // Личная доля вместо полной суммы для сплит-расходов — иначе чужие доли завышают
-  // категории/бюджет/over-budget баннер (см. utils/debtLedger.withPersonalAmounts).
+  // категории/бюджет (см. utils/debtLedger.withPersonalAmounts).
   const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
 
   const [txType, setTxType]           = useState("expense");
@@ -77,35 +77,6 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
   // Delta % per category (current month vs previous month, always)
   const catDelta = useMemo(() => calcCatDelta(transactions, expCats, accounts), [transactions, expCats, accounts]);
 
-  // Over-budget banner for current month
-  const overBudgetData = useMemo(() => {
-    const now = new Date();
-    const curMk = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
-    const curPlans = monthPlans.filter(p => p.month === curMk);
-    if (!curPlans.length) return null;
-
-    const planInc = curPlans
-      .filter(p => p.type === "income")
-      .reduce((s, p) => s + toBase(p.plan, p.plan_currency || BASE_CUR, rates), 0);
-
-    const curTxs = transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
-    const actExp = curTxs.filter(t => t.type === "expense")
-      .reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0);
-
-    const savAccIds = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose)).map(a => a.id);
-    const actSav = (transfers || [])
-      .filter(t => {
-        const d = new Date(t.created_at);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && !t.is_adjustment && savAccIds.includes(t.to_id);
-      })
-      .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
-
-    const overBy = actExp + actSav - planInc;
-    return planInc > 0 && overBy > 0 ? { overBy } : null;
-  }, [monthPlans, transactions, transfers, accounts, rates]);
 
   // Мини-лента "Денежный поток" — тот же движок, что и на полной странице (CashflowPage), просто
   // узкое окно вперёд и клик по чему угодно ведёт на полную страницу. Начинается сегодня — прошлое
@@ -165,16 +136,6 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
           ))}
         </div>
       </div>
-
-      {/* Over-budget banner */}
-      {overBudgetData && (
-        <div onClick={onGoToBudget}
-          style={{ margin: "12px 16px 0", padding: "10px 14px", borderRadius: 12, background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.25)", cursor: onGoToBudget ? "pointer" : "default" }}>
-          <p style={{ margin: 0, fontSize: 12, color: C.errorLight }}>
-            ⚠ Расходы превышают бюджет на {sym}{fmtAmtAuto(overBudgetData.overBy)} — посмотреть Бюджет →
-          </p>
-        </div>
-      )}
 
       {/* Денежный поток — мини-лента */}
       <div onClick={() => navigate("cashflow")} style={{ margin: "12px 12px 0", background: C.monCard, borderRadius: 20, cursor: "pointer" }}>

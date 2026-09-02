@@ -30,6 +30,30 @@ export function monthlyRateFromPayment(principal, payment, months) {
 export const monthlyToAnnualRate = mr => mr * 12 * 100;
 export const annualToMonthlyRate = ar => ar / 100 / 12;
 
+// Платёж, который реально используется по кредиту: если банк выдал округлённую сумму
+// (loan.payment, см. v19) — берём её, иначе как раньше — расчётный аннуитет. Единая точка
+// правды для MonthlyPaymentsListPage/LoanDetailPage/cashflowTimeline, чтобы отображаемая
+// сумма и дефолт при оплате не расходились между экранами.
+export function effectivePayment(loan, monthlyRate) {
+  return loan.payment != null ? loan.payment : monthlyPayment(loan.principal, monthlyRate, loan.term_months);
+}
+
+// Обратная задача к monthlyPayment: сколько платежей ЕЩЁ осталось при известном остатке
+// тела, ставке и фиксированном платеже (стандартная формула остатка срока аннуитета).
+// Нужна, когда платёж — не расчётный (см. effectivePayment выше), поэтому число платежей
+// нельзя просто взять как term_months минус кол-во сделанных — платёж от банка мог
+// отличаться от исходного графика, и "срок" пересчитывается по факту от остатка.
+// null — платёж не покрывает даже проценты на остаток (долг не будет погашен никогда).
+export function remainingMonthsFromBalance(balance, monthlyRate, payment) {
+  if (balance <= 0) return 0;
+  if (payment <= 0) return null;
+  if (monthlyRate <= 0) return Math.ceil(balance / payment);
+  const interestOnly = balance * monthlyRate;
+  if (payment <= interestOnly) return null;
+  const n = -Math.log(1 - interestOnly / payment) / Math.log(1 + monthlyRate);
+  return Math.max(Math.ceil(n), 1);
+}
+
 // Сводка по кредиту: платёж, общая сумма выплат, переплата.
 export function loanSummary(principal, monthlyRate, months) {
   const payment = monthlyPayment(principal, monthlyRate, months);
@@ -72,8 +96,12 @@ export function simulateEarlyRepayment(principal, monthlyRate, months, extraPerM
 // создании кредита, если он уже отчасти оплачен ДО того как попал в приложение (импорт старой
 // рассрочки/кредита с историей в 3-4+ месяца): считает тело по графику вперёд на paymentsCount
 // платежей, чтобы remaining_principal сразу отражал реальный остаток, а не исходный principal.
-export function remainingAfterPayments(principal, monthlyRate, months, paymentsCount) {
-  const payment = monthlyPayment(principal, monthlyRate, months);
+// payment (необязательно) — факт. платёж от банка (v19, effectivePayment), если он отличается
+// от расчётного: иначе N "уже оплаченных" месяцев считались бы по формуле, а не по факту, и
+// остаток разошёлся бы с тем, что реально видит пользователь (см. баг с плавающими копейками
+// в первых версиях v19 — рассрочку без процентов с округлённым платежом ужимало на копейки).
+export function remainingAfterPayments(principal, monthlyRate, months, paymentsCount, payment) {
+  if (payment == null) payment = monthlyPayment(principal, monthlyRate, months);
   let balance = principal;
   const n = Math.min(Math.max(paymentsCount, 0), months);
   for (let i = 0; i < n; i++) {

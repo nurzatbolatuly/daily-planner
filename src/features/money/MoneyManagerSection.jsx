@@ -164,7 +164,7 @@ export default function MoneyManagerSection() {
   return (
     <div style={{ background: C.monBg, minHeight: "calc(100dvh - var(--app-header-h))", color: "#fff" }}>
       <div ref={contentRef} style={{ overflowY: "auto", height: `calc(100dvh - var(--app-header-h) - var(--mon-nav-h, ${MON_NAV_HEIGHT}px))` }}>
-        {monTab === "home"      && <MoneyHomeSection      data={data} navigate={navigate} onGoToBudget={() => setMonTabP("budget")}/>}
+        {monTab === "home"      && <MoneyHomeSection      data={data} navigate={navigate}/>}
         {monTab === "accounts"  && <MoneyAccountsSection  data={data} navigate={navigate}/>}
         {monTab === "budget"    && <MoneyBudgetSection    data={data} navigate={navigate} budgetTab={budgetTab} setBudgetTab={setBudgetTabP} planMonth={planMonth} setPlanMonth={setPlanMonth} planYear={planYear} setPlanYear={setPlanYear}/>}
         {monTab === "analytics" && <MoneyAnalyticsSection data={data} navigate={navigate}/>}

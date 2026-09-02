@@ -7,7 +7,7 @@ import { newId } from "../../../utils/id";
 import { todayStr, monthKey } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtDateShort, round2 } from "../../../utils/format";
 import { addMonths } from "../../../utils/cashflowTimeline";
-import { monthlyPayment, annualToMonthlyRate, loanSummary, simulateLumpSumRepayment, remainingAfterPayments } from "../../../utils/loan";
+import { monthlyPayment, annualToMonthlyRate, loanSummary, simulateLumpSumRepayment, remainingAfterPayments, effectivePayment, remainingMonthsFromBalance } from "../../../utils/loan";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { Ico } from "../../../components/Ico";
@@ -30,9 +30,15 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
   // не от remaining_principal — иначе платёж пересчитывался бы от остатка каждый раз и падал
   // с каждым взносом вместо того чтобы оставаться постоянным, как положено аннуитету). Меняется
   // только соотношение тело/проценты внутри платежа. Пересчитать сам платёж можно только явным
-  // действием — досрочным погашением со стратегией «уменьшить платёж» (см. Этап 6).
-  const currentPayment = monthlyPayment(loan.principal, monthlyRate, loan.term_months);
+  // действием — досрочным погашением со стратегией «уменьшить платёж» (см. Этап 6), либо
+  // вручную задать факт. сумму от банка (loan.payment, v19) — см. effectivePayment.
+  const currentPayment = effectivePayment(loan, monthlyRate);
+  // Чистое расчётное значение (без фикс. переопределения) — подсказка в форме редактирования.
+  const monthlyPaymentFormula = monthlyPayment(loan.principal, monthlyRate, loan.term_months);
   const pct = loan.principal > 0 ? Math.min((loan.principal - loan.remaining_principal) / loan.principal, 1) : 0;
+  // Сколько ЕЩЁ платежей при текущем эффективном платеже (не исходный term_months минус
+  // счётчик — платёж мог отличаться от расчётного графика, см. remainingMonthsFromBalance).
+  const monthsLeft = remainingMonthsFromBalance(loan.remaining_principal, monthlyRate, currentPayment);
   const linkedAcc = accounts.find(a => a.id === loan.acc_id);
   const mk = monthKey(todayStr());
   const paidThisMonth = loan.last_paid_month === mk;
@@ -74,21 +80,27 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
   const regularPaymentsCount = payments.filter(p => !p.is_early_repayment).length + (loan.months_paid_at_creation || 0);
   const remainingMonths = Math.max(loan.term_months - regularPaymentsCount, 1);
 
-  // Оплатить очередной платёж. Сумма по умолчанию — плановый аннуитетный платёж, но
-  // редактируемая: банк списывает округлённую сумму, а не то, что выходит при делении
-  // платежа на тело/проценты с копейками. Пользователь правит сумму под факт из банка —
-  // проценты по-прежнему считаются формулой от remaining_principal, а тело = введённая
-  // сумма минус проценты (clamp на случай последнего платежа). Плановый currentPayment
-  // при этом не трогаем — он всегда считается от исходного principal/term_months.
+  // Оплатить очередной платёж. Сумма по умолчанию — плановый платёж (фикс. от банка или
+  // расчётный аннуитет, см. effectivePayment), но редактируемая: банк списывает округлённую
+  // сумму, а не то, что выходит при делении платежа на тело/проценты с копейками. Пользователь
+  // правит сумму под факт из банка — проценты по-прежнему считаются формулой от
+  // remaining_principal, а тело = введённая сумма минус проценты (clamp на случай последнего
+  // платежа). Плановый currentPayment при этом не трогаем.
+  const payInterestPart = round2(loan.remaining_principal * monthlyRate);
+  // Если обычный плановый платёж уже с запасом покрывает остаток тела + проценты — это
+  // последний платёж по кредиту, и дефолтная сумма должна закрыть его РОВНО в ноль, а не
+  // списать фиксированный платёж и оставить кредит "подвисшим" на пару тенге/долларов.
+  const closingAmount = round2(loan.remaining_principal + payInterestPart);
+  const isFinalPayment = closingAmount <= currentPayment + 0.01;
+
   const [payOpen, setPayOpen] = useState(false);
   const [payAccId, setPayAccId] = useState("");
   const [payAmtInput, setPayAmtInput] = useState("");
   const openPay = () => {
     setPayAccId(loan.acc_id || accounts[0]?.id || "");
-    setPayAmtInput(String(round2(currentPayment)));
+    setPayAmtInput(String(isFinalPayment ? closingAmount : round2(currentPayment)));
     setPayOpen(true);
   };
-  const payInterestPart  = round2(loan.remaining_principal * monthlyRate);
   const payPrincipalPart = round2(Math.max(Math.min((parseFloat(payAmtInput) || 0) - payInterestPart, loan.remaining_principal), 0));
 
   const payRef = useRef(null);
@@ -200,11 +212,15 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
   const [editStartDate, setEditStartDate] = useState(loan.start_date || todayStr());
   const [showEditStartCal, setShowEditStartCal] = useState(false);
   const [editMonthsPaid, setEditMonthsPaid] = useState(String(loan.months_paid_at_creation || 0));
+  // Факт. ежемесячный платёж от банка (v19) — переопределяет расчётный аннуитет, см.
+  // effectivePayment. Пусто = использовать расчёт по ставке/сроку, как раньше.
+  const [editPayment, setEditPayment] = useState(loan.payment != null ? String(loan.payment) : "");
   const [editNameError, setEditNameError] = useState("");
   const openEdit = () => {
     setEditName(loan.name); setEditAccId(loan.acc_id || ""); setEditDay(String(loan.day));
     setEditStartDate(loan.start_date || todayStr());
     setEditMonthsPaid(String(loan.months_paid_at_creation || 0));
+    setEditPayment(loan.payment != null ? String(loan.payment) : "");
     setEditNameError(""); setEditOpen(true);
   };
   const noAppPayments = payments.length === 0;
@@ -216,17 +232,22 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
   );
   editRef.current = async () => {
     const editMonthsPaidN = Math.min(Math.max(parseInt(editMonthsPaid, 10) || 0, 0), loan.term_months);
+    const editPaymentN = parseFloat(editPayment);
+    const editEffPayment = Number.isFinite(editPaymentN) && editPaymentN > 0 ? editPaymentN : null;
     const updated = {
       ...loan, name: editName.trim(), acc_id: editAccId || null,
       day: parseInt(editDay, 10) || 1,
       start_date: editStartDate,
       months_paid_at_creation: editMonthsPaidN,
+      payment: editEffPayment != null ? round2(editEffPayment) : null,
     };
     // Кредит ещё ни разу не оплачивался в приложении — можно безопасно пересчитать остаток
     // тела/статус "оплачено в этом месяце" от новых значений, как при создании (LoanCalculatorPage).
+    // Уже оплаченные месяцы считаются ФАКТИЧЕСКИМ платежом (editEffPayment), если он задан —
+    // та же логика, что в LoanCalculatorPage.saveLoanRef (см. комментарий там).
     if (noAppPayments) {
       const remaining = editMonthsPaidN > 0
-        ? round2(remainingAfterPayments(loan.principal, monthlyRate, loan.term_months, editMonthsPaidN))
+        ? round2(remainingAfterPayments(loan.principal, monthlyRate, loan.term_months, editMonthsPaidN, editEffPayment))
         : loan.principal;
       updated.remaining_principal = remaining;
       updated.last_paid_month = editMonthsPaidN > 0 ? monthKey(addMonths(editStartDate, editMonthsPaidN - 1)) : "";
@@ -275,7 +296,9 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
           <p style={{ margin: "2px 0 12px", fontSize: 12, color: C.dim }}>из {sym}{fmtAmtAuto(loan.principal)}</p>
 
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-            <span style={{ fontSize: 11, color: C.dim }}>Погашено</span>
+            <span style={{ fontSize: 11, color: C.dim }}>
+              Погашено{loan.status !== "closed" && monthsLeft != null && ` · осталось ${monthsLeft} мес.`}
+            </span>
             <span style={{ fontSize: 12, fontWeight: 700, color: C.blue }}>{Math.round(pct * 100)}%</span>
           </div>
           <div style={{ height: 8, borderRadius: 4, background: "rgba(255,255,255,0.08)" }}>
@@ -377,10 +400,17 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
           placeholder={String(round2(currentPayment))}
           style={{ width: "100%", background: "none", border: "none", borderBottom: `1px solid ${C.border}`, outline: "none", color: "#fff", fontSize: 22, fontWeight: 600, padding: "4px 0", marginBottom: 8, boxSizing: "border-box" }}
         />
-        <p style={{ margin: "0 0 16px", fontSize: 12, color: C.dim, lineHeight: 1.4 }}>
-          Плановый платёж {sym}{fmtAmtAuto(currentPayment)} — если банк списал другую сумму (округление), укажите её здесь.
-          {" "}(тело {sym}{fmtAmtAuto(payPrincipalPart)} · проценты {sym}{fmtAmtAuto(payInterestPart)})
-        </p>
+        {isFinalPayment ? (
+          <p style={{ margin: "0 0 16px", fontSize: 12, color: C.green, lineHeight: 1.4 }}>
+            Это последний платёж — сумма закрывает остаток долга полностью.
+            {" "}(тело {sym}{fmtAmtAuto(payPrincipalPart)} · проценты {sym}{fmtAmtAuto(payInterestPart)})
+          </p>
+        ) : (
+          <p style={{ margin: "0 0 16px", fontSize: 12, color: C.dim, lineHeight: 1.4 }}>
+            Плановый платёж {sym}{fmtAmtAuto(currentPayment)} — если банк списал другую сумму (округление), укажите её здесь.
+            {" "}(тело {sym}{fmtAmtAuto(payPrincipalPart)} · проценты {sym}{fmtAmtAuto(payInterestPart)})
+          </p>
+        )}
         {payError && <p style={{ color: C.errorLight, fontSize: 13, textAlign: "center", marginBottom: 8 }}>{payError}</p>}
         <button onClick={pay} disabled={paying}
           style={{ width: "100%", padding: 15, borderRadius: 30, background: paying ? C.savingDisabled : C.green, border: "none", color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
@@ -462,6 +492,16 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
           <NumInput value={editMonthsPaid} onChange={setEditMonthsPaid} placeholder="0"
             style={{ width: "100%", background: "none", border: "none", borderBottom: `1px solid ${C.border}`, outline: "none", color: "#fff", fontSize: 22, fontWeight: 600, padding: "4px 0", boxSizing: "border-box" }}/>
         </div>
+
+        <div style={{ marginBottom: 8 }}>
+          <FieldLabel>Ежемесячный платёж по факту (необязательно)</FieldLabel>
+          <NumInput value={editPayment} onChange={setEditPayment} placeholder={String(round2(monthlyPaymentFormula))}
+            style={{ width: "100%", background: "none", border: "none", borderBottom: `1px solid ${C.border}`, outline: "none", color: "#fff", fontSize: 22, fontWeight: 600, padding: "4px 0", boxSizing: "border-box" }}/>
+        </div>
+        <p style={{ margin: "-4px 0 16px", fontSize: 12, color: C.dim, lineHeight: 1.4 }}>
+          Банк обычно округляет платёж — впишите точную сумму, которую он реально списывает.
+          Пусто — считаем по формуле ({sym}{fmtAmtAuto(monthlyPaymentFormula)}).
+        </p>
         <p style={{ margin: "-4px 0 16px", fontSize: 12, color: C.dim, lineHeight: 1.4 }}>
           {noAppPayments
             ? "Остаток долга и статус «оплачено в этом месяце» пересчитаются от этих двух полей."

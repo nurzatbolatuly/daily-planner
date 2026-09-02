@@ -7,7 +7,7 @@ import { newId } from "../../../utils/id";
 import { todayStr, monthKey } from "../../../utils/date";
 import { fmtAmtAuto, fmtM, getSym, round2, ratesFromAccounts, calcTotalBalance, fmtDateShort } from "../../../utils/format";
 import { projectRecurringItems, projectPlanItems, buildDayMap, expenseUntilNextIncome, addMonths } from "../../../utils/cashflowTimeline";
-import { monthlyPayment, annualToMonthlyRate } from "../../../utils/loan";
+import { annualToMonthlyRate, effectivePayment } from "../../../utils/loan";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { BottomSheet } from "../../../components/BottomSheet";
@@ -226,7 +226,7 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
   const markLoanDone = (item) => {
     const l = item.raw;
     const monthlyRate = annualToMonthlyRate(l.rate_annual);
-    const payment = monthlyPayment(l.principal, monthlyRate, l.term_months);
+    const payment = effectivePayment(l, monthlyRate);
     const interestPart = round2(l.remaining_principal * monthlyRate);
     const principalPart = round2(Math.max(Math.min(payment - interestPart, l.remaining_principal), 0));
     const newRemaining = round2(Math.max(l.remaining_principal - principalPart, 0));

@@ -8,7 +8,7 @@
 // "план", а не обязательство; статус всегда "pending", инлайн-оплаты через ленту нет.
 import { pad } from "./date";
 import { toBase } from "./format";
-import { monthlyPayment, annualToMonthlyRate } from "./loan";
+import { annualToMonthlyRate, effectivePayment } from "./loan";
 
 const daysInMonthOf = (y, m0 /* 0-indexed */) => new Date(y, m0 + 1, 0).getDate();
 
@@ -50,6 +50,10 @@ export function projectRecurringItems(recurring = [], loans = [], rangeStart, ra
     recurring.filter(r => r.active !== false).forEach(r => {
       const day = Math.min(r.day, daysInMonth);
       const date = `${curY}-${pad(curM + 1)}-${pad(day)}`;
+      // До даты первого платежа (start_date, см. v19) платёж ещё не должен появляться на ленте —
+      // та же ловушка, что и у кредитов ниже (day-of-month сам по себе не знает, что платёж
+      // ещё не "начался").
+      if (r.start_date && date < r.start_date) return;
       if (date >= rangeStart && date <= rangeEnd) {
         items.push({ id: `rec-${r.id}-${mk}`, kind: "recurring", bucket: "expense", refId: r.id, name: r.name, amount: r.amount, currency: "KZT", date, status: r.last_fired === mk ? "paid" : "pending", raw: r });
       }
@@ -63,8 +67,9 @@ export function projectRecurringItems(recurring = [], loans = [], rangeStart, ra
       // сегодня (day-of-month сам по себе не знает, что кредит ещё не "начался").
       if (l.start_date && date < l.start_date) return;
       if (date >= rangeStart && date <= rangeEnd) {
-        // Аннуитетный платёж фиксирован на весь срок — от исходного principal, не remaining_principal.
-        const amount = monthlyPayment(l.principal, annualToMonthlyRate(l.rate_annual), l.term_months);
+        // Фикс. платёж по банку (loan.payment), если задан — иначе расчётный аннуитет от
+        // исходного principal, не remaining_principal (см. effectivePayment).
+        const amount = effectivePayment(l, annualToMonthlyRate(l.rate_annual));
         items.push({ id: `loan-${l.id}-${mk}`, kind: "loan", bucket: "expense", refId: l.id, name: l.name, amount, currency: l.currency || "KZT", date, status: l.last_paid_month === mk ? "paid" : "pending", raw: l });
       }
     });

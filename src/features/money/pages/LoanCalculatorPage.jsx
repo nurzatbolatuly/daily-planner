@@ -68,12 +68,16 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
   const [loanStartDate, setLoanStartDate] = useState(defaultLoanStartDate());
   const [showStartCal, setShowStartCal] = useState(false);
   const [monthsPaid, setMonthsPaid] = useState("0");
+  // Факт. платёж от банка (v19) — подставляется расчётный как подсказка, но банк обычно
+  // округляет, поэтому поле сразу редактируемое, а не просто справочное число.
+  const [paymentOverride, setPaymentOverride] = useState("");
   const [loanNameError, setLoanNameError] = useState("");
 
   const openSave = () => {
     setLoanName("");
     setLoanStartDate(defaultLoanStartDate());
     setMonthsPaid("0");
+    setPaymentOverride(result ? String(round2(result.payment)) : "");
     setLoanNameError("");
     setSaveOpen(true);
   };
@@ -85,10 +89,15 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
   );
   saveLoanRef.current = async () => {
     const monthlyRate = annualToMonthlyRate(rateN);
+    const paymentOverrideN = parseFloat(paymentOverride);
+    const effPayment = Number.isFinite(paymentOverrideN) && paymentOverrideN > 0 ? paymentOverrideN : null;
     // Тело считается по графику вперёд на уже оплаченные месяцы — remaining_principal сразу
-    // отражает реальный остаток старой рассрочки, а не исходную сумму займа.
+    // отражает реальный остаток старой рассрочки, а не исходную сумму займа. ВАЖНО: если банк
+    // выдал фикс. округлённый платёж (effPayment) — уже оплаченные месяцы тоже считаются ИМ,
+    // а не расчётной формулой, иначе остаток разойдётся с тем, что реально видит пользователь
+    // (formula-платёж почти никогда не совпадает с фактическим тик-в-тик).
     const remaining = monthsPaidN > 0
-      ? round2(remainingAfterPayments(principal, monthlyRate, monthsN, monthsPaidN))
+      ? round2(remainingAfterPayments(principal, monthlyRate, monthsN, monthsPaidN, effPayment))
       : principal;
     // last_paid_month — месяц ПОСЛЕДНЕГО из уже оплаченных платежей (считая от даты первого
     // платежа), чтобы "оплачено в этом месяце" сразу показывало верный статус, а не считало
@@ -111,6 +120,8 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
       status: remaining <= 0.01 ? "closed" : "active",
       last_paid_month: lastPaidMonth,
       months_paid_at_creation: monthsPaidN,
+      // Пусто/0 — используем расчётную формулу (как раньше), задано — фикс. сумма от банка.
+      payment: effPayment != null ? round2(effPayment) : null,
       note: "",
     };
     await supaUpsert("loans", loan);
@@ -387,6 +398,16 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
         <p style={{ margin:"-4px 0 20px", fontSize:12, color:C.dim, lineHeight:1.4 }}>
           0 — для нового кредита. Если добавляете уже действующую рассрочку, укажите число платежей,
           сделанных по графику до этого момента — остаток тела долга посчитается автоматически.
+        </p>
+
+        <div style={{ marginBottom:8 }}>
+          <FieldLabel>Ежемесячный платёж по факту (необязательно)</FieldLabel>
+          <NumInput value={paymentOverride} onChange={setPaymentOverride} placeholder={result ? String(round2(result.payment)) : "0"}
+            style={{ ...inputStyle, fontSize:22, fontWeight:600 }}/>
+        </div>
+        <p style={{ margin:"-4px 0 20px", fontSize:12, color:C.dim, lineHeight:1.4 }}>
+          Банк обычно округляет платёж — впишите точную сумму, которую он реально спишет.
+          Пусто — считаем по формуле выше.
         </p>
 
         <p style={{ margin:"-8px 0 20px", fontSize:12, color:C.dim, lineHeight:1.4 }}>
