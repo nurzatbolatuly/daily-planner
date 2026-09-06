@@ -18,11 +18,111 @@ import { NumInput } from "../../../components/NumInput";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { GoalListPage } from "./GoalListPage";
 
-// Месяц+1 от (year, month), month — 0-индексный (как Date.getMonth()). Возвращает "YYYY-MM".
+// Месяц+1 от (year, month), month — 0-индексный (как Date.getMonth()).
+function addMonth(year, month) {
+  return month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 };
+}
+
+// Возвращает "YYYY-MM".
 function nextMonthKey(year, month) {
-  const y = month === 11 ? year + 1 : year;
-  const m = month === 11 ? 0 : month + 1;
+  const { year: y, month: m } = addMonth(year, month);
   return `${y}-${pad(m + 1)}`;
+}
+
+// Строит план/факт-строки (расходы, доходы, накопления) для произвольного месяца — то же самое,
+// что раньше считалось только для отображаемого planMonth/planYear. Вынесено в чистую функцию,
+// чтобы её же можно было прогнать по промежуточным месяцам при проекции баланса вперёд (см.
+// projectAvailableBalance ниже) без дублирования логики.
+function buildPlanRows({ year, month, accounts, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState }) {
+  const mk = `${year}-${pad(month + 1)}`;
+  const monthRowsData = monthPlans.filter(p => p.month === mk);
+  const txsM = transactions.filter(t => {
+    const d = new Date(t.date);
+    return d.getMonth() === month && d.getFullYear() === year;
+  });
+  const transfersM = transfers.filter(t => {
+    const d = new Date(t.created_at);
+    return d.getMonth() === month && d.getFullYear() === year && !t.is_adjustment;
+  });
+  const { repaymentSavings } = debtState;
+
+  const getActual = (catId, type) =>
+    txsM.filter(t => t.type === type && t.category_id === catId)
+      .reduce((s, t) => s + toBase(t.amount, t.currency, accountRates), 0);
+
+  const getSavingsActual = accId => {
+    const regularInc = transfersM
+      .filter(t => t.to_id === accId && !t.is_debt_repayment)
+      .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, accountRates), 0);
+    const repayExcess = transfersM
+      .filter(t => t.to_id === accId && t.is_debt_repayment)
+      .reduce((s, t) => s + (repaymentSavings[t.id] || 0), 0);
+    return regularInc + repayExcess;
+  };
+
+  const buildRows = (cats, type) =>
+    cats.map(cat => {
+      const planData = monthRowsData.find(p => p.cat_id === cat.id && p.type === type) ?? null;
+      return { key: `${cat.id}-${type}`, cat, type, plan: planData?.plan ?? 0, planCurrency: planData?.plan_currency ?? BASE_CUR, items: planData?.items ?? [], planData, actual: getActual(cat.id, type) };
+    });
+
+  const savingsAccounts = getSavedOrder(accounts).filter(a => SAVINGS_PURPOSES.includes(a.purpose));
+  return {
+    mk,
+    expRows: buildRows(expCats, "expense"),
+    incRows: buildRows(incCats, "income"),
+    savingsRows: savingsAccounts.map(acc => {
+      const planData = monthRowsData.find(p => p.type === "savings" && p.acc_id === acc.id) ?? null;
+      return { key: `sav-${acc.id}`, cat: { icon: acc.icon, color: acc.color, name: acc.name }, type: "savings", plan: planData?.plan ?? 0, planCurrency: planData?.plan_currency ?? BASE_CUR, items: planData?.items ?? [], planData, actual: getSavingsActual(acc.id), accId: acc.id };
+    }),
+  };
+}
+
+const sumRowsField = (rows, field, rates) => rows.reduce((s, r) => s + toBase(r[field], r.planCurrency, rates), 0);
+
+// Сколько ещё не исполнено из плана месяца (остаток дохода минус остаток расхода минус остаток
+// накоплений) — та же формула, что и activeIncome/activeExpense/activeSavings для отображаемого
+// месяца, но параметризованная, чтобы применить её к любому "промежуточному" месяцу при проекции.
+function remainingMonthNet({ expRows, incRows, savingsRows }, rates) {
+  const totalPlanInc = sumRowsField(incRows, "plan", rates);
+  const totalActInc  = incRows.reduce((s, r) => s + r.actual, 0);
+  const totalPlanExp = sumRowsField(expRows, "plan", rates);
+  const planExpCovered = expRows.reduce((s, r) => {
+    const pb = toBase(r.plan, r.planCurrency, rates);
+    return pb > 0 ? s + Math.min(r.actual, pb) : s;
+  }, 0);
+  const totalPlanSav = sumRowsField(savingsRows, "plan", rates);
+  const totalActSav  = savingsRows.reduce((s, r) => s + r.actual, 0);
+
+  const incRemaining = Math.max(totalPlanInc - totalActInc, 0);
+  const expRemaining = Math.max(totalPlanExp - planExpCovered, 0);
+  const savRemaining = Math.max(totalPlanSav - Math.max(totalActSav, 0), 0);
+  return incRemaining - expRemaining - savRemaining;
+}
+
+// Баланс, доступный к началу planMonthKey. Для текущего/прошлого месяца — фактический баланс
+// счетов на конец этого месяца (как и раньше). Для будущего месяца (когда планируешь наперёд) —
+// сегодняшний фактический баланс ПЛЮС ещё не исполненный остаток плана (доход − расход −
+// накопления) по каждому месяцу между сегодняшним и планируемым: то есть свободная сумма, которая
+// реально останется к тому моменту, а не весь текущий баланс счетов "как есть сейчас".
+function projectAvailableBalance({ accounts, rawTransactions, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState, planMonthKey }) {
+  const now = new Date();
+  const realMonthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+  const realBalance = calcTotalBalanceAtMonth(accounts, rawTransactions, transfers, realMonthKey);
+
+  if (planMonthKey <= realMonthKey) {
+    return calcTotalBalanceAtMonth(accounts, rawTransactions, transfers, planMonthKey);
+  }
+
+  let bal = realBalance;
+  let y = now.getFullYear(), m = now.getMonth();
+  while (`${y}-${pad(m + 1)}` < planMonthKey) {
+    const monthData = buildPlanRows({ year: y, month: m, accounts, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState });
+    bal += remainingMonthNet(monthData, accountRates);
+    m++;
+    if (m > 11) { m = 0; y++; }
+  }
+  return bal;
 }
 
 function PlanTable({ rows, totalPlan, totalAct, label, accentColor, expanded, toggle, navigate, planMonthKey, sym, rates, onCopy, copyingId, copiedId }) {
@@ -207,6 +307,63 @@ function SelfDebtCard({ debtData, accounts, sym, navigate, cardRef }) {
   );
 }
 
+// Карточка с разбивкой уже запланированных расходов следующего месяца — эта сумма отложена
+// (зарезервирована) из "Свободно" текущего месяца, чтобы деньги под уже известные будущие траты
+// случайно не разошлись на что-то другое в этом месяце.
+function NextMonthReserveCard({ rows, total, sym, monthLabel, onGoToMonth }) {
+  const [open, setOpen] = useState(false);
+  if (total <= 0) return null;
+
+  const items = rows.filter(r => r.plan > 0);
+
+  return (
+    <div style={{ borderRadius: 16, overflow: "hidden", marginBottom: 14, border: "1px solid rgba(167,139,250,0.22)" }}>
+      <div
+        onClick={() => setOpen(p => !p)}
+        style={{ background: "rgba(167,139,250,0.08)", padding: "14px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(167,139,250,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Ico n="calendar" s={18} c={C.violet}/>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.violet }}>Уже запланировано на {monthLabel}</p>
+            <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(167,139,250,0.55)" }}>Отложено из «Свободно» этого месяца</p>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 8 }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: C.violet }}>{sym}{fmtAmtAuto(total)}</span>
+          <Ico n={open ? "chevU" : "chevD"} s={16} c={C.violet}/>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ background: "rgba(167,139,250,0.03)", borderTop: "1px solid rgba(167,139,250,0.12)" }}>
+          {items.map(r => (
+            <div key={r.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <CatIcon k={r.cat?.icon || "other"} size={22} color={r.cat?.color || C.violet}/>
+                <span style={{ fontSize: 13, color: C.main, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.cat?.name || "—"}</span>
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(167,139,250,0.85)", flexShrink: 0, marginLeft: 8 }}>
+                {getSym(r.planCurrency)}{fmtAmtAuto(r.plan)}
+              </span>
+            </div>
+          ))}
+          <div style={{ padding: "6px 16px 12px" }}>
+            <button
+              onClick={onGoToMonth}
+              style={{ width: "100%", padding: "10px", borderRadius: 10, background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.32)", color: C.violet, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              Перейти к планированию {monthLabel} →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navigate, budgetTab, setBudgetTab, planMonth, setPlanMonth, planYear, setPlanYear }) {
   const { accounts, transactions: rawTransactions, transfers, expCats, incCats, monthPlans, tripPlans, goals, debtEvents } = data;
   // Личная доля вместо полной суммы для сплит-расходов (см. MoneyHomeSection).
@@ -259,19 +416,6 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
     setRateInputs(p => { const n = {...p}; delete n[cur]; return n; });
   };
 
-  const monthRows = monthPlans.filter(p => p.month === planMonthKey);
-
-  const { txsM, transfersM } = useMemo(() => ({
-    txsM: transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === planMonth && d.getFullYear() === planYear;
-    }),
-    transfersM: transfers.filter(t => {
-      const d = new Date(t.created_at);
-      return d.getMonth() === planMonth && d.getFullYear() === planYear && !t.is_adjustment;
-    }),
-  }), [transactions, transfers, planMonth, planYear]);
-
   // Долг самому себе — хронологическая обработка ВСЕЙ истории переводов.
   // repaymentSavings[id] = излишек конкретного погашения сверх долга (= реальное накопление).
   const debtState = useMemo(
@@ -279,44 +423,23 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
     [transfers, accounts, accountRates]
   );
 
-  const { expRows, incRows, savingsRows } = useMemo(() => {
-    const { repaymentSavings } = debtState;
+  const { expRows, incRows, savingsRows } = useMemo(
+    () => buildPlanRows({ year: planYear, month: planMonth, accounts, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState }),
+    [planYear, planMonth, accounts, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState]
+  );
 
-    const getActual = (catId, type) =>
-      txsM.filter(t => t.type === type && t.category_id === catId)
-        .reduce((s, t) => s + toBase(t.amount, t.currency, accountRates), 0);
-
-    const getSavingsActual = accId => {
-      // Переводы без флага — 100% накопление этого месяца
-      const regularInc = transfersM
-        .filter(t => t.to_id === accId && !t.is_debt_repayment)
-        .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, accountRates), 0);
-
-      // Погашения долга: только излишек сверх долга считается накоплением
-      const repayExcess = transfersM
-        .filter(t => t.to_id === accId && t.is_debt_repayment)
-        .reduce((s, t) => s + (repaymentSavings[t.id] || 0), 0);
-
-      // Исходящие (заимствование) не вычитаем — они трекаются в карточке долга отдельно
-      return regularInc + repayExcess;
-    };
-
-    const buildRows = (cats, type) =>
-      cats.map(cat => {
-        const planData = monthRows.find(p => p.cat_id === cat.id && p.type === type) ?? null;
-        return { key: `${cat.id}-${type}`, cat, type, plan: planData?.plan ?? 0, planCurrency: planData?.plan_currency ?? BASE_CUR, items: planData?.items ?? [], planData, actual: getActual(cat.id, type) };
-      });
-
-    const savingsAccounts = getSavedOrder(accounts).filter(a => SAVINGS_PURPOSES.includes(a.purpose));
-    return {
-      expRows: buildRows(expCats, "expense"),
-      incRows: buildRows(incCats, "income"),
-      savingsRows: savingsAccounts.map(acc => {
-        const planData = monthRows.find(p => p.type === "savings" && p.acc_id === acc.id) ?? null;
-        return { key: `sav-${acc.id}`, cat: { icon: acc.icon, color: acc.color, name: acc.name }, type: "savings", plan: planData?.plan ?? 0, planCurrency: planData?.plan_currency ?? BASE_CUR, items: planData?.items ?? [], planData, actual: getSavingsActual(acc.id), accId: acc.id };
-      }),
-    };
-  }, [txsM, transfersM, expCats, incCats, accounts, monthRows, accountRates, debtState]);
+  // Уже запланированные расходы след. месяца — резервируются из "Свободно" этого месяца, чтобы
+  // не потратить деньги, которые по факту уже расписаны наперёд (см. NextMonthReserveCard).
+  const { year: nextResY, month: nextResM } = addMonth(planYear, planMonth);
+  const nextMonthExpRows = useMemo(
+    () => buildPlanRows({ year: nextResY, month: nextResM, accounts, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState }).expRows,
+    [nextResY, nextResM, accounts, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState]
+  );
+  const reserveNextMonth = useMemo(
+    () => sumRowsField(nextMonthExpRows, "plan", accountRates),
+    [nextMonthExpRows, accountRates]
+  );
+  const nextMonthLabel = `${RU_MONTHS[nextResM].toLowerCase()} ${nextResY}`;
 
   const selfDebtData = debtState;
 
@@ -350,12 +473,12 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
   const activeExpense = planExpRemaining;
   const activeSavings = planSavRemaining;
   const totalBalance     = useMemo(
-    () => calcTotalBalanceAtMonth(accounts, rawTransactions, transfers, planMonthKey),
-    [accounts, rawTransactions, transfers, planMonthKey]
+    () => projectAvailableBalance({ accounts, rawTransactions, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState, planMonthKey }),
+    [accounts, rawTransactions, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState, planMonthKey]
   );
   const totalAvailable   = activeIncome + totalBalance;
-  const activeFree       = totalAvailable - activeExpense - activeSavings;
-  const activeOverBudget = activeExpense + activeSavings > totalAvailable;
+  const activeFree       = totalAvailable - activeExpense - activeSavings - reserveNextMonth;
+  const activeOverBudget = activeExpense + activeSavings + reserveNextMonth > totalAvailable;
 
   const usedPlanCurrencies = useMemo(() => {
     const curs = new Set();
@@ -493,6 +616,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
                 {[
                   { label: "Расходы",   amt: activeExpense, color: C.errorLight },
                   { label: "Накоплен.", amt: activeSavings,  color: C.blue },
+                  ...(reserveNextMonth > 0 ? [{ label: "Резерв след. мес.", amt: reserveNextMonth, color: C.violet }] : []),
                   { label: "Свободно",  amt: activeFree,     color: activeFree >= 0 ? C.emerald : C.errorLight },
                 ].map(({ label, amt, color }) => {
                   const pct = totalAvailable > 0 ? Math.min(Math.max(amt / totalAvailable, 0), 1) : 0;
@@ -529,7 +653,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
                 {activeOverBudget && (
                   <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)" }}>
                     <span style={{ fontSize: 12, color: C.errorLight }}>
-                      ⚠ Расходы + накопления превышают доступные средства на {sym}{fmtAmtAuto(activeExpense + activeSavings - totalAvailable)}
+                      ⚠ Расходы + накопления{reserveNextMonth > 0 ? " + резерв на след. месяц" : ""} превышают доступные средства на {sym}{fmtAmtAuto(activeExpense + activeSavings + reserveNextMonth - totalAvailable)}
                     </span>
                   </div>
                 )}
@@ -584,6 +708,8 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
               </>
             )}
           </div>
+
+          <NextMonthReserveCard rows={nextMonthExpRows} total={reserveNextMonth} sym={sym} monthLabel={nextMonthLabel} onGoToMonth={nextM}/>
 
           {/* Rates panel — shown only when plans use non-KZT currencies */}
           {usedPlanCurrencies.length > 0 && (

@@ -8,13 +8,14 @@ import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/fo
 import { computeDebtState } from "../../../utils/debtUtils";
 import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { CatIcon } from "../../../components/CatIcon";
+import { Ico } from "../../../components/Ico";
 
 const W = 300, H = 120, PAD = { top: 10, bottom: 24, left: 8, right: 8 };
 const innerW = W - PAD.left - PAD.right;
 const innerH = H - PAD.top - PAD.bottom;
 
 function LineChart({ monthlyData, selectedMonth, onSelect }) {
-  const maxVal = Math.max(...monthlyData.flatMap(d => [d.exp, d.inc]), 1);
+  const maxVal = Math.max(...monthlyData.flatMap(d => [d.exp, d.inc, d.sav]), 1);
   const toX = i => PAD.left + (i / Math.max(monthlyData.length - 1, 1)) * innerW;
   const toY = v => PAD.top + innerH - (v / maxVal) * innerH;
 
@@ -31,6 +32,9 @@ function LineChart({ monthlyData, selectedMonth, onSelect }) {
         <polyline
           points={monthlyData.map((d, i) => `${toX(i)},${toY(d.inc)}`).join(" ")}
           fill="none" stroke={C.emerald} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline
+          points={monthlyData.map((d, i) => `${toX(i)},${toY(d.sav)}`).join(" ")}
+          fill="none" stroke={C.blue} strokeWidth="2" strokeDasharray="4 3" strokeLinecap="round" strokeLinejoin="round"/>
         {monthlyData.map((d, i) => (
           <circle key={i} cx={toX(i)} cy={toY(d.exp)} r={selectedMonth === d.mk ? 6 : 4}
             fill={selectedMonth === d.mk ? "#fff" : C.errorLight}
@@ -69,7 +73,7 @@ const SELECT_STYLE = {
   WebkitAppearance: "none",
 };
 
-export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data }) {
+export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data, navigate }) {
   const { transactions: rawTransactions, transfers, accounts, expCats, monthPlans, goals, goalTopups, debtEvents } = data;
   // Личная доля вместо полной суммы для сплит-расходов (см. MoneyHomeSection).
   const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
@@ -91,6 +95,25 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
   // repaymentSavings[transferId] = часть погашения, являющаяся накоплением (излишек > долга).
   const debtState = useMemo(() => computeDebtState(transfers, accounts, rates), [transfers, accounts, rates]);
 
+  const savingsAccs   = useMemo(() => accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose)), [accounts]);
+  const savingsAccIds = useMemo(() => savingsAccs.map(a => a.id), [savingsAccs]);
+
+  // Сумма фактических накоплений за месяц mk: обычные переводы на накопительные счета (100%)
+  // + излишек сверх долга у переводов-погашений (см. computeDebtState). Один источник правды
+  // для графика трендов, разбивки за выбранный месяц и годового прогноза.
+  const monthSavings = useMemo(() => {
+    const { repaymentSavings } = debtState;
+    return mk => {
+      const regular = transfers
+        .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && !t.is_debt_repayment && monthKey(localDate(t.created_at)) === mk)
+        .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
+      const excess = transfers
+        .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && t.is_debt_repayment && monthKey(localDate(t.created_at)) === mk)
+        .reduce((s, t) => s + (repaymentSavings[t.id] || 0), 0);
+      return regular + excess;
+    };
+  }, [transfers, savingsAccIds, rates, debtState]);
+
   const months = useMemo(() => {
     const result = [];
     for (let i = range - 1; i >= 0; i--) {
@@ -105,9 +128,10 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
       const txs = transactions.filter(t => monthKey(t.date) === mk);
       const exp = txs.filter(t => t.type === "expense").reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0);
       const inc = txs.filter(t => t.type === "income" ).reduce((s, t) => s + toBase(t.amount, t.currency, rates), 0);
-      return { mk, exp, inc };
+      const sav = monthSavings(mk);
+      return { mk, exp, inc, sav };
     });
-  }, [months, transactions, rates]);
+  }, [months, transactions, rates, monthSavings]);
 
   const selectedData = selectedMonth ? monthlyData.find(d => d.mk === selectedMonth) : null;
   const selectedLabel = selectedMonth
@@ -134,7 +158,6 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
   const selectedSavingsData = useMemo(() => {
     if (!selectedMonth) return null;
     const { repaymentSavings } = debtState;
-    const savingsAccs = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
     const rows = savingsAccs.map(acc => {
       const planRow = monthPlans.find(p => p.month === selectedMonth && p.type === "savings" && p.acc_id === acc.id);
       // Обычные переводы — 100% накопление
@@ -155,14 +178,10 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
       totalPlan:   rows.reduce((s, r) => s + r.plan,   0),
       totalActual: rows.reduce((s, r) => s + r.actual, 0),
     };
-  }, [selectedMonth, accounts, monthPlans, transfers, rates, debtState]);
+  }, [selectedMonth, savingsAccs, monthPlans, transfers, rates, debtState]);
 
   const yearForecast = useMemo(() => {
-    const { repaymentSavings } = debtState;
     const thisMonth = now.getMonth();
-
-    const savingsAccs   = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
-    const savingsAccIds = savingsAccs.map(a => a.id);
 
     const currentSavBal = savingsAccs.reduce((s, a) => {
       if (a.currency === BASE_CUR) return s + (a.balance || 0);
@@ -174,24 +193,10 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
       const d = new Date(thisYear, thisMonth - i, 1);
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
     });
-    const avgMonthlySav = avgPeriodMks.reduce((sum, mk) => {
-      const regular = transfers
-        .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && !t.is_debt_repayment && monthKey(localDate(t.created_at)) === mk)
-        .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
-      const excess = transfers
-        .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && t.is_debt_repayment && monthKey(localDate(t.created_at)) === mk)
-        .reduce((s, t) => s + (repaymentSavings[t.id] || 0), 0);
-      return sum + regular + excess;
-    }, 0) / range;
+    const avgMonthlySav = avgPeriodMks.reduce((sum, mk) => sum + monthSavings(mk), 0) / range;
 
     const currentMk = `${thisYear}-${pad(thisMonth + 1)}`;
-    const currentMonthRegular = transfers
-      .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && !t.is_debt_repayment && monthKey(localDate(t.created_at)) === currentMk)
-      .reduce((s, t) => s + toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates), 0);
-    const currentMonthExcess = transfers
-      .filter(t => savingsAccIds.includes(t.to_id) && !t.is_adjustment && t.is_debt_repayment && monthKey(localDate(t.created_at)) === currentMk)
-      .reduce((s, t) => s + (repaymentSavings[t.id] || 0), 0);
-    const currentMonthActual = currentMonthRegular + currentMonthExcess;
+    const currentMonthActual = monthSavings(currentMk);
 
     const currentMonthPlan = monthPlans
       .filter(p => p.month === currentMk && p.type === "savings" && savingsAccIds.includes(p.acc_id))
@@ -227,9 +232,72 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
       remainingProjected, projected, monthsLeft,
       goalsAnalysis, totalGoalsMonthlyNeeded, gap,
     };
-  }, [transfers, accounts, monthPlans, goals, goalTopups, rates, forecastTarget, range, now, thisYear, debtState]);
+  }, [savingsAccs, savingsAccIds, monthSavings, monthPlans, goals, goalTopups, rates, forecastTarget, range, now, thisYear]);
 
   const forecastLabel = `К концу ${RU_MON_GEN[forecastTarget.month]}${forecastTarget.year !== thisYear ? ` ${forecastTarget.year}` : ""}`;
+
+  // Дневная норма накоплений — по каждому накопительному счёту: если на счёт расписан план на
+  // текущий месяц, план делится на дни месяца. Разрыв = идеальная сумма на сегодня (норма × прошедшие
+  // дни) минус факт — растёт сам по себе, если пропустить день, и сам уменьшается при переплате в
+  // любой другой день. Счёт считается «сделано сегодня», если по нему был ЛЮБОЙ перевод сегодня —
+  // сумма не важна, это отметка факта действия, а не выполнения нормы день в день.
+  const dailyChallenge = useMemo(() => {
+    if (!savingsAccs.length) return null;
+
+    const daysInMonth = new Date(thisYear, now.getMonth() + 1, 0).getDate();
+    const dayOfMonth  = now.getDate();
+    const currentMk   = `${thisYear}-${pad(now.getMonth() + 1)}`;
+    const today       = todayStr();
+    const { repaymentSavings } = debtState;
+    const dayTotals   = new Array(daysInMonth + 1).fill(0);
+
+    const rows = savingsAccs.map(acc => {
+      const planRow = monthPlans.find(p => p.month === currentMk && p.type === "savings" && p.acc_id === acc.id);
+      const plan     = planRow ? toBase(planRow.plan, planRow.plan_currency, rates) : 0;
+
+      let actualToDate = 0;
+      let doneToday    = false;
+      transfers
+        .filter(t => t.to_id === acc.id && !t.is_adjustment && monthKey(localDate(t.created_at)) === currentMk)
+        .forEach(t => {
+          const amt = t.is_debt_repayment
+            ? (repaymentSavings[t.id] || 0)
+            : toBase(t.to_amt ?? t.amount, t.to_currency || t.from_currency, rates);
+          if (!amt) return;
+          actualToDate += amt;
+          const dateStr = localDate(t.created_at);
+          if (dateStr === today) doneToday = true;
+          if (plan > 0) {
+            const day = Number(dateStr.split("-")[2]);
+            if (day >= 1 && day <= daysInMonth) dayTotals[day] += amt;
+          }
+        });
+
+      if (plan <= 0) return { key: acc.id, acc, hasPlan: false };
+
+      const dailyRate = plan / daysInMonth;
+      const gap       = Math.max(dailyRate * dayOfMonth - actualToDate, 0);
+      return { key: acc.id, acc, hasPlan: true, dailyRate, gap, doneToday };
+    });
+
+    const plannedRows    = rows.filter(r => r.hasPlan);
+    const totalDailyRate = plannedRows.reduce((s, r) => s + r.dailyRate, 0);
+    const totalGap       = plannedRows.reduce((s, r) => s + r.gap, 0);
+    const daysBehind      = totalGap > 0 && totalDailyRate > 0 ? Math.round(totalGap / totalDailyRate) : 0;
+    const totalDue        = totalDailyRate + totalGap;
+
+    const ruler = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      let status;
+      if (d < dayOfMonth)        status = dayTotals[d] > 0 ? "done" : "missed";
+      else if (d === dayOfMonth) status = "today";
+      else                       status = "future";
+      ruler.push({ day: d, status });
+    }
+
+    return { rows, plannedRows, totalDailyRate, totalGap, daysBehind, totalDue, daysInMonth, dayOfMonth, ruler };
+  }, [savingsAccs, monthPlans, transfers, debtState, rates, now, thisYear]);
+  const [showDailyAccounts, setShowDailyAccounts] = useState(false);
 
   return (
     <div style={{ paddingBottom: 80 }}>
@@ -264,9 +332,10 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
 
           <LineChart monthlyData={monthlyData} selectedMonth={selectedMonth} onSelect={setSelectedMonth}/>
 
-          <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, color: C.dim }}><span style={{ color: C.errorLight }}>—</span> Расходы</span>
             <span style={{ fontSize: 11, color: C.dim }}><span style={{ color: C.emerald }}>—</span> Доходы</span>
+            <span style={{ fontSize: 11, color: C.dim }}><span style={{ color: C.blue }}>┄</span> Накопления</span>
           </div>
 
           {selectedData && (
@@ -373,6 +442,100 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
           )}
         </div>
 
+        {/* ─── Дневная норма ─── */}
+        {dailyChallenge && (
+          <div style={{ background: C.monCard, borderRadius: 16, padding: "16px", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.mid }}>Дневная норма</p>
+              <span style={{ fontSize: 11, color: C.dim }}>{RU_MONTHS[now.getMonth()]} {thisYear}</span>
+            </div>
+
+            {dailyChallenge.plannedRows.length > 0 ? (
+              <>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+                  {dailyChallenge.daysBehind > 0 ? (
+                    <div>
+                      <p style={{ margin: 0, fontSize: 13, color: C.amber }}>Отстаёте на {dailyChallenge.daysBehind} дн.</p>
+                      <p style={{ margin: "2px 0 0", fontSize: 11, color: C.amber, opacity: 0.75 }}>чтобы наверстать — {sym}{fmtAmtAuto(dailyChallenge.totalGap)}</p>
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, fontSize: 13, color: C.dim }}>Вы день в день</p>
+                  )}
+                  <span style={{ fontSize: 15, fontWeight: 700, color: dailyChallenge.daysBehind > 0 ? C.main : C.emerald, whiteSpace: "nowrap" }}>
+                    {sym}{fmtAmtAuto(dailyChallenge.totalDailyRate)}<span style={{ fontSize: 11, fontWeight: 400, color: C.dim }}>/день</span>
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", gap: 3 }}>
+                  {dailyChallenge.ruler.map(d => (
+                    <span key={d.day} style={{
+                      flex: 1, height: 22, borderRadius: 4, boxSizing: "border-box",
+                      background:
+                        d.status === "done"    ? "rgba(52,211,153,0.35)" :
+                        d.status === "missed"  ? "rgba(245,158,11,0.18)" :
+                        d.status === "today"   ? (dailyChallenge.daysBehind > 0 ? "rgba(245,158,11,0.12)" : "rgba(52,211,153,0.14)") :
+                        "rgba(255,255,255,0.05)",
+                      border: d.status === "today" ? `1.5px solid ${dailyChallenge.daysBehind > 0 ? C.amber : C.emerald}` : "none",
+                    }}/>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.dim, margin: "4px 0 12px" }}>
+                  <span>1</span>
+                  <span>сегодня · {dailyChallenge.dayOfMonth}</span>
+                  <span>{dailyChallenge.daysInMonth}</span>
+                </div>
+
+                <button
+                  onClick={() => setShowDailyAccounts(v => !v)}
+                  style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: "4px 0", cursor: "pointer", color: C.dim, fontSize: 12 }}
+                >
+                  <Ico n={showDailyAccounts ? "chevU" : "chevD"} s={12} c={C.dim}/>
+                  {showDailyAccounts ? "Скрыть по счетам" : `Показать по счетам (${dailyChallenge.rows.length})`}
+                </button>
+
+                {showDailyAccounts && (
+                  <div style={{ display: "flex", flexDirection: "column", marginTop: 4 }}>
+                    {dailyChallenge.rows.map(r => (
+                      <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: `1px solid ${C.border}` }}>
+                        <CatIcon k={r.acc.icon || "wallet"} size={24} color={r.acc.color || C.blue}/>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: 13, color: C.main, display: "flex", alignItems: "center", gap: 6 }}>
+                            {r.acc.name}
+                            {r.hasPlan && r.doneToday && <Ico n="check" s={13} c={C.emerald}/>}
+                          </span>
+                          {!r.hasPlan && <p style={{ margin: "2px 0 0", fontSize: 11, color: C.dim }}>нет плана на этот месяц</p>}
+                          {r.hasPlan && r.gap > 0 && <p style={{ margin: "2px 0 0", fontSize: 11, color: C.amber }}>наверстать {sym}{fmtAmtAuto(r.gap)}</p>}
+                        </div>
+                        {r.hasPlan && (
+                          <span style={{ fontSize: 13, fontWeight: 600, color: C.main, whiteSpace: "nowrap", flexShrink: 0 }}>
+                            {sym}{fmtAmtAuto(r.dailyRate)}<span style={{ fontSize: 11, fontWeight: 400, color: C.dim }}>/день</span>
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => navigate?.("transfer", { amount: Math.round(dailyChallenge.totalDue) })}
+                  style={{ width: "100%", marginTop: 14, padding: "14px", borderRadius: 12, border: "none", background: C.emerald, color: "#06120c", fontSize: 15, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Пополнить {sym}{fmtAmtAuto(dailyChallenge.totalDue)}
+                </button>
+                {dailyChallenge.totalGap > 0 && (
+                  <p style={{ margin: "6px 0 0", fontSize: 11, color: C.dim, textAlign: "center" }}>
+                    норма за сегодня {sym}{fmtAmtAuto(dailyChallenge.totalDailyRate)} + наверстать {sym}{fmtAmtAuto(dailyChallenge.totalGap)}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p style={{ margin: 0, fontSize: 12, color: C.dim }}>
+                На накопительных счетах пока нет плана на этот месяц — задайте план в разделе «Бюджет», чтобы видеть дневную норму.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* ─── Прогноз накоплений ─── */}
         <div style={{ background: C.monCard, borderRadius: 16, padding: "16px", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -429,10 +592,12 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
                 <span style={{ color: "rgba(52,211,153,0.65)", fontWeight: 600 }}>
                   +{sym}{fmtAmtAuto(yearForecast.remainingProjected)}
                 </span>
-                {" за "}{yearForecast.monthsLeft} мес.{" · "}
-                <span style={{ color: C.mid, fontWeight: 600 }}>
-                  ср. {sym}{fmtAmtAuto(yearForecast.avgMonthlySav)}/{range} мес
-                </span>
+                {" за оставшиеся "}{yearForecast.monthsLeft} мес.
+              </p>
+              <p style={{ margin: "2px 0 0", fontSize: 11, color: C.mid }}>
+                Расчёт по темпу{" "}
+                <span style={{ fontWeight: 600 }}>{sym}{fmtAmtAuto(yearForecast.avgMonthlySav)}/мес</span>
+                {" — среднее за последние "}{range}{" мес. (график выше)"}
               </p>
             </>
           ) : (
@@ -457,7 +622,7 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data 
                     </p>
                   </div>
                   <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column" }}>
-                    <p style={{ margin: 0, fontSize: 10, color: C.dim, lineHeight: 1.4, minHeight: 28 }}>Ср. накопление</p>
+                    <p style={{ margin: 0, fontSize: 10, color: C.dim, lineHeight: 1.4, minHeight: 28 }}>Ср. накопление (за {range} мес.)</p>
                     <p style={{ margin: 0, fontSize: "var(--analytics-card-value-fs)", fontWeight: 800, color: C.blue }}>
                       {sym}{fmtAmtAuto(yearForecast.avgMonthlySav)}<span style={{ fontSize: "var(--analytics-card-unit-fs)", fontWeight: 400 }}>/мес</span>
                     </p>
