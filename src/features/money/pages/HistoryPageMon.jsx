@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
+import { SAVINGS_PURPOSES, BALANCE_ADJUSTMENT_NOTE, FEE_TX_NOTE } from "../../../constants/money";
 import { fmtM, fmtAmt, fmtAmtAuto, getSym, isCommodity, round2, avgRateFn } from "../../../utils/format";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { localDate } from "../../../utils/date";
 import { supabase, supaRpc } from "../../../lib/supabase";
 import { RU_MON_GEN, RU_MONTHS_S } from "../../../constants/locale";
-import { BALANCE_ADJUSTMENT_NOTE, FEE_TX_NOTE } from "../../../constants/money";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 import { BottomSheet } from "../../../components/BottomSheet";
@@ -16,12 +16,14 @@ function fmtGroupDate(dateStr) {
   return `${d} ${RU_MON_GEN[m-1]} ${y}`;
 }
 
+// Период считаем по уже нормализованному entry.date (YYYY-MM-DD) — транзакции и переводы
+// приводятся к нему заранее (см. entries ниже), т.к. у переводов своя дата в created_at.
 function getPeriodFilter(period, offset, now) {
   if (period === "day") {
     const d = new Date(now); d.setDate(d.getDate() + offset);
     const str = localDate(d);
     const label = offset === 0 ? "Сегодня" : offset === -1 ? "Вчера" : str;
-    return { fn: t => localDate(t.created_at) === str, label };
+    return { fn: e => e.date === str, label };
   }
   if (period === "week") {
     const mon = new Date(now);
@@ -30,20 +32,22 @@ function getPeriodFilter(period, offset, now) {
     mon.setHours(0, 0, 0, 0);
     const sun = new Date(mon); sun.setDate(mon.getDate() + 6); sun.setHours(23, 59, 59, 999);
     const fmt = d => `${d.getDate()} ${RU_MONTHS_S[d.getMonth()]}`;
-    return { fn: t => { const d = new Date(t.created_at); return d >= mon && d <= sun; }, label: `${fmt(mon)} – ${fmt(sun)}` };
+    return { fn: e => { const d = new Date(e.date); return d >= mon && d <= sun; }, label: `${fmt(mon)} – ${fmt(sun)}` };
   }
   if (period === "month") {
     const total = now.getFullYear() * 12 + now.getMonth() + offset;
     const y = Math.floor(total / 12);
     const m = total % 12;
-    return { fn: t => { const d = new Date(t.created_at); return d.getFullYear() === y && d.getMonth() === m; }, label: `${RU_MON_GEN[m]} ${y}` };
+    return { fn: e => { const d = new Date(e.date); return d.getFullYear() === y && d.getMonth() === m; }, label: `${RU_MON_GEN[m]} ${y}` };
   }
   if (period === "year") {
     const y = now.getFullYear() + offset;
-    return { fn: t => new Date(t.created_at).getFullYear() === y, label: String(y) };
+    return { fn: e => new Date(e.date).getFullYear() === y, label: String(y) };
   }
   return { fn: () => true, label: "Всё время" };
 }
+
+const OP_TYPES = [["all", "Всё"], ["expense", "Расходы"], ["income", "Доходы"], ["transfer", "Переводы"]];
 
 const ArrowDown = () => (
   <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -59,8 +63,6 @@ function StoredDealBanner({ analytics, fromCurrency, toCurrency }) {
           to_balance_before, to_amount_added } = analytics;
   if (!has_sell && !has_buy) return null;
 
-  // Если есть данные о балансе до и кол-ве добавленного — пересчитываем взвешенную среднюю точно.
-  // Это исправляет старые записи, где new_to_avg_rate был посчитан с рыночной ценой вместо avg_rate.
   const displayNewAvg = (has_buy && to_balance_before != null && to_amount_added != null && implied_buy_rate != null)
     ? Math.round(avgRateFn(to_balance_before, (to_avg_before || 0) > 0 ? to_avg_before : implied_buy_rate, to_amount_added, implied_buy_rate) * 100) / 100
     : new_to_avg_rate;
@@ -141,9 +143,118 @@ function StoredDealBanner({ analytics, fromCurrency, toCurrency }) {
   );
 }
 
-export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload, onBack }) {
+// Долг самому себе (снятие с накопительного счёта), определяется по сторонам перевода —
+// без привязки к "текущему" счёту, т.к. в общей истории такого контекста нет (см. AccDetailPage,
+// где та же идея завязана на конкретный открытый счёт).
+function selfDebtBadge(t, accounts) {
+  if (t.is_adjustment) return null;
+  const from = accounts.find(a => a.id === t.from_id);
+  const to   = accounts.find(a => a.id === t.to_id);
+  if (from && SAVINGS_PURPOSES.includes(from.purpose)) return { label: "Долг самому себе", color: C.amber, bg: "rgba(245,158,11,0.12)" };
+  if (to && SAVINGS_PURPOSES.includes(to.purpose) && t.is_debt_repayment) return { label: "Возврат долга себе", color: C.amber, bg: "rgba(245,158,11,0.12)" };
+  return null;
+}
+
+// Долги людям: транзакция привязана к debt_events через transaction_id (см. AccDetailPage).
+function personDebtBadge(tx, debtEvents, debtPeople) {
+  const evt = debtEvents.find(e => e.transaction_id === tx.id && (e.type === "they_paid" || e.type === "lent" || e.type === "return"));
+  if (!evt) return null;
+  const name = debtPeople.find(p => p.id === evt.person_id)?.name || "—";
+  if (evt.type === "they_paid") return { label: `Взял в долг у ${name}`, color: C.errorLight, bg: "rgba(244,67,54,0.12)" };
+  if (evt.type === "lent") return { label: `Дал в долг · ${name}`, color: C.amber, bg: "rgba(245,158,11,0.12)" };
+  if (tx.type === "income") return { label: `${name} вернул(а) долг`, color: C.green, bg: "rgba(76,175,80,0.12)" };
+  return { label: `Вернул(а) долг · ${name}`, color: C.blue, bg: "rgba(96,165,250,0.12)" };
+}
+
+function DebtBadge({ badge }) {
+  if (!badge) return null;
+  return (
+    <span style={{ display: "inline-block", marginTop: 4, fontSize: 10, fontWeight: 600, color: badge.color, background: badge.bg, padding: "2px 7px", borderRadius: 6 }}>
+      {badge.label}
+    </span>
+  );
+}
+
+function TxRow({ tx, cat, badge, onClick }) {
+  const title = cat?.name || (badge ? "Долг" : (tx.note || "Без категории"));
+  return (
+    <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14, marginBottom: 8, background: C.monCard, cursor: "pointer" }}>
+      <CatIcon k={cat?.icon || "other"} size={44} color={cat?.color || C.dim}/>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: C.main, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</p>
+        {tx.note && !badge && <p style={{ margin: 0, fontSize: 12, color: C.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.note}</p>}
+        <DebtBadge badge={badge}/>
+      </div>
+      <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: tx.type === "income" ? C.emerald : "#fff", flexShrink: 0 }}>
+        {tx.type === "income" ? "+" : ""}{fmtM(tx.amount, tx.currency)}
+      </p>
+    </div>
+  );
+}
+
+function TransferRow({ t, accounts, badge, onClick }) {
+  if (t.is_adjustment) {
+    const adjAcc = accounts.find(a => a.id === t.from_id);
+    const delta  = t.to_amt ?? t.amount;
+    const isPos  = delta >= 0;
+    return (
+      <div onClick={onClick} style={{ background:C.monCard, borderRadius:14, padding:"12px 14px", marginBottom:8, cursor:"pointer" }}>
+        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+          <div style={{ flexShrink:0, opacity:0.35 }}><Ico n="edit" s={14} c={C.mid}/></div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span style={{ fontSize:13, fontWeight:500, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{adjAcc?.name ?? "—"}</span>
+              <span style={{ fontSize:13, fontWeight:600, color: isPos ? C.emerald : C.errorLight, flexShrink:0, marginLeft:8 }}>
+                {isPos ? "+" : "−"}{fmtM(Math.abs(delta), t.from_currency)}
+              </span>
+            </div>
+            <span style={{ fontSize:12, color:C.dim }}>{BALANCE_ADJUSTMENT_NOTE}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const from    = accounts.find(a => a.id === t.from_id);
+  const to      = accounts.find(a => a.id === t.to_id);
+  const toAmt   = t.to_amt ?? t.amount;
+  const toCur   = t.to_currency || t.from_currency;
+  const diffCur = t.from_currency !== toCur;
+
+  return (
+    <div onClick={onClick} style={{ background:C.monCard, borderRadius:14, padding:"12px 14px", marginBottom:8, cursor:"pointer" }}>
+      <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+        <div style={{ flexShrink:0, display:"flex", alignItems:"center" }}><ArrowDown/></div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+            <span style={{ fontSize:13, fontWeight:500, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{from?.name ?? "—"}</span>
+            <span style={{ fontSize:13, fontWeight:500, color:"#fff", flexShrink:0, marginLeft:8 }}>{fmtM(t.amount, t.from_currency)}</span>
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontSize:13, color:C.mid, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{to?.name ?? "—"}</span>
+            {diffCur && <span style={{ fontSize:13, color:C.green, flexShrink:0, marginLeft:8 }}>{fmtM(toAmt, toCur)}</span>}
+          </div>
+        </div>
+      </div>
+      {(t.note || t.fee > 0 || badge) && (
+        <div style={{ display:"flex", gap:6, fontSize:12, color:C.dim, marginTop:4, paddingLeft:24, alignItems:"center", flexWrap:"wrap" }}>
+          {badge && <span style={{ fontSize:10, fontWeight:600, color:badge.color, background:badge.bg, padding:"2px 7px", borderRadius:6, flexShrink:0 }}>{badge.label}</span>}
+          {t.note && <span style={{ flex:1, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.note}</span>}
+          {t.note && t.fee > 0 && <span>·</span>}
+          {t.fee > 0 && <span style={{ color:C.errorLight, flexShrink:0 }}>{fmtM(t.fee, t.from_currency)}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Единая история операций по всем счетам: транзакции (доходы/расходы) и переводы вперемешку,
+// отсортированные по времени и сгруппированные по дате — раньше здесь были только переводы,
+// теперь это общая лента для раздела "Счета" (см. MoneyAccountsSection → "История").
+export function HistoryPageMon({ transactions, transfers, accounts, expCats, incCats, debtEvents = [], debtPeople = [], navigate, onReload, onBack }) {
   const [period,        setPeriod]        = useState("month");
   const [periodOffset,  setPeriodOffset]  = useState(0);
+  const [opType,        setOpType]        = useState("all");
   const [selAccIds,     setSelAccIds]     = useState(new Set());
   const [pickerOpen,    setPickerOpen]    = useState(false);
   const [detailT,       setDetailT]       = useState(null);
@@ -165,18 +276,33 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
   });
 
   const { fn: periodFn, label: periodLabel } = getPeriodFilter(period, periodOffset, now);
-
-  const filtered = transfers
-    .filter(periodFn)
-    .filter(t => selAccIds.size === 0 || selAccIds.has(t.from_id) || selAccIds.has(t.to_id));
-
   const changePeriod = (p) => { setPeriod(p); setPeriodOffset(0); };
+
+  const catFor = (tx) => (tx.type === "expense" ? expCats : incCats).find(c => c.id === tx.category_id);
+
+  const entries = useMemo(() => [
+    ...transactions.map(t => ({ kind: "tx", data: t, date: t.date, sortAt: t.created_at || t.date })),
+    ...transfers.map(t => ({ kind: "transfer", data: t, date: localDate(t.created_at), sortAt: t.created_at })),
+  ], [transactions, transfers]);
+
+  const filtered = useMemo(() => entries
+    .filter(e => period === "all" || periodFn(e))
+    .filter(e => {
+      if (selAccIds.size === 0) return true;
+      return e.kind === "tx" ? selAccIds.has(e.data.account_id) : (selAccIds.has(e.data.from_id) || selAccIds.has(e.data.to_id));
+    })
+    .filter(e => {
+      if (opType === "all") return true;
+      if (opType === "transfer") return e.kind === "transfer";
+      return e.kind === "tx" && e.data.type === opType;
+    })
+    .sort((a, b) => String(b.sortAt || "").localeCompare(String(a.sortAt || "")))
+  , [entries, period, periodOffset, selAccIds, opType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cancelTransfer = async (t) => {
     const from  = accounts.find(a => a.id === t.from_id);
     const to    = accounts.find(a => a.id === t.to_id);
     try {
-      // Ищем ID транзакции-комиссии до атомарного вызова (нет в props)
       let feeTxId = null;
       if (t.fee > 0) {
         const { data: feeTxs } = await supabase.from("transactions").select("id")
@@ -191,7 +317,6 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
       if (to && t.rate && to.avg_rate && prevToBal > 0)
         prevToRate = Math.round((to.avg_rate * to.balance - toAmt * t.rate) / prevToBal * 100) / 100;
 
-      // Удаляем FX транзакцию (не влияет на баланс, поэтому до RPC)
       await supabase.from("transactions").delete().eq("transfer_id", t.id);
 
       await supaRpc("cancel_transfer", {
@@ -204,7 +329,6 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
         p_fee_tx_id:    feeTxId,
       });
 
-      // Удаляем авто-пополнение цели, созданное этим переводом (если было)
       await supabase.from("goal_topups").delete().eq("transfer_id", t.id);
 
       setConfirmCancel(false);
@@ -213,9 +337,9 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
     } catch(err) { console.error(err); }
   };
 
-  // ── DETAIL VIEW ─────────────────────────────────────────────────────────────
+  // ── DETAIL VIEW (только переводы — у транзакций редактирование открывается сразу на editTx) ──
   if (detailT) {
-    const t      = transfers.find(tr => tr.id === detailT.id) ?? detailT;
+    const t = transfers.find(tr => tr.id === detailT.id) ?? detailT;
 
     const lbl = (text) => (
       <p style={{ margin:"0 0 8px", fontSize:12, color:C.dim, fontWeight:500 }}>{text}</p>
@@ -230,7 +354,6 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
       </div>
     );
 
-    // Balance adjustment — read-only view
     if (t.is_adjustment) {
       const adjAcc = accounts.find(a => a.id === t.from_id);
       const delta  = t.to_amt ?? t.amount;
@@ -261,7 +384,6 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
     const toAmt  = t.to_amt ?? t.amount;
     const toCur  = t.to_currency || t.from_currency;
     const diffCur = t.from_currency !== toCur;
-    // t.rate = ₸ за 1 ед. toCur (если toCur≠KZT) или ₸ за 1 ед. fromCurrency (если toCur=KZT, pricePerGramMode)
     const foreignCur = toCur !== BASE_CUR ? toCur : t.from_currency;
 
     return (
@@ -334,25 +456,25 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
 
   // ── LIST VIEW ────────────────────────────────────────────────────────────────
   const selAccList = orderedAccounts.filter(a => selAccIds.has(a.id));
-  const sortedFiltered = [...filtered].sort((a, b) =>
-    (b.created_at || "").localeCompare(a.created_at || "")
-  );
-  const grouped = sortedFiltered.reduce((acc, t) => {
-    const key = localDate(t.created_at);
-    (acc[key] = acc[key] || []).push(t);
-    return acc;
-  }, {});
+  const grouped = filtered.reduce((acc, e) => { (acc[e.date] = acc[e.date] || []).push(e); return acc; }, {});
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
       <div style={{ background:C.monHeader, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
         <button onClick={() => onBack(false)} style={{ background:"none", border:"none", cursor:"pointer", color:C.main, display:"flex" }}><Ico n="back" s={22}/></button>
-        <span style={{ flex:1, fontSize:17, fontWeight:600, color:"#fff" }}>История переводов</span>
+        <span style={{ flex:1, fontSize:17, fontWeight:600, color:"#fff" }}>История операций</span>
         <div style={{ width:30 }}/>
       </div>
 
       <div style={{ flex:1, overflowY:"auto", padding:"12px 16px 40px" }}>
+        {/* Type tabs */}
+        <div style={{ display:"flex", gap:2, background:"rgba(255,255,255,0.04)", borderRadius:10, padding:3, marginBottom:8 }}>
+          {OP_TYPES.map(([v, l]) => (
+            <button key={v} onClick={() => setOpType(v)} style={{ flex:1, padding:"8px 0", borderRadius:8, border:"none", cursor:"pointer", fontSize:11, fontWeight:600, background:opType===v?C.monCard2:"transparent", color:opType===v?C.green:C.dim }}>{l}</button>
+          ))}
+        </div>
+
         {/* Period tabs */}
         <div style={{ display:"flex", gap:2, background:"rgba(255,255,255,0.04)", borderRadius:10, padding:3, marginBottom:8 }}>
           {[["day","День"],["week","Неделя"],["month","Месяц"],["year","Год"],["all","Все"]].map(([v,l]) => (
@@ -387,74 +509,16 @@ export function TransferHistoryPageMon({ transfers, accounts, navigate, onReload
           )}
         </button>
 
-        {filtered.length === 0 && <p style={{ textAlign:"center", padding:"40px 0", color:C.dim }}>Нет переводов</p>}
+        {filtered.length === 0 && <p style={{ textAlign:"center", padding:"40px 0", color:C.dim }}>Нет операций</p>}
 
         {/* Grouped by date */}
         {sortedDates.map(date => (
           <div key={date}>
             <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:600, color:C.dim }}>{fmtGroupDate(date)}</p>
-            {grouped[date].map(t => {
-              if (t.is_adjustment) {
-                const adjAcc = accounts.find(a => a.id === t.from_id);
-                const delta  = t.to_amt ?? t.amount;
-                const isPos  = delta >= 0;
-                return (
-                  <div key={t.id} onClick={() => setDetailT(t)} style={{ background:C.monCard, borderRadius:14, padding:"12px 14px", marginBottom:8, cursor:"pointer" }}>
-                    <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                      <div style={{ flexShrink:0, opacity:0.35 }}><Ico n="edit" s={14} c={C.mid}/></div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                          <span style={{ fontSize:13, fontWeight:500, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{adjAcc?.name ?? "—"}</span>
-                          <span style={{ fontSize:13, fontWeight:600, color: isPos ? C.emerald : C.errorLight, flexShrink:0, marginLeft:8 }}>
-                            {isPos ? "+" : "−"}{fmtM(Math.abs(delta), t.from_currency)}
-                          </span>
-                        </div>
-                        <span style={{ fontSize:12, color:C.dim }}>{BALANCE_ADJUSTMENT_NOTE}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              const from  = accounts.find(a => a.id === t.from_id);
-              const to    = accounts.find(a => a.id === t.to_id);
-              const toAmt = t.to_amt ?? t.amount;
-              const toCur = t.to_currency || t.from_currency;
-              const diffCur = t.from_currency !== toCur;
-              return (
-                <div key={t.id} onClick={() => setDetailT(t)} style={{ background:C.monCard, borderRadius:14, padding:"12px 14px", marginBottom:8, cursor:"pointer" }}>
-                  <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                    <div style={{ flexShrink:0, display:"flex", alignItems:"center" }}>
-                      <ArrowDown/>
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
-                          <span style={{ fontSize:13, fontWeight:500, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{from?.name ?? "—"}</span>
-                        </div>
-                        <span style={{ fontSize:13, fontWeight:500, color:"#fff", flexShrink:0, marginLeft:8 }}>{fmtM(t.amount, t.from_currency)}</span>
-                      </div>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
-                          <span style={{ fontSize:13, color:C.mid, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{to?.name ?? "—"}</span>
-                        </div>
-                        {diffCur && <span style={{ fontSize:13, color:C.green, flexShrink:0, marginLeft:8 }}>{fmtM(toAmt, toCur)}</span>}
-                      </div>
-                    </div>
-                  </div>
-                  {(t.note || t.fee > 0 || t.is_debt_repayment) && (
-                    <div style={{ display:"flex", gap:6, fontSize:12, color:C.dim, marginTop:4, paddingLeft:24, alignItems:"center" }}>
-                      {t.is_debt_repayment && (
-                        <span style={{ fontSize:10, fontWeight:600, color:C.amber, background:"rgba(245,158,11,0.12)", padding:"2px 7px", borderRadius:6, flexShrink:0 }}>Возврат долга</span>
-                      )}
-                      {t.note && <span style={{ flex:1, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.note}</span>}
-                      {t.note && t.fee > 0 && <span>·</span>}
-                      {t.fee > 0 && <span style={{ color:C.errorLight, flexShrink:0 }}>{fmtM(t.fee, t.from_currency)}</span>}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {grouped[date].map(e => e.kind === "tx"
+              ? <TxRow key={`tx-${e.data.id}`} tx={e.data} cat={catFor(e.data)} badge={personDebtBadge(e.data, debtEvents, debtPeople)} onClick={() => navigate("editTx", e.data)}/>
+              : <TransferRow key={`tr-${e.data.id}`} t={e.data} accounts={accounts} badge={selfDebtBadge(e.data, accounts)} onClick={() => setDetailT(e.data)}/>
+            )}
             <div style={{ marginBottom:16 }}/>
           </div>
         ))}

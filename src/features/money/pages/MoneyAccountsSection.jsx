@@ -42,7 +42,7 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
         <p style={{ margin:"0 0 4px", fontSize:12, color:C.dim }}>Общий баланс</p>
         <p style={{ margin:0, fontSize:32, fontWeight:800, color:"#fff", letterSpacing:-1 }}>{fmtBal(total, BASE_CUR)}</p>
         <div style={{ display:"flex", justifyContent:"center", gap:24, marginTop:16, marginBottom:8 }}>
-          {[["transfer","Перевод",()=>navigate("transfer")],["clock","История",()=>navigate("trHistory")]].map(([ic,l,fn]) => (
+          {[["transfer","Перевод",()=>navigate("transfer")],["clock","История",()=>navigate("history")]].map(([ic,l,fn]) => (
             <button key={l} onClick={fn} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, background:"none", border:"none", cursor:"pointer" }}>
               <div style={{ width:52, height:52, borderRadius:26, background:C.greenDim, display:"flex", alignItems:"center", justifyContent:"center" }}><Ico n={ic} s={22} c={C.green}/></div>
               <span style={{ fontSize:11, color:C.mid }}>{l}</span>

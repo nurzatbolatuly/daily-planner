@@ -7,7 +7,7 @@ import { TxPage } from "./pages/TxPage";
 import { AccPage } from "./pages/AccPage";
 import { AccDetailPage } from "./pages/AccDetailPage";
 import { TransferPageMon } from "./pages/TransferPageMon";
-import { TransferHistoryPageMon } from "./pages/TransferHistoryPageMon";
+import { HistoryPageMon } from "./pages/HistoryPageMon";
 import { MoneyHomeSection } from "./pages/MoneyHomeSection";
 import { MoneyAccountsSection } from "./pages/MoneyAccountsSection";
 import { MoneyBudgetSection } from "./pages/MoneyBudgetSection";
@@ -112,7 +112,7 @@ export default function MoneyManagerSection() {
       editAcc:      (d) => <AccPage onBack={goBack} edit={d}/>,
       accDetail:    (d) => <AccDetailPage account={data.accounts.find(a => a.id === d.id) || d} transactions={data.transactions} transfers={data.transfers} accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} debtEvents={data.debtEvents} debtPeople={data.debtPeople} navigate={navigate} onBack={goBack}/>,
       transfer:     (d) => <TransferPageMon accounts={data.accounts} transfers={data.transfers} expCats={data.expCats} goals={data.goals} transactions={data.transactions} fxAccount={data.accounts.find(a => a.is_fx_account)} onBack={goBack} prefill={d}/>,
-      trHistory:    ()  => <TransferHistoryPageMon transfers={data.transfers} accounts={data.accounts} navigate={navigate} onReload={data.reload} onBack={goBack}/>,
+      history:      ()  => <HistoryPageMon transactions={data.transactions} transfers={data.transfers} accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} debtEvents={data.debtEvents} debtPeople={data.debtPeople} navigate={navigate} onReload={data.reload} onBack={goBack}/>,
       editTransfer: (d) => <TransferPageMon accounts={data.accounts} transfers={data.transfers} expCats={data.expCats} goals={data.goals} transactions={data.transactions} fxAccount={data.accounts.find(a => a.is_fx_account)} onBack={goBack} edit={d}/>,
       addCat:       (d) => <CatPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} catType={d?.catType}/>,
       editCat:      (d) => <CatPageMon expCats={data.expCats} incCats={data.incCats} onBack={goBack} edit={d} catType={d?.catType}/>,

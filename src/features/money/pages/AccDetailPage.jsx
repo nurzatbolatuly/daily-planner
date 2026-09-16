@@ -14,7 +14,7 @@ function fmtGroupDate(dateStr) {
   return `${d} ${RU_MON_GEN[m - 1]} ${y}`;
 }
 
-// Тот же паттерн период-табов (день/неделя/месяц/год/всё), что и в TransferHistoryPageMon,
+// Тот же паттерн период-табов (день/неделя/месяц/год/всё), что и в HistoryPageMon,
 // но работает над уже нормализованной строкой "YYYY-MM-DD" (entry.date), а не raw created_at,
 // т.к. здесь entries смешивают transactions (date) и transfers (created_at → localDate).
 function getPeriodFilter(period, offset, now) {
