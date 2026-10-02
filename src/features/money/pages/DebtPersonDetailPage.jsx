@@ -1,15 +1,14 @@
 import { useMemo, useState } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { todayStr } from "../../../utils/date";
-import { fmtAmtAuto, getSym, round2, toBase, ratesFromAccounts } from "../../../utils/format";
-import { supaUpsert, supabase } from "../../../lib/supabase";
-import { newId } from "../../../utils/id";
+import { fmtAmtAuto, getSym, ratesFromAccounts } from "../../../utils/format";
+import { supabase } from "../../../lib/supabase";
 import { computeNetByPerson, personHistory } from "../../../utils/debtLedger";
 import { PageHeader } from "../../../components/PageHeader";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { DebtHistory } from "../components/DebtHistory";
 import { ReturnModal } from "../components/ReturnModal";
+import { ForgiveModal } from "../components/ForgiveModal";
 
 const sym = getSym(BASE_CUR);
 
@@ -19,8 +18,7 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], t
   const history = useMemo(() => personHistory(debtEvents, person.id), [debtEvents, person.id]);
 
   const [returnOpen, setReturnOpen] = useState(false);
-  const [confirmForgive, setConfirmForgive] = useState(false);
-  const [forgiving, setForgiving] = useState(false);
+  const [forgiveOpen, setForgiveOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -49,53 +47,6 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], t
   const label = net === 0 ? "В расчёте" : net > 0 ? "Должен вам" : "Вы должны";
   const color = net === 0 ? C.dim : net > 0 ? C.green : C.errorLight;
 
-  // Прощаем не общей суммой, а по каждому расходу отдельно: каждая непогашенная доля
-  // (paid_for_them) гасится своей записью с тем же transaction_id — это возвращает
-  // связанный расход обратно к полной сумме в Истории/Аналитике/Бюджете (см.
-  // debtLedger.receivableByTransaction). Остаток NET, не покрытый расходами (ручные
-  // долги без transaction_id, доли "они за меня" и т.п.) — одной обычной записью.
-  const forgive = async () => {
-    setForgiving(true);
-    try {
-      const alreadyForgivenTx = new Set(
-        history.filter(e => e.type === "forgive" && e.transaction_id).map(e => e.transaction_id)
-      );
-      const outstanding = history.filter(e => e.type === "paid_for_them" && e.transaction_id && !alreadyForgivenTx.has(e.transaction_id));
-
-      const rows = outstanding.map(e => ({
-        id: newId(),
-        person_id: person.id,
-        type: "forgive",
-        amount: round2(-e.amount),
-        currency: e.currency,
-        date: todayStr(),
-        note: "",
-        transaction_id: e.transaction_id,
-        account_id: null,
-      }));
-
-      const coveredBase = outstanding.reduce((s, e) => s + toBase(e.amount, e.currency, rates), 0);
-      const remainder = round2(net - coveredBase);
-      if (remainder !== 0) {
-        rows.push({
-          id: newId(),
-          person_id: person.id,
-          type: "forgive",
-          amount: round2(-remainder),
-          currency: BASE_CUR,
-          date: todayStr(),
-          note: "",
-          transaction_id: null,
-          account_id: null,
-        });
-      }
-
-      if (rows.length) await supaUpsert("debt_events", rows);
-      await onReload();
-    } catch (e) { console.error("Forgive debt:", e); }
-    setForgiving(false);
-  };
-
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
       <PageHeader title={person.name} onBack={() => onBack(false)}/>
@@ -111,7 +62,7 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], t
               style={{ flex:1, padding:13, borderRadius:12, background:C.green, border:"none", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer" }}>
               Возврат
             </button>
-            <button onClick={() => setConfirmForgive(true)}
+            <button onClick={() => setForgiveOpen(true)}
               style={{ flex:1, padding:13, borderRadius:12, background:"rgba(255,255,255,0.06)", border:`1px solid ${C.border}`, color:C.dim, fontSize:14, fontWeight:600, cursor:"pointer" }}>
               Простить
             </button>
@@ -127,13 +78,10 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], t
         person={person} net={net} accounts={accounts}
         onDone={async () => { setReturnOpen(false); await onReload(); }}
       />
-      <ConfirmSheet
-        open={confirmForgive}
-        onClose={() => setConfirmForgive(false)}
-        onConfirm={() => { setConfirmForgive(false); forgive(); }}
-        title="Простить долг?"
-        message={`Остаток ${sym}${fmtAmtAuto(Math.abs(net))} будет списан без создания транзакции. Отменить нельзя.`}
-        confirmLabel={forgiving ? "Списание..." : "Простить"}
+      <ForgiveModal
+        open={forgiveOpen} onClose={() => setForgiveOpen(false)}
+        person={person} net={net} history={history} rates={rates}
+        onDone={async () => { setForgiveOpen(false); await onReload(); }}
       />
       <ConfirmSheet
         open={!!deleteTarget}

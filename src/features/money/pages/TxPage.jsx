@@ -67,9 +67,22 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
     const acc = accounts.find(a => a.id === accId);
     const delta = type === "income" ? parseFloat(amt) : -parseFloat(amt);
     const tx = { id: edit?.id || newId(), type, amount: parseFloat(amt), currency: cur, category_id: cat, account_id: accId, date, note };
+    // Откат старой суммы должен лечь на тот счёт, с которого она реально была списана/
+    // зачислена (edit.account_id), а не на выбранный сейчас — иначе при смене счёта
+    // возврат и новое списание взаимно гасятся на новом счёте, а старый не трогается.
     const oldDelta = edit ? (edit.type === "income" ? -edit.amount : edit.amount) : 0;
-    const newBal = round2(acc.balance + oldDelta + delta);
-    await supaRpc("save_tx", { p_tx: tx, p_account_id: accId, p_new_balance: newBal });
+    if (edit && edit.account_id !== accId) {
+      const oldAcc = accounts.find(a => a.id === edit.account_id);
+      await supaRpc("save_tx_change_account", {
+        p_tx: tx,
+        p_account_id: accId,
+        p_new_balance: round2(acc.balance + delta),
+        p_old_account_id: oldAcc ? oldAcc.id : null,
+        p_old_balance: oldAcc ? round2(oldAcc.balance + oldDelta) : null,
+      });
+    } else {
+      await supaRpc("save_tx", { p_tx: tx, p_account_id: accId, p_new_balance: round2(acc.balance + oldDelta + delta) });
+    }
 
     // Пересобираем сплит с нуля вместо диффа старого/нового состава — NET по человеку
     // это просто Σ debt_events.amount, поэтому удаление старых записей этой транзакции
@@ -82,7 +95,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
       const linkedEvent = debtEvents.find(e => e.transaction_id === tx.id && e.type !== "paid_for_them");
       if (linkedEvent) {
         const sign = linkedEvent.amount < 0 ? -1 : 1;
-        await supabase.from("debt_events").update({ amount: round2(sign * Math.abs(parseFloat(amt))), currency: cur, date, note }).eq("id", linkedEvent.id);
+        await supabase.from("debt_events").update({ amount: round2(sign * Math.abs(parseFloat(amt))), currency: cur, date, note, account_id: accId }).eq("id", linkedEvent.id);
       } else {
         await supabase.from("debt_events").delete().eq("transaction_id", tx.id);
       }

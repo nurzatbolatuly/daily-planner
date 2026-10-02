@@ -16,22 +16,36 @@ import { BottomSheet } from "../../../components/BottomSheet";
 import { DonutChart } from "../components/DonutChart";
 import { CashflowRuler } from "../components/CashflowRuler";
 
-export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate }) {
+// Состояние просмотра Главной (период/месяц/счёт/тип/фильтр). Хранится в MoneyManagerSection,
+// а не локально: экран размонтируется при переходе на catTxs/editTx и т.п. (стек экранов),
+// и локальный useState сбрасывал бы его на текущий месяц при каждом возврате — как planMonth у Бюджета.
+export const initialHomeView = () => {
+  const now = new Date();
+  return {
+    txType: "expense", period: "month", viewMonth: now.getMonth(), viewYear: now.getFullYear(),
+    rangeStart: "", rangeEnd: "", selAccId: null, txFilter: { sortBy: "amount_desc", catIds: [] },
+  };
+};
+
+export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate, view, setView }) {
   const { accounts, transactions: rawTransactions, expCats, incCats, monthPlans, debtEvents, recurring, loans, plannedIncomes, plannedExpenses } = data;
   // Личная доля вместо полной суммы для сплит-расходов — иначе чужие доли завышают
   // категории/бюджет (см. utils/debtLedger.withPersonalAmounts).
   const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
 
-  const [txType, setTxType]           = useState("expense");
-  const [period, setPeriod]           = useState("month");
-  const [viewMonth, setViewMonth]     = useState(new Date().getMonth());
-  const [viewYear, setViewYear]       = useState(new Date().getFullYear());
-  const [rangeStart, setRangeStart]   = useState("");
-  const [rangeEnd, setRangeEnd]       = useState("");
-  const [selAccId, setSelAccId]       = useState(null);
+  const { txType, period, viewMonth, viewYear, rangeStart, rangeEnd, selAccId, txFilter } = view;
+  // Сеттеры с той же сигнатурой, что у useState (значение или функция от прошлого значения поля)
+  const setters = useMemo(() => {
+    const field = key => val => setView(v => ({ ...v, [key]: typeof val === "function" ? val(v[key]) : val }));
+    return {
+      setTxType: field("txType"), setPeriod: field("period"), setViewMonth: field("viewMonth"), setViewYear: field("viewYear"),
+      setRangeStart: field("rangeStart"), setRangeEnd: field("rangeEnd"), setSelAccId: field("selAccId"), setTxFilter: field("txFilter"),
+    };
+  }, [setView]);
+  const { setTxType, setPeriod, setViewMonth, setViewYear, setRangeStart, setRangeEnd, setSelAccId, setTxFilter } = setters;
+  // Открытые шторки — эфемерный UI, при возврате на экран им правильно быть закрытыми
   const [showAccPicker, setShowAccPicker] = useState(false);
   const [showCalendar, setShowCalendar]   = useState(false);
-  const [txFilter, setTxFilter]           = useState({ sortBy: "amount_desc", catIds: [] });
   const [showFilter, setShowFilter]       = useState(false);
 
   const sym   = getSym(BASE_CUR);

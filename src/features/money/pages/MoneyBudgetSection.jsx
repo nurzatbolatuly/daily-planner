@@ -3,7 +3,7 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
-import { pad } from "../../../utils/date";
+import { pad, monthKey } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtM, toBase, ratesFromAccounts, calcTotalBalanceAtMonth, fmtDateShort } from "../../../utils/format";
 import { computeDebtState } from "../../../utils/debtUtils";
 import { withPersonalAmounts } from "../../../utils/debtLedger";
@@ -430,10 +430,14 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
 
   // Уже запланированные расходы след. месяца — резервируются из "Свободно" этого месяца, чтобы
   // не потратить деньги, которые по факту уже расписаны наперёд (см. NextMonthReserveCard).
+  // Для прошедших месяцев резерва нет: их "Свободно" уже ничего не решает, а след. месяц
+  // планируется из своего собственного (или текущего) бюджета → пустые строки = карточка
+  // скрыта и резерв не вычитается из "Свободно"/не попадает в разбивку и предупреждение.
+  const isPastMonth = planMonthKey < monthKey(new Date());
   const { year: nextResY, month: nextResM } = addMonth(planYear, planMonth);
   const nextMonthExpRows = useMemo(
-    () => buildPlanRows({ year: nextResY, month: nextResM, accounts, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState }).expRows,
-    [nextResY, nextResM, accounts, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState]
+    () => isPastMonth ? [] : buildPlanRows({ year: nextResY, month: nextResM, accounts, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState }).expRows,
+    [isPastMonth, nextResY, nextResM, accounts, transactions, transfers, expCats, incCats, monthPlans, accountRates, debtState]
   );
   const reserveNextMonth = useMemo(
     () => sumRowsField(nextMonthExpRows, "plan", accountRates),

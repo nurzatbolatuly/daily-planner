@@ -8,7 +8,7 @@ import { AccPage } from "./pages/AccPage";
 import { AccDetailPage } from "./pages/AccDetailPage";
 import { TransferPageMon } from "./pages/TransferPageMon";
 import { HistoryPageMon } from "./pages/HistoryPageMon";
-import { MoneyHomeSection } from "./pages/MoneyHomeSection";
+import { MoneyHomeSection, initialHomeView } from "./pages/MoneyHomeSection";
 import { MoneyAccountsSection } from "./pages/MoneyAccountsSection";
 import { MoneyBudgetSection } from "./pages/MoneyBudgetSection";
 import { MoneyAnalyticsSection } from "./pages/MoneyAnalyticsSection";
@@ -57,6 +57,8 @@ export default function MoneyManagerSection() {
   // и локальный useState сбрасывался бы на текущий месяц при каждом возврате.
   const [planMonth, setPlanMonth] = useState(new Date().getMonth());
   const [planYear,  setPlanYear]  = useState(new Date().getFullYear());
+  // То же для Главной: выбранный период/месяц/счёт/фильтр переживают переход в catTxs и обратно.
+  const [homeView, setHomeView] = useState(initialHomeView);
 
   const [stack, setStack] = useState([]);
   const screen = stack[stack.length - 1] || null;
@@ -164,7 +166,7 @@ export default function MoneyManagerSection() {
   return (
     <div style={{ background: C.monBg, minHeight: "calc(100dvh - var(--app-header-h))", color: "#fff" }}>
       <div ref={contentRef} style={{ overflowY: "auto", height: `calc(100dvh - var(--app-header-h) - var(--mon-nav-h, ${MON_NAV_HEIGHT}px))` }}>
-        {monTab === "home"      && <MoneyHomeSection      data={data} navigate={navigate}/>}
+        {monTab === "home"      && <MoneyHomeSection      data={data} navigate={navigate} view={homeView} setView={setHomeView}/>}
         {monTab === "accounts"  && <MoneyAccountsSection  data={data} navigate={navigate}/>}
         {monTab === "budget"    && <MoneyBudgetSection    data={data} navigate={navigate} budgetTab={budgetTab} setBudgetTab={setBudgetTabP} planMonth={planMonth} setPlanMonth={setPlanMonth} planYear={planYear} setPlanYear={setPlanYear}/>}
         {monTab === "analytics" && <MoneyAnalyticsSection data={data} navigate={navigate}/>}

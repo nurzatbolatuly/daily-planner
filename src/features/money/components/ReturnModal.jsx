@@ -16,6 +16,17 @@ import { AccSelect } from "../../../components/AccSelect";
 // Направление определяется знаком net: net>0 (должны нам) → доход на счёт,
 // net<0 (должны мы) → расход со счёта.
 export function ReturnModal({ open, onClose, person, net, accounts, onDone }) {
+  const title = net > 0 ? `${person.name} возвращает долг` : `Вернуть долг: ${person.name}`;
+  return (
+    <BottomSheet open={open} onClose={onClose} title={title}>
+      {/* Форма монтируется при каждом открытии — сумма по умолчанию всегда от актуального NET
+          (иначе после частичного возврата/прощения подставлялся бы старый остаток) */}
+      {open && <ReturnForm person={person} net={net} accounts={accounts} onDone={onDone}/>}
+    </BottomSheet>
+  );
+}
+
+function ReturnForm({ person, net, accounts, onDone }) {
   const theyOweMe = net > 0;
   const [amount, setAmount] = useState(String(round2(Math.abs(net))));
   const [accId, setAccId] = useState("");
@@ -62,7 +73,7 @@ export function ReturnModal({ open, onClose, person, net, accounts, onDone }) {
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={theyOweMe ? `${person.name} возвращает долг` : `Вернуть долг: ${person.name}`}>
+    <>
       <FieldLabel error={error}>Сумма</FieldLabel>
       <NumInput
         value={amount} onChange={setAmount} placeholder="0"
@@ -74,6 +85,6 @@ export function ReturnModal({ open, onClose, person, net, accounts, onDone }) {
         style={{ width:"100%", padding:15, borderRadius:30, background: saving ? C.savingDisabled : C.green, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>
         {saving ? "Сохранение..." : "Подтвердить"}
       </button>
-    </BottomSheet>
+    </>
   );
 }
