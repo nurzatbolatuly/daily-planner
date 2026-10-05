@@ -3,7 +3,7 @@ import { useSave } from "../../../hooks/useSave";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { todayStr, addDays } from "../../../utils/date";
-import { round2 } from "../../../utils/format";
+import { round2, getPrecision } from "../../../utils/format";
 import { computeSplit } from "../../../utils/splitCalc";
 import { newId } from "../../../utils/id";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
@@ -17,8 +17,9 @@ import { CalendarPicker } from "../../../components/CalendarPicker";
 import { AccSelect } from "../../../components/AccSelect";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { SplitToggle } from "../components/SplitToggle";
+import { MakeSharedButton } from "../components/MakeSharedButton";
 
-export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debtPeople = [], setDebtPeople, debtEvents = [] }) {
+export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debtPeople = [], setDebtPeople, debtEvents = [], sharedGroups = [], onMakeShared }) {
   const [type, setType] = useState(edit?.type || prefill?.type || "expense");
   const [amt, setAmt] = useState(edit?.amount ? String(edit.amount) : prefill?.amount ? String(prefill.amount) : "");
   const [cur, setCur] = useState(edit?.currency || prefill?.currency || BASE_CUR);
@@ -51,6 +52,14 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
   const { save: del } = useSave(() => deleteRef.current?.(), { errorMsg: "Не удалось удалить транзакцию" });
 
   const cats = type === "expense" ? expCats : incCats;
+
+  // Один расчёт сплита и для проверки перед сохранением, и для записи долей в debt_events.
+  const buildSplit = () => computeSplit(
+    parseFloat(amt) || 0,
+    splitPeople.map(id => ({ id, value: parseFloat(splitValues[id]) || 0 })),
+    splitMethod,
+    { meIncluded, meValue: splitValues.__me__, precision: getPrecision(cur) },
+  );
 
   const dateShorts = useMemo(() => {
     const today = todayStr();
@@ -101,8 +110,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
       }
     }
     if (type === "expense" && splitOn && splitPeople.length > 0) {
-      const entries = splitPeople.map(id => ({ id, value: parseFloat(splitValues[id]) || 0 }));
-      const split = computeSplit(parseFloat(amt), entries, splitMethod, meIncluded, splitValues.__me__);
+      const split = buildSplit();
       const debtRows = split.others.map(o => ({
         id: newId(),
         person_id: o.id,
@@ -140,9 +148,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
     if (!cat) e.cat = "Выберите категорию";
     if (!accId) e.acc = "Выберите счёт";
     if (type === "expense" && splitOn && splitPeople.length > 0) {
-      const entries = splitPeople.map(id => ({ id, value: parseFloat(splitValues[id]) || 0 }));
-      const split = computeSplit(parseFloat(amt) || 0, entries, splitMethod, meIncluded, splitValues.__me__);
-      if (!split.valid) e.split = "Проверьте разделение суммы — доли не сходятся с итогом";
+      if (!buildSplit().valid) e.split = "Проверьте разделение суммы — доли не сходятся с итогом";
     }
     setErrors(e);
     if (Object.keys(e).length > 0) return;
@@ -208,7 +214,10 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
           <FieldLabel error={errors.cat}>Категории</FieldLabel>
           <CategoryPicker cats={cats} value={cat} onChange={id => { setCat(id); setErrors(p => ({...p, cat:""})); }}/>
         </div>
-        {type === "expense" && (
+        {/* «Оплатил за других» для новых расходов убран: делить с друзьями — «Сделать общим» /
+            «Общие расходы». Остаётся только у уже разделённой транзакции — чтобы долю можно было
+            увидеть, поправить или снять. */}
+        {type === "expense" && existingSplit.length > 0 && (
           <SplitToggle
             enabled={splitOn} onToggle={setSplitOn}
             people={debtPeople} setPeople={setDebtPeople}
@@ -238,6 +247,9 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
         </div>
         {saveError && <p style={{ color:C.errorLight, fontSize:13, textAlign:"center", marginBottom:8 }}>{saveError}</p>}
         <button onClick={save} disabled={saving} style={{ width:"100%", padding:"15px", borderRadius:30, background:saving?"rgba(200,150,30,0.4)":C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>{saving?"Сохранение...":"Сохранить"}</button>
+        {edit && edit.type === "expense" && onMakeShared && (
+          <MakeSharedButton tx={edit} debtEvents={debtEvents} groups={sharedGroups} onPick={onMakeShared}/>
+        )}
         {edit && <button onClick={() => setConfirmDelete(true)} style={{ width:"100%", marginTop:10, padding:"14px", borderRadius:30, background:"rgba(244,67,54,0.1)", border:"1px solid rgba(244,67,54,0.3)", color:C.red, fontSize:15, fontWeight:600, cursor:"pointer" }}>Удалить транзакцию</button>}
         <ConfirmSheet
           open={confirmDelete}

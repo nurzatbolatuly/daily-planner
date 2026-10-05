@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { PALETTE, DEBT_BORROW_NOTE_PREFIX, DEBT_LEND_NOTE_PREFIX } from "../../../constants/money";
+import { DEBT_BORROW_NOTE_PREFIX, DEBT_LEND_NOTE_PREFIX } from "../../../constants/money";
 import { todayStr } from "../../../utils/date";
 import { round2 } from "../../../utils/format";
 import { newId } from "../../../utils/id";
@@ -10,10 +10,9 @@ import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
-import { BottomSheet } from "../../../components/BottomSheet";
 import { Ico } from "../../../components/Ico";
 import { AccSelect } from "../../../components/AccSelect";
-import { PersonRow } from "../components/PersonRow";
+import { PersonPicker } from "../components/PersonPicker";
 
 // Ручное добавление долга. Оба направления симметричны: счёт необязателен — если выбран,
 // реальные деньги двигаются, и запись пишется атомарно (транзакция + баланс + debt_event
@@ -30,8 +29,6 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
   const [note, setNote] = useState("");
   const [errors, setErrors] = useState({});
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
 
   const account = accounts.find(a => a.id === accId);
 
@@ -40,19 +37,14 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
 
   const selectedPerson = debtPeople.find(p => p.id === personId);
 
-  const addPerson = async () => {
-    const name = newName.trim();
-    if (!name || creating) return;
-    setCreating(true);
-    const person = { id: newId(), name, color: PALETTE[debtPeople.length % PALETTE.length] };
-    try {
-      await supaUpsert("debt_people", person);
-      setDebtPeople(prev => [...prev, person]);
-      setPersonId(person.id);
-      setNewName("");
-      setPickerOpen(false);
-    } catch (e) { console.error("Create debt person:", e); }
-    setCreating(false);
+  const pickPerson = id => {
+    setPersonId(id);
+    setPickerOpen(false);
+    setErrors(e => ({ ...e, person: "" }));
+  };
+  const onPersonCreated = person => {
+    setDebtPeople(prev => [...prev, person]);
+    pickPerson(person.id);
   };
 
   saveRef.current = async () => {
@@ -234,19 +226,11 @@ export function DebtFormPage({ debtPeople = [], setDebtPeople, accounts = [], on
         </button>
       </div>
 
-      <BottomSheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="Выбрать человека">
-        {debtPeople.map(p => (
-          <PersonRow key={p.id} person={p} selected={personId===p.id} onClick={() => { setPersonId(p.id); setPickerOpen(false); setErrors(e => ({...e, person:""})); }}/>
-        ))}
-        <div style={{ display:"flex", gap:8, marginTop:10 }}>
-          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Новый человек"
-            style={{ flex:1, background:"rgba(255,255,255,0.06)", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px", color:"#fff", fontSize:14, outline:"none" }}/>
-          <button onClick={addPerson} disabled={!newName.trim() || creating}
-            style={{ padding:"10px 16px", borderRadius:10, background:C.green, border:"none", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", opacity:(!newName.trim()||creating)?0.5:1 }}>
-            +
-          </button>
-        </div>
-      </BottomSheet>
+      <PersonPicker
+        open={pickerOpen} onClose={() => setPickerOpen(false)}
+        people={debtPeople} selectedIds={personId ? [personId] : []}
+        onPick={pickPerson} onCreated={onPersonCreated}
+      />
     </div>
   );
 }

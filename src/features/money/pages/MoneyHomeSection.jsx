@@ -5,9 +5,9 @@ import { RU_MONTHS } from "../../../constants/locale";
 import { ACC_PURPOSES } from "../../../constants/money";
 import { pad, todayStr } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts, calcTotalBalance, calcCatDelta } from "../../../utils/format";
-import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportTransactionsXLSX } from "../../../utils/export";
+import { virtualTxAccountLabel } from "../../../utils/txBadges";
 import { projectRecurringItems, projectPlanItems, buildDayMap, addMonths } from "../../../utils/cashflowTimeline";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
@@ -28,10 +28,9 @@ export const initialHomeView = () => {
 };
 
 export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate, view, setView }) {
-  const { accounts, transactions: rawTransactions, expCats, incCats, monthPlans, debtEvents, recurring, loans, plannedIncomes, plannedExpenses } = data;
-  // Личная доля вместо полной суммы для сплит-расходов — иначе чужие доли завышают
-  // категории/бюджет (см. utils/debtLedger.withPersonalAmounts).
-  const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
+  const { accounts, personalTransactions: transactions, expCats, incCats, monthPlans, recurring, loans, plannedIncomes, plannedExpenses } = data;
+  // transactions — «мои» доходы и расходы (моя доля в сплитах и общих группах, без движений денег
+  // без категории), собраны один раз в useMoneyData — см. utils/personalTransactions.js.
 
   const { txType, period, viewMonth, viewYear, rangeStart, rangeEnd, selAccId, txFilter } = view;
   // Сеттеры с той же сигнатурой, что у useState (значение или функция от прошлого значения поля)
@@ -121,7 +120,8 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
   const isFilterActive = !!(txFilter.catIds.length || txFilter.sortBy !== "amount_desc");
 
   const exportCSV = () => {
-    exportTransactionsXLSX({ txs: typeTxs, catData, cats, accounts, txType, periodLabel, filename: "transactions.xlsx" });
+    exportTransactionsXLSX({ txs: typeTxs, catData, cats, accounts, txType, periodLabel, filename: "transactions.xlsx",
+      accountLabel: t => (t.virtual ? virtualTxAccountLabel(t, data.sharedTxIndex) : null) });
   };
 
   return (

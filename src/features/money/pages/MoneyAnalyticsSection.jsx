@@ -6,7 +6,6 @@ import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad, monthKey, localDate, monthsUntil, todayStr } from "../../../utils/date";
 import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/format";
 import { computeDebtState } from "../../../utils/debtUtils";
-import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { CatIcon } from "../../../components/CatIcon";
 import { Ico } from "../../../components/Ico";
 
@@ -74,9 +73,8 @@ const SELECT_STYLE = {
 };
 
 export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data, navigate }) {
-  const { transactions: rawTransactions, transfers, accounts, expCats, monthPlans, goals, goalTopups, debtEvents } = data;
-  // Личная доля вместо полной суммы для сплит-расходов (см. MoneyHomeSection).
-  const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
+  const { personalTransactions: transactions, transfers, accounts, expCats, monthPlans, goals, goalTopups } = data;
+  // transactions — «мои» доходы и расходы, без переводов и займов (utils/personalTransactions.js).
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [range, setRange] = useState(6);
 

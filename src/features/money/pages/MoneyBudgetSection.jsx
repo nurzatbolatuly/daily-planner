@@ -6,7 +6,6 @@ import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad, monthKey } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtM, toBase, ratesFromAccounts, calcTotalBalanceAtMonth, fmtDateShort } from "../../../utils/format";
 import { computeDebtState } from "../../../utils/debtUtils";
-import { withPersonalAmounts } from "../../../utils/debtLedger";
 import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportPlansXLSX } from "../../../utils/export";
 import { newId } from "../../../utils/id";
@@ -365,9 +364,9 @@ function NextMonthReserveCard({ rows, total, sym, monthLabel, onGoToMonth }) {
 }
 
 export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navigate, budgetTab, setBudgetTab, planMonth, setPlanMonth, planYear, setPlanYear }) {
-  const { accounts, transactions: rawTransactions, transfers, expCats, incCats, monthPlans, tripPlans, goals, debtEvents } = data;
-  // Личная доля вместо полной суммы для сплит-расходов (см. MoneyHomeSection).
-  const transactions = useMemo(() => withPersonalAmounts(rawTransactions, debtEvents), [rawTransactions, debtEvents]);
+  const { accounts, transactions: rawTransactions, personalTransactions: transactions, transfers, expCats, incCats, monthPlans, tripPlans, goals } = data;
+  // transactions — «мои» доходы и расходы для план/факт (utils/personalTransactions.js);
+  // rawTransactions — для баланса счетов на конец месяца.
 
   const [expanded,   setExpanded]   = useState({});
   const [activePill,        setActivePill]        = useState("expense");

@@ -1,16 +1,13 @@
 import { useState } from "react";
 import { C } from "../../../constants/theme";
-import { PALETTE } from "../../../constants/money";
 import { Toggle } from "../../../components/Toggle";
 import { FieldLabel } from "../../../components/FieldLabel";
-import { BottomSheet } from "../../../components/BottomSheet";
 import { Ico } from "../../../components/Ico";
 import { NumInput } from "../../../components/NumInput";
-import { supaUpsert } from "../../../lib/supabase";
-import { fmtAmtAuto, getSym } from "../../../utils/format";
+import { fmtAmtAuto, getSym, getPrecision } from "../../../utils/format";
 import { computeSplit } from "../../../utils/splitCalc";
-import { newId } from "../../../utils/id";
 import { PersonRow } from "./PersonRow";
+import { PersonPicker } from "./PersonPicker";
 
 const METHODS = [
   { key: "equal",   label: "Поровну" },
@@ -40,8 +37,6 @@ export function SplitToggle({
   error,
 }) {
   const [open, setOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
 
   const toggleSelected = id => {
     if (selectedIds.includes(id)) {
@@ -64,27 +59,15 @@ export function SplitToggle({
     }
   };
 
-  const addPerson = async () => {
-    const name = newName.trim();
-    if (!name || creating) return;
-    setCreating(true);
-    const person = { id: newId(), name, color: PALETTE[people.length % PALETTE.length] };
-    try {
-      await supaUpsert("debt_people", person);
-      setPeople(prev => [...prev, person]);
-      onChangeSelected([...selectedIds, person.id]);
-      if (method === "shares") onChangeValues({ ...values, [person.id]: "1" });
-      setNewName("");
-    } catch (e) {
-      console.error("Create debt person:", e);
-    }
-    setCreating(false);
+  const onPersonCreated = person => {
+    setPeople(prev => [...prev, person]);
+    toggleSelected(person.id);
   };
 
   const total   = parseFloat(amount) || 0;
   const sym     = getSym(currency);
   const entries = selectedIds.map(id => ({ id, value: parseFloat(values[id]) || 0 }));
-  const result  = selectedIds.length > 0 && total > 0 ? computeSplit(total, entries, method, meIncluded, values.__me__) : null;
+  const result  = selectedIds.length > 0 && total > 0 ? computeSplit(total, entries, method, { meIncluded, meValue: values.__me__, precision: getPrecision(currency) }) : null;
   const amountById = Object.fromEntries((result?.others || []).map(o => [o.id, o.amount]));
 
   const errorText = result && !result.valid
@@ -185,19 +168,11 @@ export function SplitToggle({
         </div>
       )}
 
-      <BottomSheet open={open} onClose={() => setOpen(false)} title="Выбрать людей">
-        {people.map(p => (
-          <PersonRow key={p.id} person={p} selected={selectedIds.includes(p.id)} onClick={() => toggleSelected(p.id)}/>
-        ))}
-        <div style={{ display:"flex", gap:8, marginTop:10 }}>
-          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Новый человек"
-            style={{ flex:1, background:"rgba(255,255,255,0.06)", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px", color:"#fff", fontSize:14, outline:"none" }}/>
-          <button onClick={addPerson} disabled={!newName.trim() || creating}
-            style={{ padding:"10px 16px", borderRadius:10, background:C.green, border:"none", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", opacity:(!newName.trim()||creating)?0.5:1 }}>
-            +
-          </button>
-        </div>
-      </BottomSheet>
+      <PersonPicker
+        open={open} onClose={() => setOpen(false)} title="Выбрать людей"
+        people={people} selectedIds={selectedIds}
+        onPick={toggleSelected} onCreated={onPersonCreated}
+      />
     </div>
   );
 }

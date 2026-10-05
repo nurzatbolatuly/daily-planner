@@ -12,7 +12,9 @@ const TYPE_LABEL = Object.fromEntries(DEBT_EVENT_TYPES.map(t => [t.key, t.label]
 // счёта и долг всегда правились вместе, одним и тем же кодом). Событие без
 // transaction_id — запись off-book ("Мне должны" из DebtFormPage, остаток при
 // прощении), деньги не двигались — можно удалить прямо здесь.
-export function DebtHistory({ events, onOpenTx, onDelete }) {
+// Зачёт с общей группой (type offset, docs/shared-expenses.md §10) — половина записи группы:
+// корзины нет, тап открывает перевод в группе (там правка и удаление обеих половин сразу).
+export function DebtHistory({ events, onOpenTx, onOpenOffset, onDelete }) {
   if (!events.length) {
     return <p style={{ textAlign:"center", padding:"24px 0", color:C.dim, fontSize:13 }}>Нет событий</p>;
   }
@@ -20,11 +22,14 @@ export function DebtHistory({ events, onOpenTx, onDelete }) {
     <div>
       {events.map(e => {
         const positive = e.amount >= 0;
-        const linked = !!e.transaction_id;
+        const isOffset = e.type === "offset";
+        const linked = !!e.transaction_id || isOffset;
+        const open = isOffset ? () => onOpenOffset?.(e) : () => onOpenTx?.(e);
         return (
           <div
             key={e.id}
-            onClick={linked ? () => onOpenTx?.(e) : undefined}
+            onClick={linked ? open : undefined}
+            role={linked ? "button" : undefined}
             style={{ display:"flex", alignItems:"center", padding:"12px 0", borderBottom:`1px solid ${C.border}`, cursor: linked ? "pointer" : "default" }}
           >
             <div style={{ flex:1, minWidth:0 }}>
@@ -40,7 +45,7 @@ export function DebtHistory({ events, onOpenTx, onDelete }) {
               <span style={{ marginLeft:8, display:"flex", flexShrink:0 }}><Ico n="chevR" s={16} c={C.dim}/></span>
             ) : (
               <button
-                onClick={ev => { ev.stopPropagation(); onDelete?.(e); }}
+                onClick={ev => { ev.stopPropagation(); onDelete?.(e); }} aria-label="Удалить запись"
                 style={{ marginLeft:8, flexShrink:0, background:"none", border:"none", cursor:"pointer", display:"flex", padding:4 }}
               >
                 <Ico n="trash" s={16} c={C.dim}/>

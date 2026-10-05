@@ -9,6 +9,8 @@ import { supabase, supaRpc } from "../../../lib/supabase";
 import { RU_MON_GEN, RU_MONTHS_S } from "../../../constants/locale";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
+import { TxHistoryRow, TxBadge } from "../components/TxHistoryRow";
+import { txBadge } from "../../../utils/txBadges";
 import { BottomSheet } from "../../../components/BottomSheet";
 
 function fmtGroupDate(dateStr) {
@@ -150,46 +152,9 @@ function selfDebtBadge(t, accounts) {
   if (t.is_adjustment) return null;
   const from = accounts.find(a => a.id === t.from_id);
   const to   = accounts.find(a => a.id === t.to_id);
-  if (from && SAVINGS_PURPOSES.includes(from.purpose)) return { label: "Долг самому себе", color: C.amber, bg: "rgba(245,158,11,0.12)" };
-  if (to && SAVINGS_PURPOSES.includes(to.purpose) && t.is_debt_repayment) return { label: "Возврат долга себе", color: C.amber, bg: "rgba(245,158,11,0.12)" };
+  if (from && SAVINGS_PURPOSES.includes(from.purpose)) return { label: "Долг самому себе", tone: "warn" };
+  if (to && SAVINGS_PURPOSES.includes(to.purpose) && t.is_debt_repayment) return { label: "Возврат долга себе", tone: "warn" };
   return null;
-}
-
-// Долги людям: транзакция привязана к debt_events через transaction_id (см. AccDetailPage).
-function personDebtBadge(tx, debtEvents, debtPeople) {
-  const evt = debtEvents.find(e => e.transaction_id === tx.id && (e.type === "they_paid" || e.type === "lent" || e.type === "return"));
-  if (!evt) return null;
-  const name = debtPeople.find(p => p.id === evt.person_id)?.name || "—";
-  if (evt.type === "they_paid") return { label: `Взял в долг у ${name}`, color: C.errorLight, bg: "rgba(244,67,54,0.12)" };
-  if (evt.type === "lent") return { label: `Дал в долг · ${name}`, color: C.amber, bg: "rgba(245,158,11,0.12)" };
-  if (tx.type === "income") return { label: `${name} вернул(а) долг`, color: C.green, bg: "rgba(76,175,80,0.12)" };
-  return { label: `Вернул(а) долг · ${name}`, color: C.blue, bg: "rgba(96,165,250,0.12)" };
-}
-
-function DebtBadge({ badge }) {
-  if (!badge) return null;
-  return (
-    <span style={{ display: "inline-block", marginTop: 4, fontSize: 10, fontWeight: 600, color: badge.color, background: badge.bg, padding: "2px 7px", borderRadius: 6 }}>
-      {badge.label}
-    </span>
-  );
-}
-
-function TxRow({ tx, cat, badge, onClick }) {
-  const title = cat?.name || (badge ? "Долг" : (tx.note || "Без категории"));
-  return (
-    <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14, marginBottom: 8, background: C.monCard, cursor: "pointer" }}>
-      <CatIcon k={cat?.icon || "other"} size={44} color={cat?.color || C.dim}/>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: C.main, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</p>
-        {tx.note && !badge && <p style={{ margin: 0, fontSize: 12, color: C.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.note}</p>}
-        <DebtBadge badge={badge}/>
-      </div>
-      <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: tx.type === "income" ? C.emerald : "#fff", flexShrink: 0 }}>
-        {tx.type === "income" ? "+" : ""}{fmtM(tx.amount, tx.currency)}
-      </p>
-    </div>
-  );
 }
 
 function TransferRow({ t, accounts, badge, onClick }) {
@@ -238,7 +203,7 @@ function TransferRow({ t, accounts, badge, onClick }) {
       </div>
       {(t.note || t.fee > 0 || badge) && (
         <div style={{ display:"flex", gap:6, fontSize:12, color:C.dim, marginTop:4, paddingLeft:24, alignItems:"center", flexWrap:"wrap" }}>
-          {badge && <span style={{ fontSize:10, fontWeight:600, color:badge.color, background:badge.bg, padding:"2px 7px", borderRadius:6, flexShrink:0 }}>{badge.label}</span>}
+          {badge && <TxBadge badge={badge} style={{ marginTop:0, flexShrink:0 }}/>}
           {t.note && <span style={{ flex:1, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.note}</span>}
           {t.note && t.fee > 0 && <span>·</span>}
           {t.fee > 0 && <span style={{ color:C.errorLight, flexShrink:0 }}>{fmtM(t.fee, t.from_currency)}</span>}
@@ -251,7 +216,7 @@ function TransferRow({ t, accounts, badge, onClick }) {
 // Единая история операций по всем счетам: транзакции (доходы/расходы) и переводы вперемешку,
 // отсортированные по времени и сгруппированные по дате — раньше здесь были только переводы,
 // теперь это общая лента для раздела "Счета" (см. MoneyAccountsSection → "История").
-export function HistoryPageMon({ transactions, transfers, accounts, expCats, incCats, debtEvents = [], debtPeople = [], navigate, onReload, onBack }) {
+export function HistoryPageMon({ transactions, transfers, accounts, expCats, incCats, debtEvents = [], debtPeople = [], sharedTxIndex = null, navigate, onReload, onBack }) {
   const [period,        setPeriod]        = useState("month");
   const [periodOffset,  setPeriodOffset]  = useState(0);
   const [opType,        setOpType]        = useState("all");
@@ -516,7 +481,7 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
           <div key={date}>
             <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:600, color:C.dim }}>{fmtGroupDate(date)}</p>
             {grouped[date].map(e => e.kind === "tx"
-              ? <TxRow key={`tx-${e.data.id}`} tx={e.data} cat={catFor(e.data)} badge={personDebtBadge(e.data, debtEvents, debtPeople)} onClick={() => navigate("editTx", e.data)}/>
+              ? <TxHistoryRow key={`tx-${e.data.id}`} tx={e.data} cat={catFor(e.data)} badge={txBadge(e.data, { sharedIndex: sharedTxIndex, debtEvents, debtPeople })} onClick={() => navigate("editTx", e.data)}/>
               : <TransferRow key={`tr-${e.data.id}`} t={e.data} accounts={accounts} badge={selfDebtBadge(e.data, accounts)} onClick={() => setDetailT(e.data)}/>
             )}
             <div style={{ marginBottom:16 }}/>

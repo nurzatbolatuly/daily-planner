@@ -9,10 +9,14 @@ import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { DebtHistory } from "../components/DebtHistory";
 import { ReturnModal } from "../components/ReturnModal";
 import { ForgiveModal } from "../components/ForgiveModal";
+import { PersonEditSheet } from "../components/PersonEditSheet";
+import { PersonGroupsBlock } from "../components/PersonGroupsBlock";
+import { Ico } from "../../../components/Ico";
+import { personUsage } from "../../../utils/people";
 
 const sym = getSym(BASE_CUR);
 
-export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], transactions = [], navigate, onReload, onBack }) {
+export function DebtPersonDetailPage({ person, people = [], debtEvents = [], sharedGroups = [], sharedMembers = [], sharedEntries = [], accounts = [], transactions = [], navigate, onReload, onBack }) {
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
   const net = useMemo(() => computeNetByPerson(debtEvents, rates)[person.id]?.net || 0, [debtEvents, rates, person.id]);
   const history = useMemo(() => personHistory(debtEvents, person.id), [debtEvents, person.id]);
@@ -21,6 +25,13 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], t
   const [forgiveOpen, setForgiveOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const onPersonEdited = async result => {
+    setEditOpen(false);
+    if (result === "deleted") onBack(true);
+    else await onReload();
+  };
 
   // Событие с transaction_id двигало реальные деньги (сплит расхода, "взял в долг",
   // возврат) — правим/удаляем через саму транзакцию (TxPage), чтобы баланс счёта
@@ -29,6 +40,13 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], t
   const openLinkedTx = (event) => {
     const tx = transactions.find(t => t.id === event.transaction_id);
     if (tx) navigate?.("editTx", tx);
+  };
+
+  // Зачёт с группой (§10) правится и удаляется только из группы: открываем перевод, к которому
+  // относится событие.
+  const openOffset = (event) => {
+    const entry = sharedEntries.find(x => x.debt_event_id === event.id);
+    if (entry) navigate?.("editSharedEntry", { entryId: entry.id });
   };
 
   // Off-book запись (transaction_id нет — ручное "Мне должны" из DebtFormPage,
@@ -49,7 +67,12 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], t
 
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
-      <PageHeader title={person.name} onBack={() => onBack(false)}/>
+      <PageHeader title={person.archived ? `${person.name} · скрыт` : person.name} onBack={() => onBack(false)} right={
+        <button onClick={() => setEditOpen(true)} aria-label="Изменить человека"
+          style={{ background:"none", border:"none", cursor:"pointer", display:"flex", padding:4 }}>
+          <Ico n="edit" s={20} c={C.mid}/>
+        </button>
+      }/>
       <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 100px" }}>
         <div style={{ background:C.monCard, borderRadius:16, padding:"18px", marginBottom:16, textAlign:"center" }}>
           <p style={{ margin:0, fontSize:12, color:C.dim }}>{label}</p>
@@ -69,8 +92,10 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], t
           </div>
         )}
 
+        <PersonGroupsBlock personId={person.id} groups={sharedGroups} members={sharedMembers} entries={sharedEntries} people={people} navigate={navigate}/>
+
         <p style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:C.dim }}>История</p>
-        <DebtHistory events={history} onOpenTx={openLinkedTx} onDelete={setDeleteTarget}/>
+        <DebtHistory events={history} onOpenTx={openLinkedTx} onOpenOffset={openOffset} onDelete={setDeleteTarget}/>
       </div>
 
       <ReturnModal
@@ -83,6 +108,13 @@ export function DebtPersonDetailPage({ person, debtEvents = [], accounts = [], t
         person={person} net={net} history={history} rates={rates}
         onDone={async () => { setForgiveOpen(false); await onReload(); }}
       />
+      {editOpen && (
+        <PersonEditSheet
+          person={person} people={people} net={net}
+          usage={personUsage(person.id, { debtEvents, sharedMembers, sharedEntries })}
+          onClose={() => setEditOpen(false)} onDone={onPersonEdited}
+        />
+      )}
       <ConfirmSheet
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}

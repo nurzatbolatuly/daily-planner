@@ -17,6 +17,14 @@ export const DEF_EXP = [
 export const BILLS_CATEGORY_ID = "cat-monthly-payments";
 export const BILLS_CATEGORY = { id: BILLS_CATEGORY_ID, name: "Платежи", icon: "payments", color: "#0097a7" };
 
+// Курсовая разница при продаже валюты/металла (TransferPageMon → счёт is_fx_account). Прибыль —
+// доход, убыток — расход, поэтому две системные категории с фиксированными id (по одной в
+// inc_categories и exp_categories), создаются один раз в useMoneyData, как «Платежи». Без
+// категории такие транзакции не попали бы в статистику (docs/shared-expenses.md §6.1).
+export const FX_LOSS_CATEGORY = { id: "cat-fx-loss", name: "Курсовая разница", icon: "investment", color: "#00796b" };
+export const FX_GAIN_CATEGORY = { id: "cat-fx-gain", name: "Курсовая разница", icon: "investment", color: "#00796b" };
+export const fxCategoryId = pnl => (pnl > 0 ? FX_GAIN_CATEGORY : FX_LOSS_CATEGORY).id;
+
 export const DEF_INC = [
     {id: "i1", name: "Зарплата", icon: "salary", color: "#4caf50", plan_currency: "KZT"},
     {id: "i2", name: "Фриланс", icon: "freelance", color: "#1976d2", plan_currency: "USD"},
@@ -67,10 +75,33 @@ export const DEBT_EVENT_TYPES = [
   { key: "lent",          label: "Дал в долг" },
   { key: "return",        label: "Возврат" },
   { key: "forgive",       label: "Прощено" },
+  { key: "offset",        label: "Зачёт" },         // взаимозачёт с общей группой (docs/shared-expenses.md §10)
 ];
 
 export const DEBT_RETURN_NOTE_PREFIX = "Возврат долга";
 export const DEBT_BORROW_NOTE_PREFIX = "Получен в долг";
 export const DEBT_LEND_NOTE_PREFIX = "Дал в долг";
+
+// ─── Общие расходы (docs/shared-expenses.md) ───
+export const SHARED_MODES = { mirror: "mirror", event: "event" };
+// Способ перевода (shared_entries.method): со счёта, наличными, зачётом с личным долгом (§10),
+// долг перенесён в группу Tricount («Записать в Tricount») — деньги не двигались.
+export const SHARED_TRANSFER_METHODS = { account: "account", cash: "cash", offset: "offset", group: "group" };
+// Префикс заметки транзакции перевода в группе: «Перевод · Вечер 03.10 ← Асан» (§11.4).
+export const SHARED_TRANSFER_NOTE_PREFIX = "Перевод";
+// «Перевод · 2 долга ← Бек» — заметка пачки (sharedSave) и бейдж в истории (txBadges), через pluralRu.
+export const DEBT_WORDS = ["долг", "долга", "долгов"];
+export const SHARED_ENTRY_KINDS = {
+  bill: "bill", refund: "refund", transfer: "transfer",
+  adjust: "adjust", opening: "opening", reconcile: "reconcile",
+};
+// Причины корректировки (§9). Сама сумма корректировки знаковая — см. utils/sharedExpenses.js.
+export const SHARED_ADJUST_REASONS = {
+  rounding: "rounding",           // он перевёл больше — разницу оставил себе как округление
+  forgive: "forgive",             // он недоплатил — остаток простил
+  treat: "treat",                 // угощаю: весь его долг на мне
+  overpaid_them: "overpaid_them", // я перевёл ему больше — разницу оставил как округление
+  treated_me: "treated_me",       // я перевёл меньше / меня угостили — «хватит»
+};
 
 export const PALETTE =["#4caf50", "#66bb6a", "#388e3c", "#1b5e20", "#f9a825", "#fbc02d", "#ff8f00", "#e65100", "#f44336", "#e53935", "#c62828", "#e91e63", "#c2185b", "#9c27b0", "#7b1fa2", "#673ab7", "#3f51b5", "#1976d2", "#0288d1", "#0097a7", "#00796b", "#5d4037", "#757575", "#546e7a", "#37474f", "#ffffff", "#000000", "#ff5722", "#795548", "#9e9e9e"];

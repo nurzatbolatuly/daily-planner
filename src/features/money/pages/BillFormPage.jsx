@@ -67,6 +67,11 @@ export function BillFormPage({ onBack, edit }) {
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
       <PageHeader title={edit ? "Редактировать платёж" : "Добавить платёж"} onBack={() => onBack(false)}/>
       <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 100px" }}>
+        {/* Аренду, которую платите целиком, а соседи возвращают, вести здесь нельзя: в «Платежи»
+            ушла бы полная сумма. Её место — покупка в квартире (docs/shared-expenses.md §5.17). */}
+        <p style={{ margin:"0 0 16px", padding:"10px 12px", borderRadius:12, background:"rgba(96,165,250,0.08)", fontSize:12, color:C.mid, lineHeight:1.4 }}>
+          Платите за всех, а соседи возвращают? Ведите это в «Общих расходах» (группа Tricount) — иначе в расходы попадёт вся сумма, а не ваша доля.
+        </p>
         <FieldLabel error={errors.name}>Название</FieldLabel>
         <input
           value={name}

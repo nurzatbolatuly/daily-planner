@@ -16,7 +16,7 @@ export function BottomSheet({ open, onClose, title, right, children }) {
       onClick={onClose}
     >
       <div
-        className="sheet-up"
+        className="sheet-up" role="dialog" aria-modal="true" aria-label={title || undefined}
         style={{ background:C.monCard2, borderRadius:"20px 20px 0 0", padding:"16px 16px calc(32px + env(safe-area-inset-bottom, 0px))", maxHeight:"70dvh", overflowY:"auto" }}
         onClick={e => e.stopPropagation()}
       >

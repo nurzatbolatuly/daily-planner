@@ -5,7 +5,7 @@ import { todayStr, localDate } from "../../../utils/date";
 import { avgRateFn, fmtAmt, fmtAmtAuto, fmtBal, fmtM, getSym, isCommodity, round2, ratesFromAccounts } from "../../../utils/format";
 import { newId } from "../../../utils/id";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
-import { FEE_TX_NOTE, SAVINGS_PURPOSES } from "../../../constants/money";
+import { FEE_TX_NOTE, SAVINGS_PURPOSES, fxCategoryId } from "../../../constants/money";
 import { computeDebtState } from "../../../utils/debtUtils";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
@@ -357,7 +357,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
           account_id:  fxAccount.id,
           date:        todayStr(),
           note:        `${fromAcc.currency}→${toAcc.currency}: курсовая ${pnlKzt > 0 ? "прибыль" : "убыток"}`,
-          category_id: null,
+          category_id: fxCategoryId(pnlKzt),
           transfer_id: tr.id,
         });
       }
@@ -406,7 +406,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
           account_id:  fxAccount.id,
           date:        todayStr(),
           note:        `${fromAcc.currency}→${toAcc.currency}: курсовая ${pnlKzt > 0 ? "прибыль" : "убыток"}`,
-          category_id: null,
+          category_id: fxCategoryId(pnlKzt),
           transfer_id: tr.id,
         });
       }
@@ -437,6 +437,8 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
     if (!fromId) errs.from = "Выберите счёт отправителя";
     if (!toId)   errs.to   = "Выберите счёт получателя";
     if (fromId && toId && fromId === toId) errs.to = "Нельзя переводить на тот же счёт";
+    // Комиссия — реальный расход: без категории она выпала бы из статистики (§6.1 общих расходов).
+    if (parseFloat(fee) > 0 && !feeCatId) errs.feeCat = "Выберите категорию комиссии";
     if (diffCur) {
       if (pricePerGramMode) {
         if (!rate || parseFloat(rate) <= 0) errs.rate = "Введите цену за грамм";
@@ -549,14 +551,14 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
         <NumInput value={fee} onChange={v => { setFee(v); if (!v) setFeeCatId(""); }} placeholder="0"
           style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${C.border}`, outline:"none", color:"#fff", fontSize:18, padding:"4px 0", marginBottom:16, boxSizing:"border-box" }}/>
 
-        {parseFloat(fee) > 0 && expCats?.length > 0 && !edit && (
+        {parseFloat(fee) > 0 && expCats?.length > 0 && (
           <>
-            <FieldLabel>Категория комиссии</FieldLabel>
+            <FieldLabel error={errors.feeCat}>Категория комиссии</FieldLabel>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(64px, 1fr))", gap:8, marginBottom:16 }}>
               {expCats.map(c => {
                 const sel = feeCatId === c.id;
                 return (
-                  <button key={c.id} onClick={() => setFeeCatId(sel ? "" : c.id)}
+                  <button key={c.id} onClick={() => { setFeeCatId(sel ? "" : c.id); setErrors(p => ({ ...p, feeCat: "" })); }}
                     style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"8px 4px", borderRadius:10, background:sel?c.color:"transparent", border:"none", cursor:"pointer" }}>
                     <CatIcon k={c.icon} size={40} color={sel?"rgba(0,0,0,0.25)":c.color}/>
                     <span style={{ fontSize:10, color:sel?"#fff":C.mid, textAlign:"center", wordBreak:"break-word" }}>{c.name}</span>
@@ -564,6 +566,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
                 );
               })}
             </div>
+            {errors.feeCat && <p style={{ color:C.errorLight, fontSize:12, marginTop:-8, marginBottom:12 }}>{errors.feeCat}</p>}
           </>
         )}
 

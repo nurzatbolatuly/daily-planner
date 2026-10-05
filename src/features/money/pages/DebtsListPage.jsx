@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { C } from "../../../constants/theme";
-import { fmtAmtAuto, getSym, ratesFromAccounts } from "../../../utils/format";
+import { fmtAmtAuto, getSym, ratesFromAccounts, toBase } from "../../../utils/format";
+import { totalsAcrossGroups } from "../../../utils/sharedExpenses";
 import { BASE_CUR } from "../../../constants/currencies";
 import { computeNetByPerson } from "../../../utils/debtLedger";
 import { PageHeader } from "../../../components/PageHeader";
@@ -9,9 +10,19 @@ import { PersonRow } from "../components/PersonRow";
 
 const sym = getSym(BASE_CUR);
 
-export function DebtsListPage({ debtPeople = [], debtEvents = [], accounts = [], navigate, onBack }) {
+// Личный NET и долги в общих группах — разные обязательства и в одно число не складываются
+// (docs/shared-expenses.md §11.6): долг в группах — отдельной строкой «+ 9 910 в общих группах».
+export function DebtsListPage({ debtPeople = [], debtEvents = [], accounts = [], sharedGroups = [], sharedMembers = [], sharedEntries = [], navigate, onBack }) {
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
   const byPerson = useMemo(() => computeNetByPerson(debtEvents, rates), [debtEvents, rates]);
+  const groupDebt = useMemo(() => {
+    const { rows } = totalsAcrossGroups({ groups: sharedGroups, members: sharedMembers, entries: sharedEntries, people: debtPeople, toBase: (x, cur) => toBase(x, cur, rates) });
+    return Object.fromEntries(rows.filter(r => r.personId).map(r => [r.personId, r.owedToMe - r.iOwe]));
+  }, [sharedGroups, sharedMembers, sharedEntries, debtPeople, rates]);
+
+  // Скрытый человек остаётся в списке, пока у него открытый долг (личный или в группах) —
+  // иначе деньги пропали бы из вида.
+  const visiblePeople = debtPeople.filter(p => !p.archived || (byPerson[p.id]?.net || 0) !== 0 || !!groupDebt[p.id]);
 
   const totals = useMemo(() => {
     let owedToMe = 0, iOwe = 0;
@@ -21,7 +32,12 @@ export function DebtsListPage({ debtPeople = [], debtEvents = [], accounts = [],
 
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
-      <PageHeader title="Долги" onBack={onBack}/>
+      <PageHeader title="Долги" onBack={onBack} right={
+        <button onClick={() => navigate("menuPeople")}
+          style={{ background:"none", border:"none", cursor:"pointer", color:C.green, fontSize:14, fontWeight:600, padding:4 }}>
+          Люди
+        </button>
+      }/>
       <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 100px" }}>
 
         {(totals.owedToMe > 0 || totals.iOwe > 0) && (
@@ -37,14 +53,15 @@ export function DebtsListPage({ debtPeople = [], debtEvents = [], accounts = [],
           </div>
         )}
 
-        {debtPeople.length === 0 && (
+        {visiblePeople.length === 0 && (
           <p style={{ textAlign:"center", padding:"40px 0", color:C.dim, fontSize:14 }}>Пока никто никому не должен</p>
         )}
 
-        {debtPeople.map(person => {
+        {visiblePeople.map(person => {
           const net = byPerson[person.id]?.net || 0;
           const label = net === 0 ? "в расчёте" : net > 0 ? "должен вам" : "вы должны";
           const color = net === 0 ? C.dim : net > 0 ? C.green : C.errorLight;
+          const inGroups = groupDebt[person.id] || 0;
           return (
             <PersonRow
               key={person.id}
@@ -54,6 +71,11 @@ export function DebtsListPage({ debtPeople = [], debtEvents = [], accounts = [],
                 <div style={{ textAlign:"right", marginRight:8 }}>
                   <p style={{ margin:0, fontSize:14, fontWeight:700, color }}>{sym}{fmtAmtAuto(Math.abs(net))}</p>
                   <p style={{ margin:"2px 0 0", fontSize:11, color:C.dim }}>{label}</p>
+                  {inGroups !== 0 && (
+                    <p style={{ margin:"2px 0 0", fontSize:11, color:C.violet, whiteSpace:"nowrap" }}>
+                      {inGroups > 0 ? "+" : "−"} {sym}{fmtAmtAuto(Math.abs(inGroups))} в общих группах
+                    </p>
+                  )}
                 </div>
               }
             />

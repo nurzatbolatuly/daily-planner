@@ -6,8 +6,10 @@ const MENU_ITEMS = [
   { label: "Ежемесячные платежи",    key: "menuMonthly"  },
   { label: "Денежный поток",         key: "cashflow"     },
   { label: "Долги",                  key: "menuDebts"    },
+  { label: "Люди",                   key: "menuPeople"   },
   { label: "Каталог цен",            key: "priceCatalog" },
   { label: "Кредитный калькулятор",  key: "loanCalc"     },
+  { label: "Общие расходы",          key: "menuShared"   },
 ];
 
 export function MoneyMenuPage({ navigate }) {

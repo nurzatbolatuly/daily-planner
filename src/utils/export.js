@@ -1,6 +1,12 @@
-import ExcelJS from "exceljs";
 import { TRIP_LABELS } from "../constants/money";
 import { RU_MONTHS } from "../constants/locale";
+
+// ExcelJS (~1 МБ) грузится по требованию — отдельным чанком при первой выгрузке, а не в основном
+// бандле приложения.
+const newWorkbook = async () => {
+  const { default: ExcelJS } = await import("exceljs");
+  return new ExcelJS.Workbook();
+};
 
 // ─── ARGB colour palette ──────────────────────────────────────────────────────
 const X = {
@@ -109,7 +115,7 @@ async function saveFile(wb, filename) {
 // Sheet 3 «Расходы»   — плоская таблица для сортировки/фильтрации в Excel
 //
 export async function exportTripXLSX({ plan, days, rates, filename }) {
-  const wb = new ExcelJS.Workbook();
+  const wb = await newWorkbook();
   wb.creator = "Daily Planner";
 
   const toB  = (amt, cur) => toBaseLocal(amt, cur, rates);
@@ -427,8 +433,10 @@ export async function exportTripXLSX({ plan, days, rates, filename }) {
 // Sheet 1 «Сводка»       — итог, по категориям, по счетам
 // Sheet 2 «Транзакции»   — плоская таблица всех операций
 //
-export async function exportTransactionsXLSX({ txs, catData, cats, accounts, txType, periodLabel, filename }) {
-  const wb = new ExcelJS.Workbook();
+// accountLabel(tx) — подпись «счёта» для строк без счёта (виртуальные строки общих расходов:
+// «Общие: Вечер 03.10»); null — как обычно, по счёту.
+export async function exportTransactionsXLSX({ txs, catData, cats, accounts, txType, periodLabel, filename, accountLabel = () => null }) {
+  const wb = await newWorkbook();
   wb.creator = "Daily Planner";
 
   const isExp      = txType === "expense";
@@ -503,9 +511,10 @@ export async function exportTransactionsXLSX({ txs, catData, cats, accounts, txT
 
   // By account
   const byAcc = {};
+  const accName = t => accountLabel(t) || accounts.find(a => a.id === t.account_id)?.name || "—";
   txs.forEach(t => {
-    const k = t.account_id || "__none__";
-    if (!byAcc[k]) byAcc[k] = { total: 0, cnt: 0 };
+    const k = t.account_id || accountLabel(t) || "__none__";
+    if (!byAcc[k]) byAcc[k] = { total: 0, cnt: 0, label: accName(t), currency: accounts.find(a => a.id === t.account_id)?.currency || t.currency };
     byAcc[k].total += +t.amount;
     byAcc[k].cnt++;
   });
@@ -518,9 +527,8 @@ export async function exportTransactionsXLSX({ txs, catData, cats, accounts, txT
     { label: "Валюта счёта",     align: "center" },
   ]);
   Object.entries(byAcc).sort((a, b) => b[1].total - a[1].total).forEach(([id, v], idx) => {
-    const acc = accounts.find(a => a.id === id);
     const bg  = idx % 2 === 0 ? X.white : accentBg;
-    [acc?.name || "—", v.cnt, v.total, pctStr(v.cnt, txs.length), acc?.currency || "—"].forEach((val, ci) => {
+    [v.label, v.cnt, v.total, pctStr(v.cnt, txs.length), v.currency || "—"].forEach((val, ci) => {
       const cell = ws1.getCell(r, ci + 1);
       cell.value = val;
       st(cell, { size: 10, bg, align: ci === 0 ? "left" : ci === 2 ? "right" : "center", border: true });
@@ -544,9 +552,8 @@ export async function exportTransactionsXLSX({ txs, catData, cats, accounts, txT
   ]);
   [...txs].sort((a, b) => b.date.localeCompare(a.date)).forEach((tx, idx) => {
     const cat = cats.find(c => c.id === tx.category_id);
-    const acc = accounts.find(a => a.id === tx.account_id);
     const bg  = idx % 2 === 0 ? X.white : accentBg;
-    [tx.date, cat?.name || "—", acc?.name || "—", tx.amount, tx.currency, tx.note || ""]
+    [tx.date, cat?.name || "—", accName(tx), tx.amount, tx.currency, tx.note || ""]
       .forEach((val, ci) => {
         const cell = ws2.getCell(r2, ci + 1);
         cell.value = val;
@@ -564,7 +571,7 @@ export async function exportTransactionsXLSX({ txs, catData, cats, accounts, txT
 // Sheet 1 «План YYYY-MM» — сводка + расходы + накопления + доходы со статусами
 //
 export async function exportPlansXLSX({ expRows, incRows, savingsRows, totals, rates, planMonth, planYear, filename }) {
-  const wb = new ExcelJS.Workbook();
+  const wb = await newWorkbook();
   wb.creator = "Daily Planner";
 
   const { totalPlanExp, totalPlanInc, totalPlanSav,

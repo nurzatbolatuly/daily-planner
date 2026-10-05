@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { numericFormatter } from "react-number-format";
-import { BASE_CUR, ALL_CURR, COMMODITY_CURRENCIES } from "../constants/currencies";
+import { BASE_CUR, ALL_CURR, COMMODITY_CURRENCIES, CURRENCY_PRECISION, DEFAULT_PRECISION } from "../constants/currencies";
 import { RU_MON_GEN, RU_DAYS_FULL } from "../constants/locale";
 import { pad, todayStr, monthKey } from "./date";
 
@@ -13,7 +13,19 @@ export const isCommodity = code => COMMODITY_CURRENCIES.includes(code);
 // Точная денежная арифметика через Decimal.js — устраняет IEEE 754 floating-point мусор.
 // Принимает результат обычного JS-выражения: round2(a + b) или round2(a - b).
 // Decimal.js использует num.toString() внутри, поэтому 1.6099999... → "1.61" корректно.
-export const round2 = n => new Decimal(Number(n) || 0).toDecimalPlaces(2).toNumber();
+export const roundTo = (n, precision) => new Decimal(Number(n) || 0).toDecimalPlaces(precision).toNumber();
+export const round2 = n => roundTo(n, 2);
+// Округление ВВЕРХ до точности валюты (доли в общих счетах: 3 333,33 ₸ → 3 334). Сначала
+// срезаем float-мусор до 9 знаков, иначе 9910.0000000001 округлилось бы до 9911.
+// Округление ВНИЗ (к нулю) — только для ограничений сверху, которые нельзя превысить даже на
+// копейку (зачёт не больше личного долга, иначе долг молча сменил бы сторону).
+export const floorTo = (n, precision) =>
+  new Decimal(Number(n) || 0).toDecimalPlaces(9).toDecimalPlaces(precision, Decimal.ROUND_DOWN).toNumber();
+export const ceilTo = (n, precision) =>
+  new Decimal(Number(n) || 0).toDecimalPlaces(9).toDecimalPlaces(precision, Decimal.ROUND_UP).toNumber();
+
+// Сколько знаков после запятой имеет смысл у сумм в этой валюте (KZT — целые, см. CURRENCY_PRECISION).
+export const getPrecision = code => CURRENCY_PRECISION[code] ?? DEFAULT_PRECISION;
 
 export const fmtGrams = n => {
   const num = Number(n) || 0;
@@ -43,6 +55,10 @@ export const fmtBal = (n, code) => {
 };
 
 export const toBase = (amt, from, rates = {}) => from === BASE_CUR ? amt : amt * (rates[from] || 1);
+
+// Пересчёт между любыми двумя валютами через базовую (курсы — ratesFromAccounts).
+export const convertAmount = (amt, from, to, rates = {}) =>
+  (from === to ? Number(amt) || 0 : toBase(Number(amt) || 0, from, rates) / toBase(1, to, rates));
 
 // Карта курсов { currency: rateToBase } из avg_rate счетов.
 // Если в одной валюте несколько счетов — берём среднее их avg_rate.
@@ -144,4 +160,14 @@ export function fmtDateShort(s) {
   if(d.toDateString()===yesterday.toDateString()) return "Вчера";
   if(d.getFullYear() !== t.getFullYear()) return `${d.getDate()} ${RU_MON_GEN[d.getMonth()]} ${d.getFullYear()}`;
   return `${d.getDate()} ${RU_MON_GEN[d.getMonth()]}`;
+}
+
+// Склонение по числу: pluralRu(3, ["счёт", "счёта", "счетов"]) → "счёта".
+export function pluralRu(n, [one, few, many]) {
+  const abs = Math.abs(n) % 100;
+  const last = abs % 10;
+  if (abs > 10 && abs < 20) return many;
+  if (last === 1) return one;
+  if (last >= 2 && last <= 4) return few;
+  return many;
 }
