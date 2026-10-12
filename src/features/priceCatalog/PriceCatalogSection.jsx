@@ -49,13 +49,15 @@ export function PriceCatalogSection({ onBack }) {
             product={product}
             category={catById[product.category_id]}
             entries={data.entries.filter(e => e.product_id === product.id)}
+            products={data.products}
+            allEntries={data.entries}
             navigate={navigate}
             onBack={goBack}
           />
         );
       },
-      addProduct: () => <ProductFormPage categories={data.categories} onBack={goBack}/>,
-      editProduct: (d) => <ProductFormPage categories={data.categories} edit={d} onBack={goBack} onDelete={goToRoot}/>,
+      addProduct: () => <ProductFormPage categories={data.categories} attributesSupported={data.attributesSupported} onBack={goBack}/>,
+      editProduct: (d) => <ProductFormPage categories={data.categories} attributesSupported={data.attributesSupported} edit={d} onBack={goBack} onDelete={goToRoot}/>,
       addEntry: (d) => <PriceEntryFormPage product={d.product} sources={sources} prefillSource={d.source} onBack={goBack}/>,
       editEntry: (d) => <PriceEntryFormPage product={d.product} sources={sources} edit={d.entry} onBack={goBack}/>,
       cats: () => <PriceCatsListPage categories={data.categories} navigate={navigate} onBack={() => goBack(false)}/>,

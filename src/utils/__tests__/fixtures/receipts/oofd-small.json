@@ -1,0 +1,959 @@
+{
+ "ticket": {
+  "type": "TICKET",
+  "kkmId": null,
+  "transactionId": "1000000_00001",
+  "transactionDate": "2026-10-08T17:58:44.000",
+  "insertedAt": null,
+  "fiscalId": "1000000001",
+  "offlineFiscalId": null,
+  "cancelDate": null,
+  "shiftNumber": 895,
+  "acceptedAt": null,
+  "protocolVersion": 203,
+  "linkedTransactionId": null,
+  "options": {
+   "children": [
+    {
+     "children": [],
+     "value": "51672",
+     "name": "printedDocumentNumber"
+    },
+    {
+     "children": [],
+     "value": "",
+     "name": "printedTicket"
+    }
+   ],
+   "value": "",
+   "name": "options"
+  },
+  "kkmRequestId": 0,
+  "linkedKkmRequestId": null,
+  "linkedKkmRequestTime": null,
+  "modifiers": [],
+  "items": [
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 0.862,
+     "price": 775,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "166",
+     "listExciseStamp": [],
+     "ntin": "0200109759063",
+     "barcode": null,
+     "name": "Банан - Банан - .",
+     "sum": 668.05,
+     "code": 177633,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 92.14,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": null,
+    "itemType": 5,
+    "discount": {
+     "discount": true,
+     "name": "Коррекция округления",
+     "sum": 0.05,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 0.01,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ],
+     "rate": null
+    },
+    "markup": null,
+    "modifiers": [
+     {
+      "discount": true,
+      "name": "Коррекция округления",
+      "sum": 0.05,
+      "taxes": [
+       {
+        "inTotalSum": true,
+        "sum": 0.01,
+        "layout": {
+         "taxCode": 100,
+         "rate": 0.16,
+         "taxName": ""
+        }
+       }
+      ],
+      "rate": null
+     }
+    ],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 1,
+     "price": 1145,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "796",
+     "listExciseStamp": [],
+     "ntin": "0200081451177",
+     "barcode": null,
+     "name": "Parex майлықтары микрофибра 5дана 32*34 - Салф.микроф.32*34 - PAREX",
+     "sum": 1145,
+     "code": 403663,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 157.93,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 1,
+     "price": 968,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "796",
+     "listExciseStamp": [],
+     "ntin": "0200021406205",
+     "barcode": null,
+     "name": "Молочный бидончик сүзбесі 500 г 5% пакет - Творог 500гр 5% пак. - МОЛОЧНЫЙ БИДОНЧИК ТВ",
+     "sum": 968,
+     "code": 316943,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 133.52,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 1,
+     "price": 769,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "796",
+     "listExciseStamp": [],
+     "ntin": "0200080168342",
+     "barcode": null,
+     "name": "Иртыш үйдегідей қаймақ өнімі 700 г 20% шелек - Смет.пр.700г 20% дом - ИРТЫШ",
+     "sum": 769,
+     "code": 360111,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 106.07,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 0.762,
+     "price": 1479,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "166",
+     "listExciseStamp": [],
+     "ntin": "0200407567940",
+     "barcode": null,
+     "name": "CHIP CHIP Мұздатылған бройлер балапанының жамбасы - Бедро CHIP CHIP Зам - Chip-Chip",
+     "sum": 1127,
+     "code": 506210,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 155.45,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 0.784,
+     "price": 1479,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "166",
+     "listExciseStamp": [],
+     "ntin": "0200407567940",
+     "barcode": null,
+     "name": "CHIP CHIP Мұздатылған бройлер балапанының жамбасы - Бедро CHIP CHIP Зам - Chip-Chip",
+     "sum": 1159.54,
+     "code": 506210,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 159.94,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": null,
+    "itemType": 3,
+    "discount": null,
+    "markup": {
+     "discount": false,
+     "name": "Коррекция округления",
+     "sum": 0.46,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 0.06,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ],
+     "rate": null
+    },
+    "modifiers": [
+     {
+      "discount": false,
+      "name": "Коррекция округления",
+      "sum": 0.46,
+      "taxes": [
+       {
+        "inTotalSum": true,
+        "sum": 0.06,
+        "layout": {
+         "taxCode": 100,
+         "rate": 0.16,
+         "taxName": ""
+        }
+       }
+      ],
+      "rate": null
+     }
+    ],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 2,
+     "price": 695,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "796",
+     "listExciseStamp": [],
+     "ntin": "0200159548112",
+     "barcode": null,
+     "name": "Нәрлен 400гр таңертеңгілік шұжықшалары - Сосиски утренние 400 - НӘРЛЕН",
+     "sum": 1390,
+     "code": 404926,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 191.72,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 1.704,
+     "price": 172,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "166",
+     "listExciseStamp": [],
+     "ntin": "0200109758905",
+     "barcode": null,
+     "name": "Картоп  1-сұрып - Картофель 1сорт - .",
+     "sum": 293.09,
+     "code": 177625,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 40.43,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": null,
+    "itemType": 5,
+    "discount": {
+     "discount": true,
+     "name": "Коррекция округления",
+     "sum": 0.09,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 0.01,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ],
+     "rate": null
+    },
+    "markup": null,
+    "modifiers": [
+     {
+      "discount": true,
+      "name": "Коррекция округления",
+      "sum": 0.09,
+      "taxes": [
+       {
+        "inTotalSum": true,
+        "sum": 0.01,
+        "layout": {
+         "taxCode": 100,
+         "rate": 0.16,
+         "taxName": ""
+        }
+       }
+      ],
+      "rate": null
+     }
+    ],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 0.66,
+     "price": 559,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "166",
+     "listExciseStamp": [],
+     "ntin": "0200109727079",
+     "barcode": null,
+     "name": "Ақ пияз - Лук белый - .",
+     "sum": 368.94,
+     "code": 170582,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 50.89,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": null,
+    "itemType": 3,
+    "discount": null,
+    "markup": {
+     "discount": false,
+     "name": "Коррекция округления",
+     "sum": 0.06,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 0.01,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ],
+     "rate": null
+    },
+    "modifiers": [
+     {
+      "discount": false,
+      "name": "Коррекция округления",
+      "sum": 0.06,
+      "taxes": [
+       {
+        "inTotalSum": true,
+        "sum": 0.01,
+        "layout": {
+         "taxCode": 100,
+         "rate": 0.16,
+         "taxName": ""
+        }
+       }
+      ],
+      "rate": null
+     }
+    ],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 0.4,
+     "price": 649,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "166",
+     "listExciseStamp": [],
+     "ntin": "0200109763084",
+     "barcode": null,
+     "name": "Тәтті бұрыш ласточка - Перец ласточка - .",
+     "sum": 259.6,
+     "code": 178445,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 35.81,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": null,
+    "itemType": 3,
+    "discount": null,
+    "markup": {
+     "discount": false,
+     "name": "Коррекция округления",
+     "sum": 0.4,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 0.06,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ],
+     "rate": null
+    },
+    "modifiers": [
+     {
+      "discount": false,
+      "name": "Коррекция округления",
+      "sum": 0.4,
+      "taxes": [
+       {
+        "inTotalSum": true,
+        "sum": 0.06,
+        "layout": {
+         "taxCode": 100,
+         "rate": 0.16,
+         "taxName": ""
+        }
+       }
+      ],
+      "rate": null
+     }
+    ],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 1,
+     "price": 1500,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "796",
+     "listExciseStamp": [],
+     "ntin": "0200161565619",
+     "barcode": null,
+     "name": "Нәрлен 500гр прима халал п/ы шұжығы - Колб.прима халал 500 - НӘРЛЕН",
+     "sum": 1500,
+     "code": 501864,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 206.9,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 0.876,
+     "price": 189,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "166",
+     "listExciseStamp": [],
+     "ntin": "0200092998524",
+     "barcode": null,
+     "name": "Сәбіз - Морковь - .",
+     "sum": 165.56,
+     "code": 177623,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 22.84,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": null,
+    "itemType": 3,
+    "discount": null,
+    "markup": {
+     "discount": false,
+     "name": "Коррекция округления",
+     "sum": 0.44,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 0.06,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ],
+     "rate": null
+    },
+    "modifiers": [
+     {
+      "discount": false,
+      "name": "Коррекция округления",
+      "sum": 0.44,
+      "taxes": [
+       {
+        "inTotalSum": true,
+        "sum": 0.06,
+        "layout": {
+         "taxCode": 100,
+         "rate": 0.16,
+         "taxName": ""
+        }
+       }
+      ],
+      "rate": null
+     }
+    ],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 2,
+     "price": 139,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "796",
+     "listExciseStamp": [],
+     "ntin": "0200021109366",
+     "barcode": null,
+     "name": "Омега паприкасы 15гр үгілген - Паприка 15 молотая - ОМЕГА",
+     "sum": 278,
+     "code": 316813,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 38.34,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 1,
+     "price": 445,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "796",
+     "listExciseStamp": [],
+     "ntin": "0200133800847",
+     "barcode": null,
+     "name": "Хмели-сунели дәмдеуіші 120гр - Припр.хмел-сунел.120 - ВЫБОР ШЕФА",
+     "sum": 445,
+     "code": 502485,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 61.38,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 1,
+     "price": 949,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "796",
+     "listExciseStamp": [],
+     "ntin": "0200020070254",
+     "barcode": null,
+     "name": "Томастер қызанақ пастасы 550гр шыны банка - Паста 550 томатная - ТОМАСТЕР",
+     "sum": 949,
+     "code": 303646,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 130.9,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   },
+   {
+    "commodity": {
+     "sectionCode": "1",
+     "quantity": 2,
+     "price": 25,
+     "exciseStamp": "",
+     "physicalLabel": "",
+     "productId": "",
+     "measureUnitCode": "796",
+     "listExciseStamp": [],
+     "ntin": "0200337339587",
+     "barcode": null,
+     "name": "Small food пакеті - Пакет small food - SMALL",
+     "sum": 50,
+     "code": 503135,
+     "taxes": [
+      {
+       "inTotalSum": true,
+       "sum": 6.9,
+       "layout": {
+        "taxCode": 100,
+        "rate": 0.16,
+        "taxName": ""
+       }
+      }
+     ]
+    },
+    "itemType": 1,
+    "discount": null,
+    "markup": null,
+    "modifiers": [],
+    "options": {
+     "children": [],
+     "value": "",
+     "name": "empty"
+    }
+   }
+  ],
+  "totalSum": 11537,
+  "operationType": 2,
+  "takenSum": 0,
+  "changeSum": 0,
+  "discount": null,
+  "markup": null,
+  "operator": {
+   "name": "",
+   "code": 17277
+  },
+  "payments": [
+   {
+    "paymentType": "CARD",
+    "sum": 11537
+   }
+  ],
+  "taxes": [],
+  "ticketAdInfo": [],
+  "shiftDocumentNumber": null,
+  "customerIinOrBin": null,
+  "customerEmail": null,
+  "customerPhone": null,
+  "extensionAuxiliaries": null,
+  "geoPosition": {
+   "latitude": 0,
+   "longitude": 0,
+   "source": "Manual"
+  },
+  "parentTicket": null,
+  "domain": {
+   "accountNumber": "0",
+   "domainType": 1
+  }
+ },
+ "ticketDescription": "transaction.ticket.sell, transaction.ticket.payment.type.card",
+ "orgTitle": "ТОВАРИЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ \"СКИФ ТРЕЙД\"",
+ "orgId": "020340002288",
+ "retailPlaceAddress": "г. Алматы, р-н Алмалинский, ул. Толе Би д. 187, Литер Б - Б1",
+ "kkmSerialNumber": "500000000",
+ "kkmFnsId": "000000000303",
+ "foundDate": "2026-10-11T18:16:23.094",
+ "taxes": [
+  {
+   "rate": 0.16,
+   "name": "",
+   "sum": 1591.33
+  }
+ ],
+ "totalDiscount": 0.14,
+ "totalMarkup": 1.36,
+ "measureUnits": {
+  "166": "кг",
+  "796": "шт "
+ }
+}

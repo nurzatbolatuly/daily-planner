@@ -8,6 +8,8 @@ import { MakeSharedButton } from "../../components/MakeSharedButton";
 import { supaRpc } from "../../../../lib/supabase";
 
 jest.mock("../../../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.resolve()), supaUpsert: jest.fn(() => Promise.resolve()) }));
+// Карточка чека привязанной транзакции (TransactionReceiptCard) — чека нет.
+jest.mock("../../../../lib/receiptsApi", () => ({ fetchTransactionReceipt: () => Promise.resolve(null) }));
 
 // Счёт в тенге и счёт в лирах (avg_rate даёт курс TRY → KZT для подсказки «≈»).
 const kaspi = { id: "kaspi", name: "Kaspi", currency: "KZT", balance: 100000, icon: "bank", color: "#f00" };

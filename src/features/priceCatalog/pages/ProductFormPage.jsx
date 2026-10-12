@@ -7,10 +7,23 @@ import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { CategoryChips } from "../components/CategoryChips";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
+import { NumInput } from "../../../components/NumInput";
+import { UNITS } from "../utils/priceCatalogUtils";
 
-export function ProductFormPage({ categories, edit, onBack, onDelete }) {
+// Признаки товара (docs/receipts.md §7.1): вид — для «Другие варианты», бренд/вариант/фасовка —
+// по ним чек другого магазина без кода узнаёт этот товар. Название — свободное, как раньше.
+const ATTR_FIELDS = [
+  ["kind", "Вид", "Например, Творог"],
+  ["brand", "Бренд", "Необязательно"],
+  ["variant", "Вариант", "Жирность, сорт, размер"],
+];
+const PACK_UNITS = ["кг", "л", "шт"];   // фасовка — в базовой единице, как в чеках (0.5 кг)
+
+export function ProductFormPage({ categories, edit, attributesSupported = true, onBack, onDelete }) {
   const [name, setName] = useState(edit?.name || "");
   const [categoryId, setCategoryId] = useState(edit?.category_id || "");
+  const [attrs, setAttrs] = useState(() => ({ kind: edit?.kind || "", brand: edit?.brand || "", variant: edit?.variant || "" }));
+  const [pack, setPack] = useState(() => ({ qty: edit?.pack_qty != null ? String(edit.pack_qty) : "", unit: edit?.pack_unit || "кг" }));
   const [errors, setErrors] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -19,6 +32,16 @@ export function ProductFormPage({ categories, edit, onBack, onDelete }) {
 
   saveRef.current = async () => {
     const product = { id: edit?.id || newId(), name: name.trim(), category_id: categoryId || null };
+    if (attributesSupported) {
+      const packQty = parseFloat(pack.qty) || null;
+      const packChanged = packQty !== (edit?.pack_qty != null ? Number(edit.pack_qty) : null) || (packQty && pack.unit !== edit?.pack_unit);
+      Object.assign(product, {
+        kind: attrs.kind.trim() || null, brand: attrs.brand.trim() || null, variant: attrs.variant.trim() || null,
+        pack_qty: packQty, pack_unit: packQty ? pack.unit : null,
+        pack_count: packChanged ? null : edit?.pack_count ?? null,   // «5 × 70 г» — пока фасовку не меняли
+        name_confirmed: true,   // пользователь проверил товар — правила названий больше не «проверьте»
+      });
+    }
     await supaUpsert("price_products", product);
     onBack(true);
   };
@@ -53,6 +76,29 @@ export function ProductFormPage({ categories, edit, onBack, onDelete }) {
             style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.06)", border:`1px solid ${errors.name?"rgba(244,67,54,0.5)":C.border}`, borderRadius:12, outline:"none", color:"#fff", fontSize:16, padding:"12px 14px" }}
           />
         </div>
+
+        {attributesSupported && (
+          <>
+            {ATTR_FIELDS.map(([key, label, placeholder]) => (
+              <div key={key} style={{ marginBottom:16 }}>
+                <FieldLabel>{label}</FieldLabel>
+                <input value={attrs[key]} onChange={e => setAttrs(a => ({ ...a, [key]: e.target.value }))} placeholder={placeholder} aria-label={label}
+                  style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.06)", border:`1px solid ${C.border}`, borderRadius:12, outline:"none", color:"#fff", fontSize:16, padding:"12px 14px" }}/>
+              </div>
+            ))}
+            <div style={{ marginBottom:20 }}>
+              <FieldLabel>Фасовка</FieldLabel>
+              <div style={{ display:"flex", gap:8 }}>
+                <NumInput value={pack.qty} onChange={qty => setPack(p => ({ ...p, qty }))} placeholder="Без фасовки"
+                  style={{ flex:1, minWidth:0, boxSizing:"border-box", background:"rgba(255,255,255,0.06)", border:`1px solid ${C.border}`, borderRadius:12, outline:"none", color:"#fff", fontSize:16, padding:"12px 14px" }}/>
+                {PACK_UNITS.filter(u => UNITS.includes(u)).map(u => (
+                  <button key={u} type="button" onClick={() => setPack(p => ({ ...p, unit: u }))}
+                    style={{ flexShrink:0, padding:"0 14px", borderRadius:12, cursor:"pointer", fontSize:14, fontWeight:600, border:`1px solid ${pack.unit === u ? C.green : C.border}`, background: pack.unit === u ? C.greenTintStrong : "rgba(255,255,255,0.06)", color: pack.unit === u ? C.green : C.mid }}>{u}</button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
         <div style={{ marginBottom:28 }}>
           <FieldLabel error={errors.category}>Категория</FieldLabel>

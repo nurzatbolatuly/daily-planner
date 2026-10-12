@@ -30,6 +30,7 @@ import { SharedPayerPicker } from "../components/SharedPayerPicker";
 import { PersonPicker } from "../components/PersonPicker";
 import { GuestNameSheet } from "../components/GuestNameSheet";
 import { fieldInput, errorText, hintText, chip } from "../components/sharedUi";
+import { TransactionReceiptCard } from "../components/TransactionReceiptCard";
 
 // Счёт в общей группе (docs/shared-expenses.md §12.2). Платил я или участник (§5.7). Чек может
 // быть в любой валюте, счёт списания — тоже (§5.18): тогда вводится, сколько реально списалось.
@@ -294,6 +295,7 @@ export function SharedEntryFormPage({ group: existingGroup = null, entry = null,
             </span>
           </div>
         )}
+        {(entry?.transaction_id || linkTx?.id) && <TransactionReceiptCard transactionId={entry?.transaction_id || linkTx.id}/>}
 
 
         {isNewGroup && (

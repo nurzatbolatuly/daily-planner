@@ -7,7 +7,8 @@ import { round2, getPrecision } from "../../../utils/format";
 import { computeSplit } from "../../../utils/splitCalc";
 import { newId } from "../../../utils/id";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
-import { BALANCE_ADJUSTMENT_NOTE } from "../../../constants/money";
+import { BALANCE_ADJUSTMENT_NOTE, FX_LOSS_CATEGORY, FX_GAIN_CATEGORY } from "../../../constants/money";
+import { amountMismatch } from "../../../utils/receipts/receiptView";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
@@ -18,8 +19,15 @@ import { AccSelect } from "../../../components/AccSelect";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { SplitToggle } from "../components/SplitToggle";
 import { MakeSharedButton } from "../components/MakeSharedButton";
+import { ReceiptField } from "../components/ReceiptField";
+import { useTransactionReceipt } from "../hooks/useTransactionReceipt";
 
-export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debtPeople = [], setDebtPeople, debtEvents = [], sharedGroups = [], onMakeShared }) {
+// Системные категории — чек к ним не прикрепляется (курсовая разница — не покупка).
+const NO_RECEIPT_CATEGORIES = [FX_LOSS_CATEGORY.id, FX_GAIN_CATEGORY.id];
+
+export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debtPeople = [], setDebtPeople, debtEvents = [], sharedGroups = [], onMakeShared, onOpenTransaction }) {
+  // id — один на форму: если транзакция сохранилась, а чек нет, повтор пишет чек к ней же (§6).
+  const [txId] = useState(() => edit?.id || newId());
   const [type, setType] = useState(edit?.type || prefill?.type || "expense");
   const [amt, setAmt] = useState(edit?.amount ? String(edit.amount) : prefill?.amount ? String(prefill.amount) : "");
   const [cur, setCur] = useState(edit?.currency || prefill?.currency || BASE_CUR);
@@ -44,6 +52,21 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
   const [splitMethod, setSplitMethod] = useState(existingSplit.length > 0 ? "exact" : "equal");
   const [splitValues, setSplitValues] = useState(() => Object.fromEntries(existingSplitEvents.map(e => [e.person_id, String(e.amount)])));
   const [meIncluded, setMeIncluded] = useState(true);
+
+  // Чек (docs/receipts.md §3): сумма и дата подставляются из чека, только пока пользователь их не
+  // трогал — у правки и предзаполненной формы они уже заданы.
+  const receipt = useTransactionReceipt(edit?.id || null);
+  const touched = useRef({ amount: !!edit || !!prefill?.amount, date: !!edit || !!prefill?.date });
+  const [receiptRetry, setReceiptRetry] = useState(null);   // транзакция сохранена, чек — нет: текст ошибки
+  const receiptAllowed = type === "expense" && !edit?.transfer_id && !NO_RECEIPT_CATEGORIES.includes(cat);
+  const receiptMismatch = receiptAllowed ? amountMismatch(receipt.view, amt, cur) : null;
+  const attachReceipt = (parsed, view, plan) => {
+    receipt.attach(parsed, view, plan);
+    if (!touched.current.amount && parsed.currency === cur) setAmt(String(parsed.total));
+    if (!touched.current.date) setDate(parsed.date);
+    setErrors(p => ({ ...p, amt:"" }));
+  };
+  const setDateTouched = v => { touched.current.date = true; setDate(v); };
 
   // Refs hold latest closures so useSave can be called unconditionally at top level
   const saveRef = useRef(null);
@@ -75,7 +98,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
   saveRef.current = async () => {
     const acc = accounts.find(a => a.id === accId);
     const delta = type === "income" ? parseFloat(amt) : -parseFloat(amt);
-    const tx = { id: edit?.id || newId(), type, amount: parseFloat(amt), currency: cur, category_id: cat, account_id: accId, date, note };
+    const tx = { id: txId, type, amount: parseFloat(amt), currency: cur, category_id: cat, account_id: accId, date, note };
     // Откат старой суммы должен лечь на тот счёт, с которого она реально была списана/
     // зачислена (edit.account_id), а не на выбранный сейчас — иначе при смене счёта
     // возврат и новое списание взаимно гасятся на новом счёте, а старый не трогается.
@@ -125,8 +148,27 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
       await supaUpsert("debt_events", debtRows);
     }
 
+    if (!(await persistReceipt())) return;
     onBack(true);
   };
+
+  // Чек пишется после транзакции (§6). Ошибка не откатывает транзакцию: форма показывает
+  // «Повторить» (только чек) и «Готово без чека». → true, если можно уходить с экрана.
+  const persistReceipt = async () => {
+    if (!receipt.needsPersist(receiptAllowed)) return true;
+    try {
+      await receipt.persist(txId, { allowed: receiptAllowed });
+      setReceiptRetry(null);
+      return true;
+    } catch (e) {
+      console.error("Save receipt:", e);
+      setReceiptRetry(e?.message || "Не удалось сохранить чек");
+      return false;
+    }
+  };
+  const retryRef = useRef(null);
+  retryRef.current = async () => { if (await persistReceipt()) onBack(true); };
+  const { save: retryReceipt, saving: retrying } = useSave(() => retryRef.current(), { errorMsg: "Не удалось сохранить чек" });
 
   deleteRef.current = async () => {
     const acc = accounts.find(a => a.id === edit.account_id);
@@ -201,7 +243,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
       <div style={{ flex:1, overflowY:"auto", padding:"0 16px 80px" }}>
         <div style={{ textAlign:"center", padding:"24px 24px 16px" }}>
           <div style={{ display:"flex", alignItems:"baseline", justifyContent:"center", gap:16 }}>
-            <NumInput value={amt} onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }} placeholder="0" style={{ background:"none", border:"none", outline:"none", color:errors.amt?C.red:"#fff", fontSize:38, fontWeight:700, textAlign:"center", width:"min(180px, 50%)" }}/>
+            <NumInput value={amt} onChange={v => { touched.current.amount = true; setAmt(v); setErrors(p => ({...p, amt:""})); }} placeholder="0" style={{ background:"none", border:"none", outline:"none", color:errors.amt?C.red:"#fff", fontSize:38, fontWeight:700, textAlign:"center", width:"min(180px, 50%)" }}/>
             <button onClick={() => setShowCur(true)} style={{ background:"none", border:"none", color:C.green, fontSize:22, fontWeight:700, cursor:"pointer" }}>{cur}</button>
           </div>
           <div style={{ height:1, background:errors.amt?"rgba(244,67,54,0.5)":"rgba(255,255,255,0.15)", margin:"8px 40px 0" }}/>
@@ -214,6 +256,15 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
           <FieldLabel error={errors.cat}>Категории</FieldLabel>
           <CategoryPicker cats={cats} value={cat} onChange={id => { setCat(id); setErrors(p => ({...p, cat:""})); }}/>
         </div>
+        {(receiptAllowed || receipt.view) && (
+          <ReceiptField
+            view={receipt.view} loading={receipt.loading} loadError={receipt.loadError}
+            readOnly={!receiptAllowed} transactionId={edit?.id || null}
+            onAttach={attachReceipt} onRemove={receipt.remove}
+            mismatch={receiptMismatch} onOpenTransaction={onOpenTransaction}
+            notice={!receiptAllowed && receipt.view ? "Чек прикрепляется только к покупке — при сохранении он будет откреплён" : null}
+          />
+        )}
         {/* «Оплатил за других» для новых расходов убран: делить с друзьями — «Сделать общим» /
             «Общие расходы». Остаётся только у уже разделённой транзакции — чтобы долю можно было
             увидеть, поправить или снять. */}
@@ -233,7 +284,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
           <FieldLabel>Дата</FieldLabel>
           <div style={{ display:"flex", alignItems:"center", gap:8, overflowX:"auto", paddingBottom:4 }}>
             {dateShorts.map(ds => (
-              <button key={ds.key} onClick={() => setDate(ds.key)} style={{ flexShrink:0, padding:"10px 12px", borderRadius:10, cursor:"pointer", background:date===ds.key?C.green:"transparent", border:"none", textAlign:"center", minWidth:60 }}>
+              <button key={ds.key} onClick={() => setDateTouched(ds.key)} style={{ flexShrink:0, padding:"10px 12px", borderRadius:10, cursor:"pointer", background:date===ds.key?C.green:"transparent", border:"none", textAlign:"center", minWidth:60 }}>
                 <p style={{ margin:0, fontSize:14, fontWeight:700, color:date===ds.key?"#fff":C.mid }}>{ds.label}</p>
                 <p style={{ margin:0, fontSize:11, color:date===ds.key?"rgba(255,255,255,0.8)":C.dim }}>{ds.sub}</p>
               </button>
@@ -246,7 +297,17 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
           <input value={note} onChange={e => setNote(e.target.value)} placeholder="Комментарий" style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${C.border}`, outline:"none", color:"#fff", fontSize:15, padding:"4px 0", boxSizing:"border-box" }}/>
         </div>
         {saveError && <p style={{ color:C.errorLight, fontSize:13, textAlign:"center", marginBottom:8 }}>{saveError}</p>}
+        {receiptRetry ? (
+          <div role="alert" style={{ padding:"12px 14px", borderRadius:12, background:C.errorTint, border:`1px solid ${C.errorBorder}`, marginBottom:8 }}>
+            <p style={{ margin:"0 0 10px", fontSize:13, color:C.main, lineHeight:1.4 }}>Транзакция сохранена, но чек не прикреплён: {receiptRetry}</p>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={retryReceipt} disabled={retrying} style={{ flex:1, padding:12, borderRadius:30, border:"none", background:C.green, color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", opacity:retrying ? 0.6 : 1 }}>{retrying ? "Сохранение..." : "Повторить"}</button>
+              <button onClick={() => onBack(true)} style={{ flex:1, padding:12, borderRadius:30, border:"none", background:C.fieldBg, color:C.mid, fontSize:14, fontWeight:600, cursor:"pointer" }}>Готово без чека</button>
+            </div>
+          </div>
+        ) : (
         <button onClick={save} disabled={saving} style={{ width:"100%", padding:"15px", borderRadius:30, background:saving?"rgba(200,150,30,0.4)":C.yellow, border:"none", color:"#fff", fontSize:15, fontWeight:600, cursor:"pointer" }}>{saving?"Сохранение...":"Сохранить"}</button>
+        )}
         {edit && edit.type === "expense" && onMakeShared && (
           <MakeSharedButton tx={edit} debtEvents={debtEvents} groups={sharedGroups} onPick={onMakeShared}/>
         )}
@@ -260,7 +321,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
           confirmLabel="Удалить"
         />
       </div>
-      {showCal && <CalendarPicker mode="single" value={date} onChange={v => { setDate(v); setShowCal(false); }} onClose={() => setShowCal(false)}/>}
+      {showCal && <CalendarPicker mode="single" value={date} onChange={v => { setDateTouched(v); setShowCal(false); }} onClose={() => setShowCal(false)}/>}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { supa } from "../../../lib/supabase";
+import { supa, supabase } from "../../../lib/supabase";
 
 // Ленивая загрузка — хук монтируется только при заходе в «Каталог цен»,
 // не тянет данные при старте Финансов (см. usePriceCatalogData vs useMoneyData
@@ -11,15 +11,21 @@ export function usePriceCatalogData() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  // Признаки товара из чеков (v34; миграции запускаются вручную): без колонок форма не должна их
+  // отправлять. Как sharedSchema.fees в useMoneyData.
+  // TODO: удалить проверку после применения v34.
+  const [attributesSupported, setAttributesSupported] = useState(true);
 
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const [cats, prods, ents] = await Promise.all([
+      const [cats, prods, ents, probe] = await Promise.all([
         supa.select("price_categories", "order=name.asc"),
         supa.select("price_products", "order=name.asc"),
         supa.select("price_entries", "order=date.asc"),
+        supabase.from("price_products").select("name_confirmed").limit(1),
       ]);
+      setAttributesSupported(!probe.error);
       setCategories(cats || []);
       setProducts(prods || []);
       setEntries(ents || []);
@@ -33,5 +39,5 @@ export function usePriceCatalogData() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
 
-  return { categories, products, entries, loading, loadError, reload: load };
+  return { categories, products, entries, attributesSupported, loading, loadError, reload: load };
 }

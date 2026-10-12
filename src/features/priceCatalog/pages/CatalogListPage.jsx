@@ -18,13 +18,15 @@ export function CatalogListPage({ products, categories, entries, navigate, onBac
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter(p => {
-      if (catId !== "all" && p.category_id !== catId) return false;
+      if (catId === "none" ? p.category_id : catId !== "all" && p.category_id !== catId) return false;
       if (q && !p.name.toLowerCase().includes(q)) return false;
       return true;
     });
   }, [products, query, catId]);
 
   const catById = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
+  // «Без категории» — разобрать пачкой товары из чеков, у вида которых ещё нет категории (§7.7)
+  const uncategorized = useMemo(() => products.filter(p => !p.category_id).length, [products]);
 
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
@@ -43,7 +45,8 @@ export function CatalogListPage({ products, categories, entries, navigate, onBac
 
         {categories.length > 0 && (
           <div style={{ marginBottom:14 }}>
-            <CategoryChips categories={categories} value={catId} onChange={setCatId} allLabel="Все"/>
+            <CategoryChips categories={categories} value={catId} onChange={setCatId} allLabel="Все"
+              noneLabel={uncategorized > 0 ? `Без категории · ${uncategorized}` : undefined}/>
           </div>
         )}
 

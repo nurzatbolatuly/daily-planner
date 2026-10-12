@@ -34,3 +34,31 @@ export function cheapestSource(summaries) {
 }
 
 export const UNITS = ["шт", "кг", "г", "л", "мл"];
+
+// ── Товары из чеков (docs/receipts.md §7, этап 5) ─────────────────────────────────────────────
+
+// Цена за единицу записи: «Молоко 900 мл · ₸493» → 547.78 за л. qty = 1 — цена как есть.
+export const unitPriceOf = entry => (Number(entry.qty) > 0 ? Number(entry.price) / Number(entry.qty) : Number(entry.price));
+
+// Признаки товара одной строкой: «Творог · Молочный Бидончик · 5% · 500 г».
+export const productAttrsLabel = (product, formatPack) => [
+  product.kind,
+  product.brand,
+  product.variant,
+  product.pack_unit && formatPack({ qty: Number(product.pack_qty), unit: product.pack_unit, ...(product.pack_count ? { count: product.pack_count } : {}) }),
+].filter(Boolean).join(" · ");
+
+// «Другие варианты» — товары того же вида, у каждого самая выгодная последняя цена за единицу.
+// Сравнивать можно только в одной единице: у вариантов в другой единице цена за единицу не показывается.
+export function otherVariants(product, products, entries) {
+  if (!product.kind) return [];
+  const byProduct = groupByProduct(entries);
+  const kind = product.kind.toLowerCase();
+  return products
+    .filter(p => p.id !== product.id && p.kind && p.kind.toLowerCase() === kind)
+    .map(p => {
+      const best = cheapestSource(sourceSummaries(byProduct[p.id] || []));
+      return { product: p, best: best?.latest || null, unitPrice: best ? unitPriceOf(best.latest) : null };
+    })
+    .sort((a, b) => (a.unitPrice ?? Infinity) - (b.unitPrice ?? Infinity));
+}

@@ -172,14 +172,16 @@ export default function MoneyManagerSection() {
     // Транзакция счёта общей группы (или виртуальная строка «мою долю оплатил другой») правится
     // только через форму группы: в TxPage правка суммы/удаление разошлись бы с долями и долгами
     // участников. Единая точка — все списки транзакций ведут сюда через navigate("editTx").
+    // «Чек уже прикреплён к расходу … Открыть» в TxPage (ReceiptField).
+    const openTransaction = id => { const tx = data.transactions.find(t => t.id === id); if (tx) navigate("editTx", tx); };
     const sharedEntryOfTx = tx => data.sharedEntries.find(e => (tx.virtual ? e.id === tx.shared_entry_id : e.transaction_id === tx.id));
     const screenMap = {
-      addTx:        (d) => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} debtEvents={data.debtEvents} onBack={goBack} prefill={d}/>,
+      addTx:        (d) => <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} debtEvents={data.debtEvents} onBack={goBack} prefill={d} onOpenTransaction={openTransaction}/>,
       editTx:       (d) => {
         const shared = sharedEntryOfTx(d);
         if (shared) return editSharedEntryScreen(shared);
         return <TxPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} debtPeople={data.debtPeople} setDebtPeople={data.setDebtPeople} debtEvents={data.debtEvents} onBack={goBack} edit={d}
-          sharedGroups={data.sharedGroups} onMakeShared={groupId => replaceScreen("addSharedBill", { groupId, linkTxId: d.id })}/>;
+          sharedGroups={data.sharedGroups} onMakeShared={groupId => replaceScreen("addSharedBill", { groupId, linkTxId: d.id })} onOpenTransaction={openTransaction}/>;
       },
       addAcc:       ()  => <AccPage onBack={goBack}/>,
       editAcc:      (d) => <AccPage onBack={goBack} edit={d}/>,

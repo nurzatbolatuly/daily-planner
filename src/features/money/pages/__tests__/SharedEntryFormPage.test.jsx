@@ -5,6 +5,8 @@ import { SharedEntryFormPage } from "../SharedEntryFormPage";
 import { supaRpc } from "../../../../lib/supabase";
 
 jest.mock("../../../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.resolve()), supaUpsert: jest.fn(() => Promise.resolve()) }));
+// Карточка чека привязанной транзакции (TransactionReceiptCard) — чека нет.
+jest.mock("../../../../lib/receiptsApi", () => ({ fetchTransactionReceipt: () => Promise.resolve(null) }));
 
 const accounts = [{ id: "kaspi", name: "Kaspi", currency: "KZT", balance: 100000, icon: "bank", color: "#f00" }];
 const expCats = [{ id: "rest", name: "Рестораны", icon: "eating", color: "#0f0" }, { id: "cat-monthly-payments", name: "Платежи", icon: "payments", color: "#00f" }];

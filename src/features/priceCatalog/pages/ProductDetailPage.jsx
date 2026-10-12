@@ -4,7 +4,8 @@ import { PageHeader } from "../../../components/PageHeader";
 import { Ico } from "../../../components/Ico";
 import { getSym, fmtAmtAuto, fmtDateShort } from "../../../utils/format";
 import { BASE_CUR } from "../../../constants/currencies";
-import { sourceSummaries, cheapestSource } from "../utils/priceCatalogUtils";
+import { sourceSummaries, cheapestSource, unitPriceOf, productAttrsLabel, otherVariants } from "../utils/priceCatalogUtils";
+import { formatPack } from "../../../utils/receipts/attributes";
 
 const sym = getSym(BASE_CUR);
 
@@ -12,11 +13,16 @@ function unitLabel(entry) {
   return entry.qty && Number(entry.qty) !== 1 ? `${fmtAmtAuto(entry.qty)} ${entry.unit}` : entry.unit;
 }
 
-export function ProductDetailPage({ product, category, entries, navigate, onBack }) {
+// Цена за единицу: «₸548 / л»
+const perUnit = entry => `${sym}${fmtAmtAuto(Math.round(unitPriceOf(entry)))} / ${entry.unit}`;
+
+export function ProductDetailPage({ product, category, entries, products = [], allEntries = [], navigate, onBack }) {
   const [expanded, setExpanded] = useState(null);
 
   const summaries = useMemo(() => sourceSummaries(entries), [entries]);
   const cheapest = useMemo(() => cheapestSource(summaries), [summaries]);
+  const variants = useMemo(() => otherVariants(product, products, allEntries), [product, products, allEntries]);
+  const attrs = productAttrsLabel(product, formatPack);
 
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
@@ -30,6 +36,7 @@ export function ProductDetailPage({ product, category, entries, navigate, onBack
           <span style={{ display:"inline-block", padding:"5px 12px", borderRadius:20, background:"rgba(255,255,255,0.06)", fontSize:13, color:C.mid, fontWeight:600 }}>
             {category?.name || "Без категории"}
           </span>
+          {attrs && <p style={{ margin:"10px 0 0", fontSize:13, color:C.mid }}>{attrs}</p>}
         </div>
 
         {summaries.length === 0 && (
@@ -66,7 +73,10 @@ export function ProductDetailPage({ product, category, entries, navigate, onBack
                     <div key={e.id} onClick={() => navigate("editEntry", { product, entry: e })}
                       style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 10px", borderRadius:10, background:"rgba(255,255,255,0.04)", marginBottom:6, cursor:"pointer" }}>
                       <div>
-                        <p style={{ margin:0, fontSize:13, color:C.main }}>{fmtDateShort(e.date)}</p>
+                        <p style={{ margin:0, fontSize:13, color:C.main }}>
+                          {fmtDateShort(e.date)}
+                          {e.receipt_id && <span style={{ marginLeft:6, fontSize:10, fontWeight:700, color:C.blue, background:C.infoTint, padding:"1px 6px", borderRadius:6 }}>из чека</span>}
+                        </p>
                         {e.note && <p style={{ margin:"2px 0 0", fontSize:11, color:C.dim }}>{e.note}</p>}
                       </div>
                       <p style={{ margin:0, fontSize:13, fontWeight:600, color:C.mid }}>{sym}{fmtAmtAuto(e.price)} · {unitLabel(e)}</p>
@@ -81,6 +91,20 @@ export function ProductDetailPage({ product, category, entries, navigate, onBack
             </div>
           );
         })}
+
+        {variants.length > 0 && (
+          <div style={{ marginTop:20 }}>
+            <p style={{ margin:"0 0 8px", fontSize:13, color:C.dim }}>Другие варианты · {product.kind}</p>
+            {variants.map(v => (
+              <div key={v.product.id} onClick={() => navigate("product", v.product)}
+                style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", borderRadius:12, background:C.monCard, marginBottom:6, cursor:"pointer" }}>
+                <p style={{ flex:1, minWidth:0, margin:0, fontSize:14, color:C.main, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{v.product.name}</p>
+                {v.best && <p style={{ margin:0, fontSize:13, fontWeight:600, color:C.mid, flexShrink:0 }}>{perUnit(v.best)}</p>}
+                <Ico n="chevR" s={14} c={C.dim}/>
+              </div>
+            ))}
+          </div>
+        )}
 
         <button
           onClick={() => navigate("addEntry", { product })}
