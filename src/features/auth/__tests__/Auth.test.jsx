@@ -44,7 +44,7 @@ test("неверный email — письмо не отправляется", ()
   render(<LoginPage/>);
   fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "me@" } });
   fireEvent.click(screen.getByRole("button", { name: "Получить код" }));
-  expect(screen.getByText(/введите email/)).toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("Введите email полностью");
   expect(supabase.auth.signInWithOtp).not.toHaveBeenCalled();
 });
 
@@ -57,6 +57,16 @@ test("незарегистрированный email — понятная оши
   expect(screen.queryByLabelText("Код из письма")).not.toBeInTheDocument();
 });
 
+test("Supabase просит подождать — отсчёт по его числу, кнопка недоступна", async () => {
+  supabase.auth.signInWithOtp.mockResolvedValue({ error: { code: "over_email_send_rate_limit", status: 429,
+    message: "For security purposes, you can only request this after 37 seconds." } });
+  render(<LoginPage/>);
+  fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "me@mail.kz" } });
+  fireEvent.click(screen.getByRole("button", { name: "Получить код" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Новое письмо можно запросить через 37 сек");
+  expect(screen.getByRole("button", { name: "Получить код через 0:37" })).toBeDisabled();
+});
+
 test("код: только цифры, полный код отправляется сам", async () => {
   render(<LoginPage/>);
   const input = await toCodeStep();
@@ -64,14 +74,21 @@ test("код: только цифры, полный код отправляет�
   await waitFor(() => expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({ email: "me@mail.kz", token: CODE, type: "email" }));
 });
 
-test("код короче настроенного (другая длина в Supabase) — вход кнопкой «Войти»", async () => {
+test("код другой длины (настройка Supabase разошлась с OTP_LENGTH) — вход кнопкой «Войти»", async () => {
   render(<LoginPage/>);
   const input = await toCodeStep();
-  const short = "2".repeat(OTP_MIN_LENGTH);
-  fireEvent.change(input, { target: { value: short } });
+  const other = "2".repeat(OTP_LENGTH + 2);
+  fireEvent.change(input, { target: { value: other } });
   expect(supabase.auth.verifyOtp).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Войти" }));
-  await waitFor(() => expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({ email: "me@mail.kz", token: short, type: "email" }));
+  await waitFor(() => expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({ email: "me@mail.kz", token: other, type: "email" }));
+});
+
+test("код короче минимума — «Войти» недоступна", async () => {
+  render(<LoginPage/>);
+  const input = await toCodeStep();
+  fireEvent.change(input, { target: { value: "2".repeat(OTP_MIN_LENGTH - 1) } });
+  expect(screen.getByRole("button", { name: "Войти" })).toBeDisabled();
 });
 
 test("неверный код — ошибка и пустое поле для нового ввода", async () => {
