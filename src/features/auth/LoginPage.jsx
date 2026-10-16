@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { requestCode, verifyCode } from "../../lib/authOtp";
 import { C } from "../../constants/theme";
-import { OTP_LENGTH, OTP_MIN_LENGTH, OTP_MAX_LENGTH, OTP_RESEND_SEC, ALLOW_SIGNUP, LAST_EMAIL_KEY } from "../../constants/auth";
+import { OTP_LENGTH, LAST_EMAIL_KEY } from "../../constants/auth";
 import { useSave } from "../../hooks/useSave";
 import { Ico } from "../../components/Ico";
 import { OtpInput } from "./OtpInput";
@@ -43,10 +43,12 @@ function PrimaryButton({ children, disabled, busy }) {
 
 // Вход кодом из письма, а не ссылкой: ссылка на iOS открывается в Safari, а не в PWA с
 // домашнего экрана — сессия оказалась бы в чужом хранилище. Шаги: email → код.
+// Код шлёт и проверяет наша функция auth-otp (lib/authOtp), не Supabase Auth.
 export function LoginPage() {
   const [step, setStep] = useState("email");
   const [email, setEmail] = useState(readLastEmail);
   const [code, setCode] = useState("");
+  const [codeLength, setCodeLength] = useState(OTP_LENGTH);   // из ответа сервера
   const [emailError, setEmailError] = useState(null);
   const [emailFocused, setEmailFocused] = useState(false);
   const [resendIn, setResendIn] = useState(0);
@@ -63,21 +65,24 @@ export function LoginPage() {
     return () => clearInterval(id);
   }, [counting]);
 
-  // Сервер попросил подождать — отсчёт по его числу, а не по нашей константе.
+  // Пауза до повторной отправки и длина кода — из ответа сервера (в т.ч. «подождите N сек»).
   const sendRef = useRef(null);
   const { save: execSend, saving: sending, saveError: sendError, setSaveError: setSendError } =
     useSave(() => sendRef.current(), { errorMsg: authErrorText });
   sendRef.current = async () => {
-    const { error } = await supabase.auth.signInWithOtp({ email: normEmail, options: { shouldCreateUser: ALLOW_SIGNUP } });
-    if (error) {
-      const wait = retryAfterSec(error);
+    let res;
+    try {
+      res = await requestCode(normEmail);
+    } catch (e) {
+      const wait = retryAfterSec(e);
       if (wait) setResendIn(wait);
-      throw error;
+      throw e;
     }
     saveLastEmail(normEmail);
     setCode("");
+    setCodeLength(res?.code_length || OTP_LENGTH);
     setStep("code");
-    setResendIn(OTP_RESEND_SEC);
+    setResendIn(res?.resend_after || 0);
   };
 
   // Успех — onAuthStateChange в AuthProvider сам переключит на приложение.
@@ -85,8 +90,13 @@ export function LoginPage() {
   const { save: execVerify, saving: verifying, saveError: verifyError, setSaveError: setVerifyError } =
     useSave(c => verifyRef.current(c), { errorMsg: authErrorText });
   verifyRef.current = async value => {
-    const { error } = await supabase.auth.verifyOtp({ email: normEmail, token: value, type: "email" });
-    if (error) { setCode(""); setShakeKey(k => k + 1); throw error; }
+    try {
+      await verifyCode(normEmail, value);
+    } catch (e) {
+      setCode("");
+      setShakeKey(k => k + 1);
+      throw e;
+    }
   };
 
   // Фокус в поле кода — при открытии шага и после неверного кода (поле было disabled).
@@ -101,14 +111,14 @@ export function LoginPage() {
   };
 
   const onCodeChange = v => {
-    const digits = v.replace(/\D/g, "").slice(0, OTP_MAX_LENGTH);
+    const digits = v.replace(/\D/g, "").slice(0, codeLength);
     setCode(digits);
     setVerifyError(null);
     // Автоотправка, когда код набран или подставлен iOS из письма.
-    if (digits.length === OTP_LENGTH && !verifying) execVerify(digits);
+    if (digits.length === codeLength && !verifying) execVerify(digits);
   };
 
-  const codeReady = code.length >= OTP_MIN_LENGTH;
+  const codeReady = code.length === codeLength;
   const submitCode = e => {
     e.preventDefault();
     if (codeReady && !verifying) execVerify(code);
@@ -175,7 +185,7 @@ export function LoginPage() {
               </p>
 
               <OtpInput
-                value={code} onChange={onCodeChange} length={OTP_LENGTH} maxLength={OTP_MAX_LENGTH}
+                value={code} onChange={onCodeChange} length={codeLength} maxLength={codeLength}
                 disabled={verifying} error={!!verifyError} inputRef={codeRef} shakeKey={shakeKey} label="Код из письма"
               />
               {(verifyError || sendError) && <p role="alert" style={errorText}>{verifyError || sendError}</p>}

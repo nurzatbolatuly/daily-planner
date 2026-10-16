@@ -1,32 +1,27 @@
-// Ошибка Supabase Auth → текст для пользователя. code — из AuthApiError (supabase-js v2).
+// Ошибка входа → текст для пользователя. code — из AuthOtpError (lib/authOtp.js, ответ auth-otp)
+// или из AuthApiError Supabase (обмен token_hash на сессию, выход).
 const BY_CODE = {
-  otp_expired: "Код неверный или устарел — запросите новый",
-  otp_disabled: "Для этого email вход не открыт",
-  signup_disabled: "Для этого email вход не открыт",
   user_not_found: "Для этого email вход не открыт",
-  email_address_invalid: "Проверьте email",
-  validation_failed: "Проверьте email",
+  invalid_email: "Проверьте email",
+  invalid_code: "Код неверный — проверьте и введите ещё раз",
+  code_expired: "Код устарел или попытки закончились — запросите новый",
+  send_failed: "Не удалось отправить письмо — попробуйте ещё раз",
+  otp_expired: "Ссылка входа устарела — запросите новый код",
   over_request_rate_limit: "Слишком много попыток — подождите немного",
-  // Письмо шлёт наш хук (supabase/functions/send-email): упал или не ответил вовремя.
-  hook_timeout: "Не удалось отправить письмо — попробуйте ещё раз",
-  hook_timeout_after_retry: "Не удалось отправить письмо — попробуйте ещё раз",
-  hook_payload_invalid_content_type: "Не удалось отправить письмо — попробуйте ещё раз",
-  unexpected_failure: "Не удалось отправить письмо — попробуйте ещё раз",
+  network: "Нет соединения — попробуйте ещё раз",
 };
 
-// Supabase на частую отправку: «…you can only request this after 37 seconds» → 37. Нет числа → null.
-export function retryAfterSec(error) {
-  const m = /after (\d+) second/i.exec(error?.message || "");
-  return m ? Number(m[1]) : null;
-}
+// Сколько ждать (сек) — сервер присылает для too_soon / too_many. Нет → null.
+export const retryAfterSec = error => (Number(error?.retryAfter) > 0 ? Math.ceil(error.retryAfter) : null);
 
 export function authErrorText(error) {
-  if (error?.code === "over_email_send_rate_limit") {
-    const sec = retryAfterSec(error);
-    return sec ? `Новое письмо можно запросить через ${sec} сек` : "Лимит писем на час исчерпан — попробуйте позже";
+  const wait = retryAfterSec(error);
+  if (error?.code === "too_soon") return `Новое письмо можно запросить через ${wait ?? "несколько"} сек`;
+  if (error?.code === "too_many") {
+    return `Слишком много писем на этот адрес — повторить можно через ${wait ? Math.ceil(wait / 60) : "несколько"} мин`;
   }
   if (BY_CODE[error?.code]) return BY_CODE[error.code];
-  if (error?.name === "AuthRetryableFetchError" || error?.status === 0) return "Нет соединения — попробуйте ещё раз";
+  if (error?.name === "AuthRetryableFetchError" || error?.status === 0) return BY_CODE.network;
   if (error?.status === 429) return BY_CODE.over_request_rate_limit;
   return "Не удалось войти — попробуйте ещё раз";
 }

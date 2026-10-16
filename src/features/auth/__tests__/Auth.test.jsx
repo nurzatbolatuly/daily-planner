@@ -1,23 +1,32 @@
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { supabase } from "../../../lib/supabase";
+import { requestCode, verifyCode, AuthOtpError } from "../../../lib/authOtp";
 import { LoginPage } from "../LoginPage";
 import { AuthProvider, useAuth } from "../AuthProvider";
 import { AccountCard } from "../AccountCard";
-import { LAST_EMAIL_KEY, OTP_LENGTH, OTP_MIN_LENGTH } from "../../../constants/auth";
+import { LAST_EMAIL_KEY } from "../../../constants/auth";
 
 jest.mock("../../../lib/supabase", () => ({
-  supabase: { auth: { signInWithOtp: jest.fn(), verifyOtp: jest.fn(), signOut: jest.fn(), onAuthStateChange: jest.fn() } },
+  supabase: { auth: { signOut: jest.fn(), onAuthStateChange: jest.fn() } },
 }));
+jest.mock("../../../lib/authOtp", () => {
+  class AuthOtpError extends Error {
+    constructor(code, retryAfter = null) { super(code); this.code = code; this.retryAfter = retryAfter; }
+  }
+  return { requestCode: jest.fn(), verifyCode: jest.fn(), AuthOtpError };
+});
 
-const CODE = "1".repeat(OTP_LENGTH);
+// Длину кода и паузу задаёт сервер — в тестах намеренно не 6 и не 15, чтобы ловить захардкоженные значения.
+const SERVER = { code_length: 5, resend_after: 20, expires_in: 600 };
+const CODE = "12345";
 let emitAuth;
 
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
-  supabase.auth.signInWithOtp.mockResolvedValue({ error: null });
-  supabase.auth.verifyOtp.mockResolvedValue({ error: null });
+  requestCode.mockResolvedValue(SERVER);
+  verifyCode.mockResolvedValue(undefined);
   supabase.auth.signOut.mockImplementation(async () => { emitAuth("SIGNED_OUT", null); return { error: null }; });
   supabase.auth.onAuthStateChange.mockImplementation(cb => {
     emitAuth = (e, s) => act(() => cb(e, s));
@@ -25,79 +34,80 @@ beforeEach(() => {
   });
 });
 
-const toCodeStep = async (email = "Me@Mail.kz ") => {
+const typeEmail = (email = "Me@Mail.kz ") => {
   fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: email } });
   fireEvent.click(screen.getByRole("button", { name: "Получить код" }));
-  return screen.findByLabelText("Код из письма");
 };
+const toCodeStep = async email => { typeEmail(email); return screen.findByLabelText("Код из письма"); };
 
-test("email → код: адрес нормализуется, новых пользователей не создаём, email запоминается", async () => {
+test("email → код: адрес нормализуется, email запоминается, пауза — из ответа сервера", async () => {
   render(<LoginPage/>);
   await toCodeStep();
-  expect(supabase.auth.signInWithOtp).toHaveBeenCalledWith({ email: "me@mail.kz", options: { shouldCreateUser: false } });
+  expect(requestCode).toHaveBeenCalledWith("me@mail.kz");
   expect(screen.getByText("me@mail.kz")).toBeInTheDocument();
   expect(localStorage.getItem(LAST_EMAIL_KEY)).toBe("me@mail.kz");
-  expect(screen.getByRole("button", { name: /Отправить снова через/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Отправить снова через 0:20" })).toBeDisabled();
 });
 
 test("неверный email — письмо не отправляется", () => {
   render(<LoginPage/>);
-  fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "me@" } });
-  fireEvent.click(screen.getByRole("button", { name: "Получить код" }));
+  typeEmail("me@");
   expect(screen.getByRole("alert")).toHaveTextContent("Введите email полностью");
-  expect(supabase.auth.signInWithOtp).not.toHaveBeenCalled();
+  expect(requestCode).not.toHaveBeenCalled();
 });
 
 test("незарегистрированный email — понятная ошибка, остаёмся на шаге email", async () => {
-  supabase.auth.signInWithOtp.mockResolvedValue({ error: { code: "otp_disabled", status: 422 } });
+  requestCode.mockRejectedValue(new AuthOtpError("user_not_found"));
   render(<LoginPage/>);
-  fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "x@y.kz" } });
-  fireEvent.click(screen.getByRole("button", { name: "Получить код" }));
+  typeEmail("x@y.kz");
   expect(await screen.findByRole("alert")).toHaveTextContent("Для этого email вход не открыт");
   expect(screen.queryByLabelText("Код из письма")).not.toBeInTheDocument();
 });
 
-test("Supabase просит подождать — отсчёт по его числу, кнопка недоступна", async () => {
-  supabase.auth.signInWithOtp.mockResolvedValue({ error: { code: "over_email_send_rate_limit", status: 429,
-    message: "For security purposes, you can only request this after 37 seconds." } });
+test("сервер просит подождать — отсчёт по его числу, кнопка недоступна", async () => {
+  requestCode.mockRejectedValue(new AuthOtpError("too_soon", 37));
   render(<LoginPage/>);
-  fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "me@mail.kz" } });
-  fireEvent.click(screen.getByRole("button", { name: "Получить код" }));
+  typeEmail("me@mail.kz");
   expect(await screen.findByRole("alert")).toHaveTextContent("Новое письмо можно запросить через 37 сек");
   expect(screen.getByRole("button", { name: "Получить код через 0:37" })).toBeDisabled();
 });
 
-test("код: только цифры, полный код отправляется сам", async () => {
+test("часовой лимит на адрес — в минутах", async () => {
+  requestCode.mockRejectedValue(new AuthOtpError("too_many", 1500));
+  render(<LoginPage/>);
+  typeEmail("me@mail.kz");
+  expect(await screen.findByRole("alert")).toHaveTextContent("повторить можно через 25 мин");
+});
+
+test("код: длина из ответа сервера, только цифры, полный код отправляется сам", async () => {
   render(<LoginPage/>);
   const input = await toCodeStep();
   fireEvent.change(input, { target: { value: `${CODE.slice(0, -1)} a-${CODE.slice(-1)}` } });
-  await waitFor(() => expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({ email: "me@mail.kz", token: CODE, type: "email" }));
+  await waitFor(() => expect(verifyCode).toHaveBeenCalledWith("me@mail.kz", CODE));
 });
 
-test("код другой длины (настройка Supabase разошлась с OTP_LENGTH) — вход кнопкой «Войти»", async () => {
+test("неполный код — «Войти» недоступна", async () => {
   render(<LoginPage/>);
   const input = await toCodeStep();
-  const other = "2".repeat(OTP_LENGTH + 2);
-  fireEvent.change(input, { target: { value: other } });
-  expect(supabase.auth.verifyOtp).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Войти" }));
-  await waitFor(() => expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({ email: "me@mail.kz", token: other, type: "email" }));
-});
-
-test("код короче минимума — «Войти» недоступна", async () => {
-  render(<LoginPage/>);
-  const input = await toCodeStep();
-  fireEvent.change(input, { target: { value: "2".repeat(OTP_MIN_LENGTH - 1) } });
+  fireEvent.change(input, { target: { value: CODE.slice(0, -1) } });
   expect(screen.getByRole("button", { name: "Войти" })).toBeDisabled();
+  expect(verifyCode).not.toHaveBeenCalled();
 });
 
 test("неверный код — ошибка и пустое поле для нового ввода", async () => {
-  supabase.auth.verifyOtp.mockResolvedValue({ error: { code: "otp_expired", status: 403 } });
+  verifyCode.mockRejectedValue(new AuthOtpError("invalid_code"));
   render(<LoginPage/>);
   const input = await toCodeStep();
   fireEvent.change(input, { target: { value: CODE } });
-  expect(await screen.findByRole("alert")).toHaveTextContent("Код неверный или устарел");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Код неверный");
   expect(input).toHaveValue("");
+});
+
+test("письмо не ушло (SMTP) — понятная ошибка", async () => {
+  requestCode.mockRejectedValue(new AuthOtpError("send_failed"));
+  render(<LoginPage/>);
+  typeEmail("me@mail.kz");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Не удалось отправить письмо");
 });
 
 function Probe() {
