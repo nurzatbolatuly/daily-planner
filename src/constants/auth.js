@@ -1,7 +1,11 @@
 // Вход по коду из письма (features/auth). Значения должны совпадать с Supabase → Authentication.
 
-// Длина кода: Authentication → Providers → Email → «Email OTP Length».
-export const OTP_LENGTH = 6;
+// Длина кода: Authentication → Providers → Email → «Email OTP Length» (в проекте — 8).
+// Набран OTP_LENGTH — код отправляется сам. Поле при этом принимает любой код в пределах
+// Supabase (6–10): разойдётся настройка с константой — вход кнопкой «Войти» всё равно работает.
+export const OTP_LENGTH = 8;
+export const OTP_MIN_LENGTH = 6;
+export const OTP_MAX_LENGTH = 10;
 
 // Повторная отправка кода: Supabase не даёт чаще раза в 60 сек на один email.
 export const OTP_RESEND_SEC = 60;

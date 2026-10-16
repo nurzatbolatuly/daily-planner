@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { C } from "../../constants/theme";
-import { OTP_LENGTH, OTP_RESEND_SEC, ALLOW_SIGNUP, LAST_EMAIL_KEY } from "../../constants/auth";
+import { OTP_LENGTH, OTP_MIN_LENGTH, OTP_MAX_LENGTH, OTP_RESEND_SEC, ALLOW_SIGNUP, LAST_EMAIL_KEY } from "../../constants/auth";
 import { useSave } from "../../hooks/useSave";
 import { FieldLabel } from "../../components/FieldLabel";
 import { authErrorText, isValidEmail } from "./authErrors";
@@ -77,16 +77,17 @@ export function LoginPage() {
   };
 
   const onCodeChange = v => {
-    const digits = v.replace(/\D/g, "").slice(0, OTP_LENGTH);
+    const digits = v.replace(/\D/g, "").slice(0, OTP_MAX_LENGTH);
     setCode(digits);
     setVerifyError(null);
     // Автоотправка, когда код набран или подставлен iOS из письма.
     if (digits.length === OTP_LENGTH && !verifying) execVerify(digits);
   };
 
+  const codeReady = code.length >= OTP_MIN_LENGTH;
   const submitCode = e => {
     e.preventDefault();
-    if (code.length === OTP_LENGTH && !verifying) execVerify(code);
+    if (codeReady && !verifying) execVerify(code);
   };
 
   const changeEmail = () => { setStep("email"); setSendError(null); setVerifyError(null); };
@@ -125,7 +126,7 @@ export function LoginPage() {
             <input
               ref={codeRef} aria-label="Код из письма"
               inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" enterKeyHint="go"
-              maxLength={OTP_LENGTH} placeholder={"•".repeat(OTP_LENGTH)} disabled={verifying}
+              maxLength={OTP_MAX_LENGTH} placeholder={"•".repeat(OTP_LENGTH)} disabled={verifying}
               value={code} onChange={e => onCodeChange(e.target.value)}
               aria-invalid={!!verifyError}
               style={{ ...inputStyle, fontSize: 24, letterSpacing: "0.4em", textAlign: "center", fontVariantNumeric: "tabular-nums",
@@ -134,7 +135,7 @@ export function LoginPage() {
             {(verifyError || sendError) && (
               <p role="alert" style={{ margin: "10px 0 0", fontSize: 13, color: C.errorLight }}>{verifyError || sendError}</p>
             )}
-            <button type="submit" disabled={verifying || code.length !== OTP_LENGTH} style={primaryBtn(verifying || code.length !== OTP_LENGTH)}>
+            <button type="submit" disabled={verifying || !codeReady} style={primaryBtn(verifying || !codeReady)}>
               {verifying ? "Проверяем..." : "Войти"}
             </button>
             <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginTop: 12 }}>

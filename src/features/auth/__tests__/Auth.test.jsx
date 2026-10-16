@@ -4,7 +4,7 @@ import { supabase } from "../../../lib/supabase";
 import { LoginPage } from "../LoginPage";
 import { AuthProvider, useAuth } from "../AuthProvider";
 import { AccountCard } from "../AccountCard";
-import { LAST_EMAIL_KEY, OTP_LENGTH } from "../../../constants/auth";
+import { LAST_EMAIL_KEY, OTP_LENGTH, OTP_MIN_LENGTH } from "../../../constants/auth";
 
 jest.mock("../../../lib/supabase", () => ({
   supabase: { auth: { signInWithOtp: jest.fn(), verifyOtp: jest.fn(), signOut: jest.fn(), onAuthStateChange: jest.fn() } },
@@ -60,8 +60,18 @@ test("незарегистрированный email — понятная оши
 test("код: только цифры, полный код отправляется сам", async () => {
   render(<LoginPage/>);
   const input = await toCodeStep();
-  fireEvent.change(input, { target: { value: `${CODE.slice(0, -1)}a-${CODE.slice(-1)}9` } });
+  fireEvent.change(input, { target: { value: `${CODE.slice(0, -1)} a-${CODE.slice(-1)}` } });
   await waitFor(() => expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({ email: "me@mail.kz", token: CODE, type: "email" }));
+});
+
+test("код короче настроенного (другая длина в Supabase) — вход кнопкой «Войти»", async () => {
+  render(<LoginPage/>);
+  const input = await toCodeStep();
+  const short = "2".repeat(OTP_MIN_LENGTH);
+  fireEvent.change(input, { target: { value: short } });
+  expect(supabase.auth.verifyOtp).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Войти" }));
+  await waitFor(() => expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({ email: "me@mail.kz", token: short, type: "email" }));
 });
 
 test("неверный код — ошибка и пустое поле для нового ввода", async () => {
