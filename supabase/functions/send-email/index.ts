@@ -27,5 +27,9 @@ const from = { name: env("SMTP_FROM_NAME", APP_NAME), address: user };
 
 Deno.serve(req => handleRequest(req, {
   secret: Deno.env.get("SEND_EMAIL_HOOK_SECRET"),
-  send: async letter => { await transport.sendMail({ from, ...letter }); },
+  // response — ответ SMTP-сервера («250 2.0.0 OK …»): письмо принято Gmail.
+  send: async letter => {
+    const info = await transport.sendMail({ from, ...letter });
+    console.log("send-email: SMTP", info.response);
+  },
 }));

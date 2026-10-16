@@ -16,6 +16,9 @@ const json = (status: number, body: unknown) =>
 // Формат ошибки, который Supabase Auth показывает клиенту.
 const hookError = (status: number, message: string) => json(status, { error: { http_code: status, message } });
 
+// В логах — без адреса целиком: n***@gmail.com.
+export const maskEmail = (e: string) => e.replace(/^(.).*(@.*)$/, "$1***$2");
+
 const b64decode = (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 const b64encode = (bytes: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
 
@@ -69,17 +72,31 @@ export function lettersFor(payload: HookPayload): Letter[] {
 
 export async function handleRequest(req: Request, { secret, send, now = Date.now }: Deps): Promise<Response> {
   if (req.method !== "POST") return hookError(405, "method_not_allowed");
-  if (!secret) return hookError(500, "Почта не настроена");   // нет SEND_EMAIL_HOOK_SECRET
+  if (!secret) {
+    console.error("send-email: нет SEND_EMAIL_HOOK_SECRET");
+    return hookError(500, "Почта не настроена");
+  }
 
   const body = await req.text();
-  if (!(await verifySignature(req.headers, body, secret, Math.floor(now() / 1000)))) {
+  const nowSec = Math.floor(now() / 1000);
+  if (!(await verifySignature(req.headers, body, secret, nowSec))) {
+    // Что пришло — без самих значений подписи: по этому видно, чужой ли запрос или не тот секрет.
+    const ts = Number(req.headers.get("webhook-timestamp"));
+    console.warn("send-email: подпись не прошла", JSON.stringify({
+      id: !!req.headers.get("webhook-id"), signature: !!req.headers.get("webhook-signature"),
+      skewSec: Number.isFinite(ts) ? nowSec - ts : null,
+    }));
     return hookError(401, "unauthorized");
   }
 
   let payload: HookPayload;
   try { payload = JSON.parse(body); } catch { return hookError(400, "bad_request"); }
   const letters = lettersFor(payload);
-  if (!letters.length) return hookError(400, "bad_request");
+  if (!letters.length) {
+    console.warn("send-email: нечего отправлять", JSON.stringify({ type: payload.email_data?.email_action_type,
+      hasEmail: !!payload.user?.email, hasToken: !!payload.email_data?.token }));
+    return hookError(400, "bad_request");
+  }
 
   try {
     for (const letter of letters) await send(letter);
@@ -87,5 +104,6 @@ export async function handleRequest(req: Request, { secret, send, now = Date.now
     console.error("send-email: SMTP", e instanceof Error ? e.message : e);
     return hookError(502, "Не удалось отправить письмо — попробуйте ещё раз");
   }
+  console.log("send-email: отправлено", letters.map(l => maskEmail(l.to)).join(", "), payload.email_data?.email_action_type);
   return json(200, {});
 }
