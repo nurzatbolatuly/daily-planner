@@ -7,7 +7,7 @@ import { Ico } from "../../components/Ico";
 import { OtpInput } from "./OtpInput";
 import { authErrorText, isValidEmail, retryAfterSec } from "./authErrors";
 
-const APP_NAME = "DayFlow";
+const APP_NAME = "CashFlow";
 
 const readLastEmail = () => { try { return localStorage.getItem(LAST_EMAIL_KEY) || ""; } catch { return ""; } };
 const saveLastEmail = v => { try { localStorage.setItem(LAST_EMAIL_KEY, v); } catch { /* без подсказки */ } };
