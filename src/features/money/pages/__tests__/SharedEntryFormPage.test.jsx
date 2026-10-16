@@ -9,7 +9,7 @@ jest.mock("../../../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.re
 jest.mock("../../../../lib/receiptsApi", () => ({ fetchTransactionReceipt: () => Promise.resolve(null) }));
 
 const accounts = [{ id: "kaspi", name: "Kaspi", currency: "KZT", balance: 100000, icon: "bank", color: "#f00" }];
-const expCats = [{ id: "rest", name: "Рестораны", icon: "eating", color: "#0f0" }, { id: "cat-monthly-payments", name: "Платежи", icon: "payments", color: "#00f" }];
+const expCats = [{ id: "rest", name: "Рестораны", icon: "eating", color: "#0f0" }, { id: "bills-1", name: "Платежи", icon: "payments", color: "#00f", system_key: "bills" }];
 const people = [{ id: "p-bek", name: "Бек", color: "#123456" }];
 
 const renderForm = (props = {}) => {

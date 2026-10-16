@@ -1,7 +1,6 @@
 import { useState, useRef, useMemo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { BILLS_CATEGORY_ID, FX_LOSS_CATEGORY } from "../../../constants/money";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
@@ -42,9 +41,6 @@ import { TransactionReceiptCard } from "../components/TransactionReceiptCard";
 // долю» (§5.12) — тот же счёт: «Платил: участник», в составе только я.
 // С entry — правка/удаление существующего счёта.
 // Деление — utils/splitCalc.splitBill, данные для RPC и балансы счетов — utils/sharedSave.
-
-// Системные категории ставит само приложение (оплата платежей, курсовая разница) — в выборе не нужны.
-const HIDDEN_CAT_IDS = new Set([BILLS_CATEGORY_ID, FX_LOSS_CATEGORY.id]);
 
 // Поля участника, изменение которых нужно записать (upsert в save_shared_entry).
 const MEMBER_FIELDS = ["label", "heads", "person_id", "guest_name", "sort_order"];
@@ -116,7 +112,8 @@ export function SharedEntryFormPage({ group: existingGroup = null, entry = null,
   const isUnsaved = m => !savedById.has(m.id);
   const isChanged = m => isUnsaved(m) || MEMBER_FIELDS.some(k => (savedById.get(m.id)[k] ?? null) !== (m[k] ?? null));
   const labelOf = m => memberLabel(m, { people, members });
-  const cats = useMemo(() => expCats.filter(c => !HIDDEN_CAT_IDS.has(c.id)), [expCats]);
+  // Системные категории ставит само приложение (оплата платежей, курсовая разница) — в выборе не нужны.
+  const cats = useMemo(() => expCats.filter(c => !c.system_key), [expCats]);
 
   // Черновик новой записи (§12.0): всё введённое, включая ещё не сохранённых участников.
   const draft = useFormDraft(draftKey(existingGroup), {

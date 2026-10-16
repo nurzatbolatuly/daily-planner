@@ -5,7 +5,8 @@ import { todayStr, localDate } from "../../../utils/date";
 import { avgRateFn, fmtAmt, fmtAmtAuto, fmtBal, fmtM, getSym, isCommodity, round2, ratesFromAccounts } from "../../../utils/format";
 import { newId } from "../../../utils/id";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
-import { FEE_TX_NOTE, SAVINGS_PURPOSES, fxCategoryId } from "../../../constants/money";
+import { FEE_TX_NOTE, SAVINGS_PURPOSES } from "../../../constants/money";
+import { fxCategoryId } from "../../../utils/systemCategories";
 import { computeDebtState } from "../../../utils/debtUtils";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
@@ -116,7 +117,7 @@ function DealAnalysisBanner({ fromAcc, toAcc, impliedSellRate, impliedBuyRate, r
   );
 }
 
-export function TransferPageMon({ accounts, transfers = [], expCats, goals = [], transactions = [], fxAccount, onBack, edit, prefill = null }) {
+export function TransferPageMon({ accounts, transfers = [], expCats, systemCats, goals = [], transactions = [], fxAccount, onBack, edit, prefill = null }) {
   const [fromId,   setFromId]   = useState(edit?.from_id || accounts[0]?.id || "");
   const [toId,     setToId]     = useState(edit?.to_id   || prefill?.to_id || accounts[1]?.id || "");
   const [amt,      setAmt]      = useState(edit ? String(edit.amount) : prefill?.amount ? String(prefill.amount) : "");
@@ -357,7 +358,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
           account_id:  fxAccount.id,
           date:        todayStr(),
           note:        `${fromAcc.currency}→${toAcc.currency}: курсовая ${pnlKzt > 0 ? "прибыль" : "убыток"}`,
-          category_id: fxCategoryId(pnlKzt),
+          category_id: fxCategoryId(pnlKzt, systemCats),
           transfer_id: tr.id,
         });
       }
@@ -406,7 +407,7 @@ export function TransferPageMon({ accounts, transfers = [], expCats, goals = [],
           account_id:  fxAccount.id,
           date:        todayStr(),
           note:        `${fromAcc.currency}→${toAcc.currency}: курсовая ${pnlKzt > 0 ? "прибыль" : "убыток"}`,
-          category_id: fxCategoryId(pnlKzt),
+          category_id: fxCategoryId(pnlKzt, systemCats),
           transfer_id: tr.id,
         });
       }

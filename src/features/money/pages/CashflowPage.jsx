@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { BILLS_CATEGORY_ID } from "../../../constants/money";
 import { supa, supaRpc, supaUpsert } from "../../../lib/supabase";
 import { newId } from "../../../utils/id";
 import { todayStr, monthKey } from "../../../utils/date";
@@ -74,7 +73,7 @@ function AddRow({ title, subtitle, onClick, last }) {
   );
 }
 
-export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurring = [], loans = [], monthPlans = [], plannedIncomes = [], plannedExpenses = [], navigate, onReload, onBack }) {
+export function CashflowPage({ accounts = [], expCats = [], incCats = [], systemCats, recurring = [], loans = [], monthPlans = [], plannedIncomes = [], plannedExpenses = [], navigate, onReload, onBack }) {
   const today = todayStr();
   // dataRange — на сколько назад/вперёд проецируем recurring/loans/статьи плана. Шире, чем видимое
   // окно ленты: назад — чтобы просроченные неоплаченные попадали в список "Ближайшие события" ниже
@@ -167,7 +166,7 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
 
   // Категория предзаполняется, если у источника она уже есть (статья плана / ожидаемый доход-
   // расход) — дальше её всё равно можно сменить. У recurring категория фиксированная
-  // (BILLS_CATEGORY_ID, без выбора — как везде в приложении), у неё пикер вообще не показываем.
+  // (systemCats.bills, без выбора — как везде в приложении), у неё пикер вообще не показываем.
   const openFix = (item, isIncome) => {
     const acc = accounts[0];
     setFixItem({ item, isIncome });
@@ -265,7 +264,7 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
 
     if (item.kind === "recurring") {
       const r = item.raw;
-      const tx = { id: newId(), type: "expense", amount: amt, currency: acc.currency, category_id: BILLS_CATEGORY_ID, account_id: acc.id, date: todayStr(), note: r.name };
+      const tx = { id: newId(), type: "expense", amount: amt, currency: acc.currency, category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: r.name };
       await supaRpc("fire_recurring", { p_tx: tx, p_account_id: acc.id, p_new_balance: round2(acc.balance - amt), p_rec_id: r.id, p_month: todayMk });
     } else if (item.kind === "planned_income") {
       const p = item.raw;
@@ -369,7 +368,7 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], recurr
       </BottomSheet>
 
       {/* Fix sheet — запись реальной транзакции по строке: сумма (предзаполнена), категория
-          (предзаполнена если известна, кроме recurring — там всегда BILLS_CATEGORY_ID без выбора),
+          (предзаполнена если известна, кроме recurring — там всегда systemCats.bills без выбора),
           счёт (всегда выбирается вручную), заметка = название строки (задаётся в saveRef, не видна
           в форме — как и в остальных местах проекта, см. BillFormPage/MonthlyPaymentsListPage) */}
       <BottomSheet open={!!fixItem} onClose={() => { setFixItem(null); setFixError(null); }} title={fixItem ? `${fixItem.isIncome ? "Записать доход" : "Записать расход"}: «${fixItem.item.name}»` : ""}>

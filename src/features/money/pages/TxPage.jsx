@@ -7,7 +7,7 @@ import { round2, getPrecision } from "../../../utils/format";
 import { computeSplit } from "../../../utils/splitCalc";
 import { newId } from "../../../utils/id";
 import { supaRpc, supaUpsert, supabase } from "../../../lib/supabase";
-import { BALANCE_ADJUSTMENT_NOTE, FX_LOSS_CATEGORY, FX_GAIN_CATEGORY } from "../../../constants/money";
+import { BALANCE_ADJUSTMENT_NOTE, SYSTEM_CATEGORIES } from "../../../constants/money";
 import { amountMismatch } from "../../../utils/receipts/receiptView";
 import { Ico } from "../../../components/Ico";
 import { FieldLabel } from "../../../components/FieldLabel";
@@ -23,7 +23,7 @@ import { ReceiptField } from "../components/ReceiptField";
 import { useTransactionReceipt } from "../hooks/useTransactionReceipt";
 
 // Системные категории — чек к ним не прикрепляется (курсовая разница — не покупка).
-const NO_RECEIPT_CATEGORIES = [FX_LOSS_CATEGORY.id, FX_GAIN_CATEGORY.id];
+const NO_RECEIPT_KEYS = new Set([SYSTEM_CATEGORIES.fxLoss.system_key, SYSTEM_CATEGORIES.fxGain.system_key]);
 
 export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debtPeople = [], setDebtPeople, debtEvents = [], sharedGroups = [], onMakeShared, onOpenTransaction }) {
   // id — один на форму: если транзакция сохранилась, а чек нет, повтор пишет чек к ней же (§6).
@@ -58,7 +58,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
   const receipt = useTransactionReceipt(edit?.id || null);
   const touched = useRef({ amount: !!edit || !!prefill?.amount, date: !!edit || !!prefill?.date });
   const [receiptRetry, setReceiptRetry] = useState(null);   // транзакция сохранена, чек — нет: текст ошибки
-  const receiptAllowed = type === "expense" && !edit?.transfer_id && !NO_RECEIPT_CATEGORIES.includes(cat);
+  const receiptAllowed = type === "expense" && !edit?.transfer_id && !NO_RECEIPT_KEYS.has(expCats.find(c => c.id === cat)?.system_key);
   const receiptMismatch = receiptAllowed ? amountMismatch(receipt.view, amt, cur) : null;
   const attachReceipt = (parsed, view, plan) => {
     receipt.attach(parsed, view, plan);

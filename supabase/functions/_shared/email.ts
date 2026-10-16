@@ -1,4 +1,4 @@
-// Письма с кодом входа (auth-otp). Чистые функции: тема, текст и HTML.
+// Письма с кодом подтверждения (auth-otp: регистрация, смена пароля). Чистые функции: тема, текст и HTML.
 // HTML — таблицы и инлайн-стили: почтовые клиенты (Gmail, Mail iOS, Outlook) не поддерживают
 // внешний CSS и flex. Пользовательских строк в разметке нет — только код (цифры) и константы.
 
@@ -6,14 +6,10 @@ export const APP_NAME = "CashFlow";
 
 export type Letter = { to: string; subject: string; text: string; html: string };
 
-// Тип письма из Supabase → заголовок. Неизвестный тип — общий текст (новый тип Supabase не ломает отправку).
+// Тип письма (auth-otp) → заголовок. Неизвестный тип — общий текст.
 const TITLES: Record<string, string> = {
-  magiclink: "Код для входа",
-  signup: "Код для входа",
-  invite: "Код для входа",
-  recovery: "Код для восстановления доступа",
-  email_change: "Код для смены email",
-  reauthentication: "Код подтверждения",
+  signup: "Код для регистрации",
+  recovery: "Код для смены пароля",
 };
 const titleOf = (type: string) => TITLES[type] ?? "Код подтверждения";
 

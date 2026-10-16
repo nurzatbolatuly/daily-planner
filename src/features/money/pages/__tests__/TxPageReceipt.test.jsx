@@ -9,7 +9,6 @@ import { loadReceiptFromLink } from "../../../../lib/receiptProxy";
 import { fetchTransactionReceipt, findReceiptOwner, saveReceipt, deleteReceipt, fetchCatalogIndex } from "../../../../lib/receiptsApi";
 import { parseLinkPayload, parseReceiptLink } from "../../../../utils/receipts";
 import { buildReceiptSave } from "../../../../utils/receipts/receiptSave";
-import { FX_LOSS_CATEGORY } from "../../../../constants/money";
 
 // Блок «Чек» в форме транзакции (docs/receipts.md §3, этап 4). Сеть и БД мокаются: разбор —
 // настоящий, на обезличенной фикстуре чека Magnum GO (Kaspi).
@@ -30,7 +29,8 @@ const storedRow = txId => {
 };
 
 const accounts = [{ id: "kaspi", name: "Kaspi", currency: "KZT", balance: 100000, icon: "bank", color: "#f00" }];
-const expCats = [{ id: "food", name: "Продукты", icon: "groceries" }, FX_LOSS_CATEGORY];
+const FX_LOSS = { id: "fx-1", name: "Курсовая разница", icon: "investment", system_key: "fx_loss" };
+const expCats = [{ id: "food", name: "Продукты", icon: "groceries" }, FX_LOSS];
 const incCats = [{ id: "salary", name: "Зарплата", icon: "salary" }];
 const base = { accounts, expCats, incCats, debtPeople: [], setDebtPeople: jest.fn() };
 const expense = { id: "t1", type: "expense", amount: 5772, currency: "KZT", category_id: "food", account_id: "kaspi", date: "2026-07-14", note: "" };
@@ -162,7 +162,7 @@ test("транзакция сохранилась, чек нет — «Повт�
 });
 
 test("системная категория (курсовая разница) — блока «Чек» нет", async () => {
-  render(<TxPage {...base} edit={{ ...expense, category_id: FX_LOSS_CATEGORY.id }} onBack={jest.fn()}/>);
+  render(<TxPage {...base} edit={{ ...expense, category_id: FX_LOSS.id }} onBack={jest.fn()}/>);
   await act(() => Promise.resolve());
   expect(screen.queryByText(/Ссылка из QR/)).toBeNull();
 });

@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { BILLS_CATEGORY_ID } from "../../../constants/money";
 import { supaRpc } from "../../../lib/supabase";
 import { newId } from "../../../utils/id";
 import { todayStr, monthKey } from "../../../utils/date";
@@ -16,7 +15,7 @@ import { Ico } from "../../../components/Ico";
 
 const sym = getSym(BASE_CUR);
 
-export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts = [], navigate, onReload, onBack }) {
+export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts = [], systemCats, navigate, onReload, onBack }) {
   const mk = monthKey(todayStr());
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
 
@@ -123,7 +122,7 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
     const amt = parseFloat(payAmt) || 0;
     const tx = {
       id: newId(), type: "expense", amount: amt, currency: acc.currency,
-      category_id: BILLS_CATEGORY_ID, account_id: acc.id, date: todayStr(), note: payItem.name,
+      category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: payItem.name,
     };
     const newBal = round2(acc.balance - amt);
     await supaRpc("fire_recurring", {
@@ -173,7 +172,7 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
       if (it.kind === "bill") {
         const tx = {
           id: newId(), type: "expense", amount: it.amount, currency: acc.currency,
-          category_id: BILLS_CATEGORY_ID, account_id: acc.id, date: todayStr(), note: it.name,
+          category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: it.name,
         };
         runningBalance = round2(runningBalance - it.amount);
         await supaRpc("fire_recurring", {
@@ -194,7 +193,7 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
         const newStatus = newRemaining <= 0.01 ? "closed" : "active";
         const tx = {
           id: newId(), type: "expense", amount: amt, currency: acc.currency,
-          category_id: BILLS_CATEGORY_ID, account_id: acc.id, date: todayStr(), note: it.name,
+          category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: it.name,
         };
         const payment = {
           id: newId(), date: todayStr(), amount: amt,

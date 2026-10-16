@@ -1,22 +1,18 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { DEF_EXP, DEF_INC, BILLS_CATEGORY, FX_LOSS_CATEGORY, FX_GAIN_CATEGORY } from "../../../constants/money";
+import { DEF_EXP, DEF_INC } from "../../../constants/money";
 import { supa, supaUpsert, supabase } from "../../../lib/supabase";
 import { buildPersonalTransactions } from "../../../utils/personalTransactions";
 import { buildSharedTxIndex } from "../../../utils/txBadges";
+import { newId } from "../../../utils/id";
+import { missingSystemCategories, systemCategoryIds } from "../../../utils/systemCategories";
 
-// Категории, которые приложение использует без выбора пользователем (оплата платежей/кредитов,
-// курсовая разница). Создаются один раз при первой загрузке после обновления, дальше просто
-// находятся по фиксированному id — идемпотентно, не задваиваются.
-const SYSTEM_EXP_CATS = [BILLS_CATEGORY, FX_LOSS_CATEGORY];
-const SYSTEM_INC_CATS = [FX_GAIN_CATEGORY];
-
-// Пустая таблица → засеваем дефолтами; затем досоздаём недостающие системные категории.
-async function ensureCategories(table, loaded, defaults, system) {
-  let cats = loaded?.length ? loaded : defaults.map((c, i) => ({ ...c, sort_order: i + 1 }));
+// Пустая таблица (новый пользователь) → засеваем дефолтами со своими id; затем досоздаём
+// недостающие системные категории (utils/systemCategories.js). Находятся по system_key — повторная
+// загрузка их не задваивает (а БД не даст: UNIQUE (user_id, system_key), v38).
+async function ensureCategories(table, kind, loaded, defaults) {
+  let cats = loaded?.length ? loaded : defaults.map((c, i) => ({ ...c, id: newId(), sort_order: i + 1 }));
   if (!loaded?.length) await supaUpsert(table, cats);
-  const missing = system
-    .filter(sc => !cats.some(c => c.id === sc.id))
-    .map((sc, i) => ({ ...sc, sort_order: cats.length + i + 1 }));
+  const missing = missingSystemCategories(kind, cats);
   if (missing.length) {
     await supaUpsert(table, missing);
     cats = [...cats, ...missing];
@@ -28,8 +24,8 @@ export function useMoneyData() {
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [transfers, setTransfers] = useState([]);
-  const [expCats, setExpCats] = useState(DEF_EXP);
-  const [incCats, setIncCats] = useState(DEF_INC);
+  const [expCats, setExpCats] = useState([]);
+  const [incCats, setIncCats] = useState([]);
   const [monthPlans, setMonthPlans] = useState([]);
   const [tripPlans, setTripPlans] = useState([]);
   const [goals, setGoals] = useState([]);
@@ -83,8 +79,8 @@ export function useMoneyData() {
       setAccounts(acc || []);
       setTransactions(txs || []);
       setTransfers(trs || []);
-      setExpCats(await ensureCategories("exp_categories", ec, DEF_EXP, SYSTEM_EXP_CATS));
-      setIncCats(await ensureCategories("inc_categories", ic, DEF_INC, SYSTEM_INC_CATS));
+      setExpCats(await ensureCategories("exp_categories", "exp", ec, DEF_EXP));
+      setIncCats(await ensureCategories("inc_categories", "inc", ic, DEF_INC));
       setMonthPlans(mp || []);
       setTripPlans((tp || []).map(p => ({...p, days: p.days||[]})));
       setGoals(gl || []);
@@ -122,10 +118,13 @@ export function useMoneyData() {
     [sharedGroups, sharedMembers, sharedEntries, debtPeople]
   );
 
+  // id системных категорий пользователя ({ bills, fxLoss, fxGain }) — формы ставят их сами.
+  const systemCats = useMemo(() => systemCategoryIds(expCats, incCats), [expCats, incCats]);
+
   return { accounts, setAccounts, transactions, setTransactions, transfers, setTransfers, expCats, setExpCats, incCats, setIncCats, monthPlans, setMonthPlans, tripPlans, setTripPlans, goals, setGoals, goalTopups, setGoalTopups, debtPeople, setDebtPeople, debtEvents, setDebtEvents, recurring, setRecurring, loans, setLoans, plannedIncomes, setPlannedIncomes, plannedExpenses, setPlannedExpenses,
     // Общие расходы — только чтение: все изменения идут через RPC (этапы 5+) и reload(),
     // сеттеры наружу не отдаём (instruction.md §18).
     sharedGroups, sharedMembers, sharedEntries, sharedSchema,
-    personalTransactions, sharedTxIndex,
+    personalTransactions, sharedTxIndex, systemCats,
     loading, loadError, reload: load };
 }

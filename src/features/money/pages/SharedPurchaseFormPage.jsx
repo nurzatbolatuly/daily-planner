@@ -1,6 +1,5 @@
 import { useState, useRef, useMemo } from "react";
 import { C } from "../../../constants/theme";
-import { BILLS_CATEGORY_ID, FX_LOSS_CATEGORY } from "../../../constants/money";
 import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
@@ -33,7 +32,6 @@ import { fieldInput, chip, chipRow, errorText } from "../components/sharedUi";
 // Возврата (§5.16) в Tricount нет: вернули деньги — правится сумма покупки и состав (решение
 // 05.10.2026); правка пересчитывает транзакцию, баланс счёта и доли одним сохранением.
 
-const HIDDEN_CAT_IDS = new Set([BILLS_CATEGORY_ID, FX_LOSS_CATEGORY.id]);
 // Поля участника, изменение которых нужно записать (upsert в save_shared_entry).
 const MEMBER_FIELDS = ["label", "heads", "person_id", "guest_name", "sort_order"];
 const byOrder = (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0);
@@ -45,7 +43,7 @@ export function SharedPurchaseFormPage({ group, entry = null, feesSupported = tr
   const precision = getPrecision(group.currency);
   const fmt = n => `${sym}${fmtAmtAuto(n)}`;
   const accountsInCur = useMemo(() => accounts.filter(a => a.currency === group.currency), [accounts, group.currency]);
-  const cats = useMemo(() => expCats.filter(c => !HIDDEN_CAT_IDS.has(c.id)), [expCats]);
+  const cats = useMemo(() => expCats.filter(c => !c.system_key), [expCats]);   // системные — не для выбора
 
   const [members, setMembers] = useState(savedMembers);
   const meId = members.find(m => m.is_me)?.id;

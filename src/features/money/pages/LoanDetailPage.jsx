@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { BILLS_CATEGORY_ID } from "../../../constants/money";
 import { supabase, supa, supaRpc, supaUpsert } from "../../../lib/supabase";
 import { newId } from "../../../utils/id";
 import { todayStr, monthKey } from "../../../utils/date";
@@ -23,7 +22,7 @@ function fmtDate(s) {
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack }) {
+export function LoanDetailPage({ loan, accounts = [], systemCats, navigate, onReload, onBack }) {
   const sym = getSym(loan.currency || BASE_CUR);
   const monthlyRate = annualToMonthlyRate(loan.rate_annual);
   // Аннуитетный платёж — фиксированная сумма на весь срок (считается от ИСХОДНОГО principal,
@@ -118,7 +117,7 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
     const newStatus      = newRemaining <= 0.01 ? "closed" : "active";
     const tx = {
       id: newId(), type: "expense", amount: payAmt, currency: acc.currency,
-      category_id: BILLS_CATEGORY_ID, account_id: acc.id, date: todayStr(), note: loan.name,
+      category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: loan.name,
     };
     const payment = {
       id: newId(), date: todayStr(), amount: payAmt,
@@ -176,7 +175,7 @@ export function LoanDetailPage({ loan, accounts = [], navigate, onReload, onBack
     const newStatus    = newRemaining <= 0.01 ? "closed" : "active";
     const tx = {
       id: newId(), type: "expense", amount: amt, currency: acc.currency,
-      category_id: BILLS_CATEGORY_ID, account_id: acc.id, date: todayStr(), note: `${loan.name} (досрочно)`,
+      category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: `${loan.name} (досрочно)`,
     };
     const payment = {
       id: newId(), date: todayStr(), amount: amt,

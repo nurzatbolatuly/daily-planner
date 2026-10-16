@@ -1,37 +1,37 @@
+// Категории нового пользователя (засеваются при первой загрузке, useMoneyData). Без id: id у каждой
+// строки свой (newId) — первичный ключ общий на всех пользователей (tables.sql v38).
 export const DEF_EXP = [
-    {id: "c1", name: "Продукты", icon: "groceries", color: "#4caf50"},
-    {id: "c2", name: "Транспорт", icon: "transport", color: "#1976d2"},
-    {id: "c3", name: "Дом", icon: "home", color: "#388e3c"},
-    {id: "c5", name: "Путешествия", icon: "travel", color: "#4caf50"},
-    {id: "c6", name: "Кафе и рестораны", icon: "eating", color: "#f9a825"},
-    {id: "c7", name: "Развлечения", icon: "entertainment", color: "#9c27b0"},
-    {id: "c8", name: "Здоровье", icon: "health", color: "#f44336"},
-    {id: "c9", name: "Одежда", icon: "clothes", color: "#e91e63"},
-    {id: "c10", name: "Сервисы", icon: "services", color: "#f9a825"},
-    {id: "c12", name: "Непредвиденное", icon: "unplanned", color: "#546e7a"},
+    {name: "Продукты", icon: "groceries", color: "#4caf50"},
+    {name: "Транспорт", icon: "transport", color: "#1976d2"},
+    {name: "Дом", icon: "home", color: "#388e3c"},
+    {name: "Путешествия", icon: "travel", color: "#4caf50"},
+    {name: "Кафе и рестораны", icon: "eating", color: "#f9a825"},
+    {name: "Развлечения", icon: "entertainment", color: "#9c27b0"},
+    {name: "Здоровье", icon: "health", color: "#f44336"},
+    {name: "Одежда", icon: "clothes", color: "#e91e63"},
+    {name: "Сервисы", icon: "services", color: "#f9a825"},
+    {name: "Непредвиденное", icon: "unplanned", color: "#546e7a"},
 ];
-
-// Фиксированная категория для оплаты ежемесячных платежей/кредитов (MonthlyPaymentsListPage,
-// LoanDetailPage) — id постоянный, чтобы её можно было один раз создать (useMoneyData) и потом
-// находить по id, без выбора категории пользователем при каждой оплате.
-export const BILLS_CATEGORY_ID = "cat-monthly-payments";
-export const BILLS_CATEGORY = { id: BILLS_CATEGORY_ID, name: "Платежи", icon: "payments", color: "#0097a7" };
-
-// Курсовая разница при продаже валюты/металла (TransferPageMon → счёт is_fx_account). Прибыль —
-// доход, убыток — расход, поэтому две системные категории с фиксированными id (по одной в
-// inc_categories и exp_categories), создаются один раз в useMoneyData, как «Платежи». Без
-// категории такие транзакции не попали бы в статистику (docs/shared-expenses.md §6.1).
-export const FX_LOSS_CATEGORY = { id: "cat-fx-loss", name: "Курсовая разница", icon: "investment", color: "#00796b" };
-export const FX_GAIN_CATEGORY = { id: "cat-fx-gain", name: "Курсовая разница", icon: "investment", color: "#00796b" };
-export const fxCategoryId = pnl => (pnl > 0 ? FX_GAIN_CATEGORY : FX_LOSS_CATEGORY).id;
 
 export const DEF_INC = [
-    {id: "i1", name: "Зарплата", icon: "salary", color: "#4caf50", plan_currency: "KZT"},
-    {id: "i2", name: "Фриланс", icon: "freelance", color: "#1976d2", plan_currency: "USD"},
-    {id: "i3", name: "Инвестиции", icon: "invest", color: "#f9a825", plan_currency: "KZT"},
-    {id: "i4", name: "Подарок", icon: "gift", color: "#e91e63", plan_currency: "KZT"},
-    {id: "i5", name: "Прочее", icon: "other", color: "#546e7a", plan_currency: "KZT"},
+    {name: "Зарплата", icon: "salary", color: "#4caf50", plan_currency: "KZT"},
+    {name: "Фриланс", icon: "freelance", color: "#1976d2", plan_currency: "USD"},
+    {name: "Инвестиции", icon: "invest", color: "#f9a825", plan_currency: "KZT"},
+    {name: "Подарок", icon: "gift", color: "#e91e63", plan_currency: "KZT"},
+    {name: "Прочее", icon: "other", color: "#546e7a", plan_currency: "KZT"},
 ];
+
+// Системные категории — приложение ставит их само, без выбора пользователем: оплата ежемесячных
+// платежей/кредитов (MonthlyPaymentsListPage, LoanDetailPage, CashflowPage) и курсовая разница при
+// продаже валюты/металла (TransferPageMon → счёт is_fx_account; прибыль — доход, убыток — расход,
+// без категории не попали бы в статистику, docs/shared-expenses.md §6.1).
+// Находятся по роли system_key (v38), а не по id: id у каждого пользователя свой. Создаются при
+// первой загрузке (useMoneyData), id для форм — data.systemCats (utils/systemCategories.js).
+export const SYSTEM_CATEGORIES = {
+    bills:  { table: "exp", system_key: "bills",   name: "Платежи",          icon: "payments",   color: "#0097a7" },
+    fxLoss: { table: "exp", system_key: "fx_loss", name: "Курсовая разница", icon: "investment", color: "#00796b" },
+    fxGain: { table: "inc", system_key: "fx_gain", name: "Курсовая разница", icon: "investment", color: "#00796b" },
+};
 
 export const TRIP_CATS = ["transport", "accommodation", "eating", "entertainment", "travel", "service", "other", "train", "plane"];
 
