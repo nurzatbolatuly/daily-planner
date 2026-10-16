@@ -11,6 +11,11 @@
 }
 
 html {
+  /* Масштаб приложения зафиксирован: капли/случайные касания не увеличивают страницу.
+     pan-x pan-y — прокрутка работает, щипок и двойной тап (зум) — нет. Подробнее — src/lib/lockZoom.js */
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   height: -webkit-fill-available;
   overflow: hidden;
   background: #0d0d1a;
