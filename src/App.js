@@ -1,6 +1,8 @@
-import { Component, useState, useEffect } from "react";
+import { Component } from "react";
 import { C } from "./constants/theme";
-import { ensureAuth } from "./lib/supabase";
+import { Spinner } from "./components/Spinner";
+import { AuthProvider, useAuth } from "./features/auth/AuthProvider";
+import { LoginPage } from "./features/auth/LoginPage";
 import MoneyManagerSection from "./features/money/MoneyManagerSection";
 
 class ErrorBoundary extends Component {
@@ -22,43 +24,26 @@ class ErrorBoundary extends Component {
   }
 }
 
+// key={userId}: другой пользователь — приложение монтируется заново, стейт прошлого не переживает.
+function AuthGate() {
+  const { status, userId } = useAuth();
+  if (status === "loading") return <div style={{ flex:1, background:C.monBg }}><Spinner/></div>;
+  if (status === "signedOut") return <LoginPage/>;
+  return (
+    <div style={{ flex:1, overflow:"auto" }}>
+      <ErrorBoundary>
+        <MoneyManagerSection key={userId}/>
+      </ErrorBoundary>
+    </div>
+  );
+}
+
 export default function App() {
-  const [authStatus, setAuthStatus] = useState("loading"); // "loading" | "ok" | "error"
-  const [authError, setAuthError]   = useState(null);
-
-  useEffect(() => {
-    ensureAuth()
-      .then(() => setAuthStatus("ok"))
-      .catch((e) => { setAuthError(e.message); setAuthStatus("error"); });
-  }, []);
-
-  if (authStatus === "loading") {
-    return (
-      <div style={{ height:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", background:C.bg, color:C.textMuted, fontSize:14 }}>
-        Подключение...
-      </div>
-    );
-  }
-
-  if (authStatus === "error") {
-    return (
-      <div style={{ height:"100dvh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:C.bg, color:C.errorLight, fontFamily:"monospace", padding:32, gap:12 }}>
-        <div style={{ fontSize:16, fontWeight:700 }}>Ошибка авторизации</div>
-        <div style={{ fontSize:13, opacity:0.7, textAlign:"center" }}>{authError}</div>
-        <button onClick={() => { setAuthStatus("loading"); setAuthError(null); ensureAuth().then(() => setAuthStatus("ok")).catch((e) => { setAuthError(e.message); setAuthStatus("error"); }); }} style={{ marginTop:8, padding:"8px 20px", background:`rgba(248,113,113,0.15)`, border:`1px solid ${C.errorLight}`, borderRadius:8, color:C.errorLight, cursor:"pointer", fontSize:13 }}>
-          Попробовать снова
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div style={{ fontFamily:"'DM Sans',system-ui,sans-serif", display:"flex", flexDirection:"column", height:"100dvh", overflow:"hidden" }}>
-      <div style={{ flex:1, overflow:"auto" }}>
-        <ErrorBoundary>
-          <MoneyManagerSection/>
-        </ErrorBoundary>
-      </div>
+      <AuthProvider>
+        <AuthGate/>
+      </AuthProvider>
     </div>
   );
 }

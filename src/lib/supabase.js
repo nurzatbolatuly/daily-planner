@@ -7,21 +7,11 @@ if (!SUPA_URL || !SUPA_KEY) {
   throw new Error("Missing REACT_APP_SUPABASE_URL or REACT_APP_SUPABASE_ANON_KEY in .env");
 }
 
-export const supabase = createClient(SUPA_URL, SUPA_KEY);
-
-export async function ensureAuth() {
-  const { data: { session } } = await supabase.auth.getSession();
-  const now = Math.floor(Date.now() / 1000);
-  // getSession() возвращает сессию из localStorage без проверки срока —
-  // сверяем expires_at вручную (с запасом 60 сек).
-  if (session && session.expires_at > now + 60) return;
-
-  const { error } = await supabase.auth.signInWithPassword({
-    email: process.env.REACT_APP_AUTH_EMAIL,
-    password: process.env.REACT_APP_AUTH_PASSWORD,
-  });
-  if (error) throw new Error("Ошибка авторизации: " + error.message);
-}
+// Вход — кодом из письма (features/auth): сессия в localStorage, токен обновляется сам.
+// detectSessionInUrl: false — ссылок для входа нет, токен из URL не принимаем.
+export const supabase = createClient(SUPA_URL, SUPA_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+});
 
 export const supa = {
   select: async (table, filters = "") => {

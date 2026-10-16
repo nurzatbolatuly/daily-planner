@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import { numericFormatter } from "react-number-format";
 import { BASE_CUR, ALL_CURR, COMMODITY_CURRENCIES, CURRENCY_PRECISION, DEFAULT_PRECISION } from "../constants/currencies";
-import { RU_MON_GEN, RU_DAYS_FULL } from "../constants/locale";
+import { RU_MON_GEN } from "../constants/locale";
 import { pad, todayStr, monthKey } from "./date";
 
 const NUM_FMT_OPTS = { thousandSeparator: " ", decimalSeparator: ".", decimalScale: 2 };
@@ -123,11 +123,6 @@ export const calcTotalBalanceAtMonth = (accounts = [], transactions = [], transf
     return s + (a.avg_rate ? bal * a.avg_rate : 0);
   }, 0);
 };
-
-export function fmtDateFull(d) {
-  const dt = new Date(d);
-  return `${dt.getDate()} ${RU_MON_GEN[dt.getMonth()]}, ${RU_DAYS_FULL[dt.getDay()]}`;
-}
 
 export function calcCatDelta(transactions, expCats, accounts) {
   const rates = ratesFromAccounts(accounts);

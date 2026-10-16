@@ -116,7 +116,7 @@ async function saveFile(wb, filename) {
 //
 export async function exportTripXLSX({ plan, days, rates, filename }) {
   const wb = await newWorkbook();
-  wb.creator = "Daily Planner";
+  wb.creator = "DayFlow";
 
   const toB  = (amt, cur) => toBaseLocal(amt, cur, rates);
   const allE = days.flatMap(d => d.expenses || []);
@@ -437,7 +437,7 @@ export async function exportTripXLSX({ plan, days, rates, filename }) {
 // «Общие: Вечер 03.10»); null — как обычно, по счёту.
 export async function exportTransactionsXLSX({ txs, catData, cats, accounts, txType, periodLabel, filename, accountLabel = () => null }) {
   const wb = await newWorkbook();
-  wb.creator = "Daily Planner";
+  wb.creator = "DayFlow";
 
   const isExp      = txType === "expense";
   const typeLabel  = isExp ? "Расходы" : "Доходы";
@@ -572,7 +572,7 @@ export async function exportTransactionsXLSX({ txs, catData, cats, accounts, txT
 //
 export async function exportPlansXLSX({ expRows, incRows, savingsRows, totals, rates, planMonth, planYear, filename }) {
   const wb = await newWorkbook();
-  wb.creator = "Daily Planner";
+  wb.creator = "DayFlow";
 
   const { totalPlanExp, totalPlanInc, totalPlanSav,
     totalActExp, totalActInc, totalActSav, totalPlanExpAll } = totals;

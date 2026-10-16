@@ -1,5 +1,6 @@
 import { C } from "../../../constants/theme";
 import { Ico } from "../../../components/Ico";
+import { AccountCard } from "../../auth/AccountCard";
 
 const MENU_ITEMS = [
   { label: "Категории",              key: "menuCats"     },
@@ -26,6 +27,7 @@ export function MoneyMenuPage({ navigate }) {
             <Ico n="chevR" s={18} c={C.dim}/>
           </div>
         ))}
+        <AccountCard/>
       </div>
     </div>
   );
