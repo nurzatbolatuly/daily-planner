@@ -1,4 +1,19 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+
+// На время перетаскивания запрещаем выделение на всей странице: иначе браузер выделяет текст
+// рядом, а потом начинает нативный drag выделенного — шлёт pointercancel вместо pointerup,
+// и перестановка не применяется.
+function lockSelection() {
+  const s = document.body.style;
+  const prev = { userSelect: s.userSelect, webkitUserSelect: s.webkitUserSelect };
+  s.userSelect = "none";
+  s.webkitUserSelect = "none";
+  window.getSelection?.()?.removeAllRanges();
+  return () => {
+    s.userSelect = prev.userSelect;
+    s.webkitUserSelect = prev.webkitUserSelect;
+  };
+}
 
 export function useDragReorder({ items, onReorder, dataAttr, ghost = false, vibrate: doVibrate = false }) {
   const [dragId, setDragId] = useState(null);
@@ -9,6 +24,7 @@ export function useDragReorder({ items, onReorder, dataAttr, ghost = false, vibr
   const dragOverIdRef = useRef(null);
   const itemsRef = useRef(items);
   const onReorderRef = useRef(onReorder);
+  const cleanupRef = useRef(null);
   itemsRef.current = items;
   onReorderRef.current = onReorder;
 
@@ -34,13 +50,22 @@ export function useDragReorder({ items, onReorder, dataAttr, ghost = false, vibr
   const executeDropRef = useRef(executeDrop);
   executeDropRef.current = executeDrop;
 
+  // Размонтирование посреди перетаскивания — снять слушатели и вернуть выделение.
+  useEffect(() => () => cleanupRef.current?.(), []);
+
   const getDragHandlers = useCallback(id => ({
     onPointerDown: e => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       e.stopPropagation();
+      // Мышь: не начинать выделение текста и нативный drag. Тач: не влияет на прокрутку —
+      // у ручки touch-action: none.
+      e.preventDefault();
+      cleanupRef.current?.();
       if (doVibrate && navigator.vibrate) navigator.vibrate(40);
       dragIdRef.current = id;
       setDragId(id);
       if (ghost) setGhostPos({ x: e.clientX, y: e.clientY });
+      const unlockSelection = lockSelection();
       const onMove = moveEvent => {
         moveEvent.preventDefault();
         if (ghost) setGhostPos({ x: moveEvent.clientX, y: moveEvent.clientY });
@@ -51,13 +76,27 @@ export function useDragReorder({ items, onReorder, dataAttr, ghost = false, vibr
           setDragOverId(overId);
         }
       };
-      const onUp = () => {
-        executeDropRef.current();
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
+      const cleanup = () => {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+        document.removeEventListener("pointercancel", onCancel);
+        unlockSelection();
+        cleanupRef.current = null;
       };
-      document.addEventListener('pointermove', onMove, { passive: false });
-      document.addEventListener('pointerup', onUp);
+      const onUp = () => {
+        cleanup();
+        executeDropRef.current();
+      };
+      // Жест перехватила система (звонок, свайп назад) — отмена без перестановки.
+      const onCancel = () => {
+        cleanup();
+        dragOverIdRef.current = null;
+        executeDropRef.current();
+      };
+      cleanupRef.current = cleanup;
+      document.addEventListener("pointermove", onMove, { passive: false });
+      document.addEventListener("pointerup", onUp);
+      document.addEventListener("pointercancel", onCancel);
     },
   }), [dataAttr, ghost, doVibrate]);
 

@@ -3,7 +3,6 @@ import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { SAVINGS_PURPOSES, BALANCE_ADJUSTMENT_NOTE, FEE_TX_NOTE } from "../../../constants/money";
 import { fmtM, fmtAmt, fmtAmtAuto, getSym, isCommodity, round2, avgRateFn } from "../../../utils/format";
-import { getSavedOrder } from "../../../utils/accountOrder";
 import { localDate } from "../../../utils/date";
 import { supabase, supaRpc } from "../../../lib/supabase";
 import { RU_MON_GEN, RU_MONTHS_S } from "../../../constants/locale";
@@ -225,7 +224,6 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
   const [detailT,       setDetailT]       = useState(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const now = new Date();
-  const orderedAccounts = getSavedOrder(accounts);
 
   useEffect(() => {
     if (!detailT) return;
@@ -420,7 +418,7 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
   }
 
   // ── LIST VIEW ────────────────────────────────────────────────────────────────
-  const selAccList = orderedAccounts.filter(a => selAccIds.has(a.id));
+  const selAccList = accounts.filter(a => selAccIds.has(a.id));
   const grouped = filtered.reduce((acc, e) => { (acc[e.date] = acc[e.date] || []).push(e); return acc; }, {});
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
@@ -501,7 +499,7 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
           <span style={{ flex:1, fontSize:14, color:"#fff" }}>Все счета</span>
           {selAccIds.size === 0 && <Ico n="check" s={18} c={C.green}/>}
         </div>
-        {orderedAccounts.map(a => {
+        {accounts.map(a => {
           const sel = selAccIds.has(a.id);
           return (
             <div key={a.id} onClick={() => toggleAcc(a.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 12px", borderRadius:12, marginBottom:6, cursor:"pointer", background:sel?"rgba(76,175,80,0.1)":"rgba(255,255,255,0.03)", border:`1px solid ${sel?"rgba(76,175,80,0.4)":C.border}` }}>

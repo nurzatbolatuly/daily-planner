@@ -6,7 +6,7 @@ import { LAST_EMAIL_KEY } from "../../constants/auth";
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
-// Выход стирает localStorage этого устройства: черновики форм, курсы, порядок счетов — данные
+// Выход стирает localStorage этого устройства: черновики форм, курсы — данные
 // пользователя. Целиком, а не по списку ключей: новый ключ не «забудется». Email — для удобства.
 function clearDeviceData() {
   try {

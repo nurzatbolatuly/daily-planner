@@ -4,7 +4,6 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { getSym, fmtAmtAuto } from "../../../utils/format";
 import { pad } from "../../../utils/date";
 import { supaUpsert, supa } from "../../../lib/supabase";
-import { getSavedOrder } from "../../../utils/accountOrder";
 import { newId } from "../../../utils/id";
 import { useSave } from "../../../hooks/useSave";
 import { SAVINGS_PURPOSES } from "../../../constants/money";
@@ -44,7 +43,7 @@ export function PlanRowPageMon({ expCats, incCats, accounts = [], onBack, edit, 
 
   if (showCur) return <CurrencyPage value={planCur} onSelect={v => { setPlanCur(v); setShowCur(false); }} onBack={() => setShowCur(false)}/>;
 
-  const savingsAccounts = getSavedOrder(accounts).filter(a => SAVINGS_PURPOSES.includes(a.purpose));
+  const savingsAccounts = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
 
   const switchType = (v) => { setType(v); setCatId(""); setAccId(""); setErrors({}); };
 

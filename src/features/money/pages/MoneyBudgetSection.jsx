@@ -6,7 +6,6 @@ import { SAVINGS_PURPOSES } from "../../../constants/money";
 import { pad, monthKey } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtM, toBase, ratesFromAccounts, calcTotalBalanceAtMonth, fmtDateShort } from "../../../utils/format";
 import { computeDebtState } from "../../../utils/debtUtils";
-import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportPlansXLSX } from "../../../utils/export";
 import { newId } from "../../../utils/id";
 import { supaUpsert } from "../../../lib/supabase";
@@ -65,7 +64,7 @@ function buildPlanRows({ year, month, accounts, transactions, transfers, expCats
       return { key: `${cat.id}-${type}`, cat, type, plan: planData?.plan ?? 0, planCurrency: planData?.plan_currency ?? BASE_CUR, items: planData?.items ?? [], planData, actual: getActual(cat.id, type) };
     });
 
-  const savingsAccounts = getSavedOrder(accounts).filter(a => SAVINGS_PURPOSES.includes(a.purpose));
+  const savingsAccounts = accounts.filter(a => SAVINGS_PURPOSES.includes(a.purpose));
   return {
     mk,
     expRows: buildRows(expCats, "expense"),

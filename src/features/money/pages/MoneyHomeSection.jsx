@@ -5,7 +5,6 @@ import { RU_MONTHS } from "../../../constants/locale";
 import { ACC_PURPOSES } from "../../../constants/money";
 import { pad, todayStr } from "../../../utils/date";
 import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts, calcTotalBalance, calcCatDelta } from "../../../utils/format";
-import { getSavedOrder } from "../../../utils/accountOrder";
 import { exportTransactionsXLSX } from "../../../utils/export";
 import { virtualTxAccountLabel } from "../../../utils/txBadges";
 import { projectRecurringItems, projectPlanItems, buildDayMap, addMonths } from "../../../utils/cashflowTimeline";
@@ -261,7 +260,7 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
 
       {/* Account picker */}
       <BottomSheet open={showAccPicker} onClose={() => setShowAccPicker(false)} title="Счёт">
-        {[{ id: null, name: "Все счета", icon: "other", color: C.green }, ...ACC_PURPOSES.flatMap(p => getSavedOrder(accounts).filter(a => (a.purpose || "daily") === p.key))].map(a => (
+        {[{ id: null, name: "Все счета", icon: "other", color: C.green }, ...ACC_PURPOSES.flatMap(p => accounts.filter(a => (a.purpose || "daily") === p.key))].map(a => (
           <div key={String(a.id)} onClick={() => { setSelAccId(a.id); setShowAccPicker(false); }}
             style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 12px", borderRadius: 12, marginBottom: 6, cursor: "pointer", background: selAccId === a.id ? "rgba(76,175,80,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${selAccId === a.id ? "rgba(76,175,80,0.4)" : C.border}` }}>
             <CatIcon k={a.icon || "other"} size={40} color={a.color || C.green}/>

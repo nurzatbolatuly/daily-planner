@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { C } from "../constants/theme";
 import { fmtBal, fmtGrams, isCommodity } from "../utils/format";
-import { getSavedOrder } from "../utils/accountOrder";
 import { ACC_PURPOSES } from "../constants/money";
 import { FieldLabel } from "./FieldLabel";
 import { BottomSheet } from "./BottomSheet";
@@ -10,9 +9,8 @@ import { Ico } from "./Ico";
 
 export function AccSelect({ accounts, value, onChange, onCurrencyChange, label, error, allowNone, noneLabel }) {
   const [open, setOpen] = useState(false);
-  const savedOrdered = getSavedOrder(accounts);
   const ordered = ACC_PURPOSES.flatMap(p =>
-    savedOrdered.filter(a => (a.purpose || "daily") === p.key)
+    accounts.filter(a => (a.purpose || "daily") === p.key)
   );
   const sel = ordered.find(a => a.id===value);
   return (

@@ -1,39 +1,29 @@
-import { useState, useEffect, useCallback, memo } from "react";
+import { useCallback, memo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { getSym, fmtAmtAuto, fmtBal, fmtGrams, isCommodity, calcTotalBalance } from "../../../utils/format";
-import { getSavedOrder } from "../../../utils/accountOrder";
+import { withSortOrder, saveAccountOrder } from "../../../utils/accountOrder";
 import { ACC_PURPOSES } from "../../../constants/money";
 import { useDragReorder } from "../../../hooks/useDragReorder";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 
 export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, navigate }) {
-  const { accounts } = data;
-  const [ordered, setOrdered] = useState(() => getSavedOrder(accounts));
-  useEffect(() => {
-    setOrdered(getSavedOrder(accounts));
-    // Удаляем из localStorage id счетов, которых больше не существует
-    try {
-      const stored = JSON.parse(localStorage.getItem("accountOrder") || "null");
-      if (stored) {
-        const existingIds = new Set(accounts.map(a => a.id));
-        const cleaned = stored.filter(id => existingIds.has(id));
-        if (cleaned.length !== stored.length)
-          localStorage.setItem("accountOrder", JSON.stringify(cleaned));
-      }
-    } catch {}
-  }, [accounts]);
+  const { accounts, setAccounts } = data;
 
   const total = calcTotalBalance(accounts);
 
-  const handleAccReorder = useCallback((reordered) => {
-    setOrdered(reordered);
-    localStorage.setItem("accountOrder", JSON.stringify(reordered.map(a => a.id)));
-  }, []);
+  // Порядок — в БД (v39): оптимистично обновляем стор, при ошибке откатываемся.
+  const handleAccReorder = useCallback(async (reordered) => {
+    const snapshot = accounts;
+    setAccounts(withSortOrder(reordered));
+    try {
+      await saveAccountOrder(reordered);
+    } catch (e) { console.error("Порядок счетов:", e); setAccounts(snapshot); }
+  }, [accounts, setAccounts]);
 
   const { dragId, dragOverId, getDragHandlers } = useDragReorder({
-    items: ordered, onReorder: handleAccReorder, dataAttr: "accid",
+    items: accounts, onReorder: handleAccReorder, dataAttr: "accid",
   });
 
   return (
@@ -64,7 +54,7 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
 
       <div style={{ padding:"16px" }}>
         {ACC_PURPOSES.map(p => {
-          const group = ordered.filter(a => (a.purpose || "daily") === p.key);
+          const group = accounts.filter(a => (a.purpose || "daily") === p.key);
           if (group.length === 0) return null;
           return (
             <div key={p.key}>
@@ -85,7 +75,7 @@ export const MoneyAccountsSection = memo(function MoneyAccountsSection({ data, n
                 >
                   <div
                     {...getDragHandlers(acc.id)}
-                    style={{ color:"rgba(255,255,255,0.2)", cursor:"grab", flexShrink:0, touchAction:"none", padding:"4px 2px", userSelect:"none" }}
+                    style={{ color:"rgba(255,255,255,0.2)", cursor:"grab", flexShrink:0, touchAction:"none", padding:"4px 2px", userSelect:"none", WebkitUserSelect:"none", WebkitTouchCallout:"none" }}
                     onClick={e => e.stopPropagation()}
                   >
                     <Ico n="drag" s={18}/>

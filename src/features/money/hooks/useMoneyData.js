@@ -5,6 +5,7 @@ import { buildPersonalTransactions } from "../../../utils/personalTransactions";
 import { buildSharedTxIndex } from "../../../utils/txBadges";
 import { newId } from "../../../utils/id";
 import { missingSystemCategories, systemCategoryIds } from "../../../utils/systemCategories";
+import { migrateLegacyOrder } from "../../../utils/accountOrder";
 
 // Пустая таблица (новый пользователь) → засеваем дефолтами со своими id; затем досоздаём
 // недостающие системные категории (utils/systemCategories.js). Находятся по system_key — повторная
@@ -48,7 +49,8 @@ export function useMoneyData() {
     setLoadError(null);
     try {
       const [acc, txs, trs, ec, ic, mp, tp, gl, gt, dp, de, rc, ln, pi, pe, sg, sm, se, feesProbe] = await Promise.all([
-        supa.select("accounts", "order=created_at.asc"),
+        // Порядок — пользовательский (v39); NULL — ещё не переставляли, тогда по дате создания.
+        supa.select("accounts", "order=sort_order.asc.nullslast&order=created_at.asc"),
         supa.select("transactions", "order=created_at.desc"),
         supa.select("transfers", "order=created_at.desc"),
         supa.select("exp_categories", "order=sort_order.asc"),
@@ -76,7 +78,7 @@ export function useMoneyData() {
       // Всегда выставляем массивы целиком (даже пустые), иначе удаление ПОСЛЕДНЕЙ
       // строки таблицы оставляет устаревший стейт. Категории — единственное
       // исключение: при пустой таблице засеваем дефолтами.
-      setAccounts(acc || []);
+      setAccounts(await migrateLegacyOrder(acc || []));
       setTransactions(txs || []);
       setTransfers(trs || []);
       setExpCats(await ensureCategories("exp_categories", "exp", ec, DEF_EXP));
