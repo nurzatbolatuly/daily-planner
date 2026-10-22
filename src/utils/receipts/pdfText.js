@@ -4,11 +4,13 @@ import { ReceiptError, RECEIPT_ERRORS } from "./normalize";
 // Текст PDF в браузере. pdf.js — только через import(): отдельный чанк, грузится при первом
 // PDF, как ExcelJS в utils/export.js (иначе основной бандл вырастет на мегабайт).
 // legacy-сборка — с полифиллами для старых Safari. Разбор строк — pdfRows.js (чистый, с тестами).
+// Воркер — готовый файл из public/pdfjs (scripts/copy-pdf-worker.js), НЕ через сборщик: Babel CRA
+// ломает его импортами по абсолютным путям машины сборки. Версия в имени — та же, что у библиотеки.
 
 async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-    pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
+    pdfjs.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL}/pdfjs/pdf.worker.${pdfjs.version}.min.mjs`;
   }
   return pdfjs;
 }

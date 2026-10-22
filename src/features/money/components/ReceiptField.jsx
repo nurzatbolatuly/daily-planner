@@ -11,6 +11,7 @@ import { ReceiptPreviewSheet } from "./ReceiptPreviewSheet";
 import { ReceiptItemSheet } from "./ReceiptItemSheet";
 import { CategoryChips } from "../../priceCatalog/components/CategoryChips";
 import { chip, chipRow, fieldInput, sheetBtn, hintText, errorText } from "./sharedUi";
+import { receiptLog } from "../../../utils/receipts/log";
 
 // Блок «Чек» (docs/receipts.md §3): ссылка из QR (Kaspi, oofd.kz) или PDF (накладная Арбуза, чек ОФД «Транстелеком») →
 // предпросмотр → прикрепить. Состояние чека — у формы (useTransactionReceipt), здесь только ввод.
@@ -45,15 +46,23 @@ export function ReceiptField({
 
   // Разбор → проверка «уже прикреплён к другому расходу» → предпросмотр.
   const run = async (label, load) => {   // load(loaderModule) → разобранный чек
+    receiptLog("1. старт", { label, transactionId });
     setBusy(label);
     setError(null);
     setViewOpen(false);
     try {
       const mod = await loader();
       helpers.current = mod;
+      receiptLog("2. модуль разбора загружен");
       const parsed = await load(mod);
+      receiptLog("3. чек разобран", {
+        source: parsed.source, externalId: parsed.externalId, merchant: parsed.merchant, datetime: parsed.datetime,
+        total: parsed.total, items: parsed.items.length, adjustments: parsed.adjustments,
+        itemsTotal: mod.itemsTotal(parsed.items, parsed.adjustments),
+      });
       // каталог обязателен: с пустым план создал бы дубли всех товаров (§7.3)
       const [owner, catalog] = await Promise.all([findReceiptOwner(parsed.externalId), mod.fetchCatalogIndex()]);
+      receiptLog("4. владелец чека", { owner: owner?.transaction_id ?? null, current: transactionId });
       if (owner && owner.transaction_id !== transactionId) {
         const tx = owner.transactions;
         const where = tx ? ` ${fmtDateShort(tx.date).toLowerCase()} · ${fmtMoney(Number(tx.amount), tx.currency)}` : "";
@@ -61,8 +70,12 @@ export function ReceiptField({
         return;
       }
       const full = { products: [], links: [], categories: [], ...catalog };
-      setPending({ parsed, plan: mod.planReceipt(parsed, full), catalog: full });
+      receiptLog("4б. каталог", { products: full.products.length, links: full.links.length, categories: full.categories.length });
+      const plan = mod.planReceipt(parsed, full);
+      receiptLog("5. план позиций → предпросмотр", plan.map((pi, i) => ({ item: parsed.items[i].name, via: pi.match?.via ?? null, inCatalog: pi.inCatalog })));
+      setPending({ parsed, plan, catalog: full });
     } catch (e) {
+      receiptLog("✗ ошибка", { code: e?.code ?? null, message: e?.message, name: e?.name });
       console.error("Receipt:", e);
       setError({ message: errorMessage(e) });
     } finally {
@@ -80,6 +93,7 @@ export function ReceiptField({
   const pickPdf = e => {
     const file = e.target.files?.[0];
     e.target.value = "";   // тот же файл можно выбрать ещё раз
+    receiptLog("0. файл выбран", file ? { name: file.name, type: file.type, size: file.size } : "файл не выбран");
     if (!file) return;
     run("Читаем PDF…", mod => mod.loadReceiptFromPdf(file));
   };
@@ -188,7 +202,7 @@ export function ReceiptField({
         onBulkCategory={pending?.catalog.categories.length ? () => setBulkCategory(true) : undefined}
         footer={(
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            <button type="button" onClick={() => { onAttach(pending.parsed, pendingView, pending.plan); closePending(); }} style={sheetBtn("primary")}>Прикрепить</button>
+            <button type="button" onClick={() => { receiptLog("6. «Прикрепить» — чек в черновике формы, в БД — при «Сохранить»"); onAttach(pending.parsed, pendingView, pending.plan); closePending(); }} style={sheetBtn("primary")}>Прикрепить</button>
             <button type="button" onClick={closePending} style={sheetBtn("secondary")}>Отмена</button>
           </div>
         )}/>

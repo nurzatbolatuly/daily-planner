@@ -1,20 +1,24 @@
 import { loadReceiptFromLink } from "./receiptProxy";
 import { fetchCatalogIndex } from "./receiptsApi";
-import { parsePdfReceipt } from "../utils/receipts";
+import { parsePdfReceipt, itemsTotal } from "../utils/receipts";
 import { planReceipt, planItemName, planItemStatus, searchProducts, productPack, categoriesByKind, inheritCategory } from "../utils/receipts/catalogMatch";
 import { buildDisplayName } from "../utils/receipts/names";
 import { formatPack } from "../utils/receipts/attributes";
+import { receiptLog } from "../utils/receipts/log";
 
 // Всё, что нужно для ПРИКРЕПЛЕНИЯ чека: адаптеры ОФД, названия товаров, сопоставление с каталогом,
 // прокси. Импортируется только через import() из ReceiptField — отдельный чанк, основной бандл не
 // растёт (как pdf.js и ExcelJS).
 
-export { loadReceiptFromLink, fetchCatalogIndex, planReceipt, searchProducts, buildDisplayName, formatPack, productPack, categoriesByKind, inheritCategory };
+export { itemsTotal, loadReceiptFromLink, fetchCatalogIndex, planReceipt, searchProducts, buildDisplayName, formatPack, productPack, categoriesByKind, inheritCategory };
 
 // PDF (накладная Арбуза, чек ОФД «Транстелеком») → чек. pdf.js — ещё один чанк, грузится только для PDF.
 export async function loadReceiptFromPdf(file) {
   const { extractPdfPages } = await import("../utils/receipts/pdfText");
-  return parsePdfReceipt(await extractPdfPages(file));
+  receiptLog("pdf: модуль pdf.js загружен");
+  const pages = await extractPdfPages(file);
+  receiptLog("pdf: текст извлечён", { pages: pages.length, items: pages.map(p => p.length) });
+  return parsePdfReceipt(pages);
 }
 
 // Разобранный чек + план позиций → вид для предпросмотра (receiptView.js). У позиции — статус

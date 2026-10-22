@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchTransactionReceipt, saveReceipt, deleteReceipt } from "../../../lib/receiptsApi";
 import { receiptViewFromRow } from "../../../utils/receipts/receiptView";
+import { receiptLog } from "../../../utils/receipts/log";
 
 // Чек транзакции в форме (docs/receipts.md §3, §6). Сохранённый чек грузится лениво;
 // прикрепить / убрать — черновик до «Сохранить», в БД пишет persist после save_tx.
@@ -16,7 +17,7 @@ export function useTransactionReceipt(transactionId) {
     let cancelled = false;   // StrictMode: эффект в dev дважды
     setLoading(true);
     fetchTransactionReceipt(transactionId)
-      .then(row => { if (!cancelled) setStored(row); })
+      .then(row => { receiptLog("сохранённый чек транзакции", { transactionId, found: !!row, source: row?.source ?? null }); if (!cancelled) setStored(row); })
       .catch(e => { if (!cancelled) { console.error("Load receipt:", e); setLoadError("Не удалось загрузить чек"); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -31,6 +32,7 @@ export function useTransactionReceipt(transactionId) {
   // allowed = false — транзакция больше не расход (сменили тип): сохранённый чек убирается.
   // Без изменений — ни одного запроса: формы без чеков не зависят от новых RPC.
   const persist = async (txId, { allowed = true } = {}) => {
+    receiptLog("8. persist", { txId, allowed, action: !allowed ? (stored ? "delete" : "none") : draft?.parsed ? "save" : draft?.removed ? "delete" : "none" });
     if (!allowed) {
       if (stored) await deleteReceipt(txId);
     } else if (draft?.parsed) {

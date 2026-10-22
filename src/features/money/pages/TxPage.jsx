@@ -21,6 +21,7 @@ import { SplitToggle } from "../components/SplitToggle";
 import { MakeSharedButton } from "../components/MakeSharedButton";
 import { ReceiptField } from "../components/ReceiptField";
 import { useTransactionReceipt } from "../hooks/useTransactionReceipt";
+import { receiptLog } from "../../../utils/receipts/log";
 
 // Системные категории — чек к ним не прикрепляется (курсовая разница — не покупка).
 const NO_RECEIPT_KEYS = new Set([SYSTEM_CATEGORIES.fxLoss.system_key, SYSTEM_CATEGORIES.fxGain.system_key]);
@@ -155,12 +156,16 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
   // Чек пишется после транзакции (§6). Ошибка не откатывает транзакцию: форма показывает
   // «Повторить» (только чек) и «Готово без чека». → true, если можно уходить с экрана.
   const persistReceipt = async () => {
-    if (!receipt.needsPersist(receiptAllowed)) return true;
+    const needs = receipt.needsPersist(receiptAllowed);
+    receiptLog("7. транзакция сохранена, чек", { txId, receiptAllowed, needsPersist: needs });
+    if (!needs) return true;
     try {
       await receipt.persist(txId, { allowed: receiptAllowed });
+      receiptLog("9. чек сохранён");
       setReceiptRetry(null);
       return true;
     } catch (e) {
+      receiptLog("✗ чек не сохранён", { code: e?.code ?? null, message: e?.message, details: e?.details, hint: e?.hint });
       console.error("Save receipt:", e);
       setReceiptRetry(e?.message || "Не удалось сохранить чек");
       return false;

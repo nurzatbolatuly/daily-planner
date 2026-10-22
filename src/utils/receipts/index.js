@@ -5,6 +5,7 @@ import { parseOofdTicket } from "./oofd";
 import { groupPdfRows } from "./pdfRows";
 import { isArbuzRows, parseArbuzRows } from "./arbuz";
 import { isTtcRows, parseTtcRows } from "./ttc";
+import { receiptLog } from "./log";
 
 // Чеки: единая точка входа (docs/receipts.md §2, §9). Адаптер выбирается по содержимому —
 // домену ссылки или сигнатуре PDF, пользователь источник не выбирает.
@@ -48,7 +49,9 @@ export function parseLinkPayload(link, payload) {
 // Страницы PDF (extractPdfPages) → чек: накладная Арбуза или чек ОФД «Транстелеком».
 export function parsePdfReceipt(pages) {
   const rows = groupPdfRows(pages);
-  if (isArbuzRows(rows)) return parseArbuzRows(rows);
-  if (isTtcRows(rows)) return parseTtcRows(rows);
+  const format = isArbuzRows(rows) ? "arbuz" : isTtcRows(rows) ? "ttc" : null;
+  receiptLog("pdf: строки собраны", { rows: rows.length, format, head: rows.slice(0, 3).map(r => r.text) });
+  if (format === "arbuz") return parseArbuzRows(rows);
+  if (format === "ttc") return parseTtcRows(rows);
   throw new ReceiptError(RECEIPT_ERRORS.unsupportedFile, "Не удалось распознать PDF. Поддерживаются: накладная Арбуза, чек ОФД «Транстелеком»");
 }

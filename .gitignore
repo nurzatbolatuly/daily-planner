@@ -12,6 +12,9 @@
 # production
 /build
 
+# воркер pdf.js — копируется из node_modules (scripts/copy-pdf-worker.js)
+/public/pdfjs
+
 # misc
 .DS_Store
 .env
