@@ -39,11 +39,14 @@ export const normalizeUnit = raw => RECEIPT_UNITS[cleanText(raw).toLowerCase()] 
 
 export const isServiceItem = name => RECEIPT_SERVICE_ITEMS.some(re => re.test(cleanText(name)));
 
-// Юрлицо из чека → магазин (§7.6). Неизвестный продавец — как в чеке, без кавычек и «ТОО».
+// Юрлицо из чека → магазин (§7.6). Неизвестный продавец — название в кавычках («ФИЛИАЛ №51 ТОО
+// "Ромашка" В ГОРОДЕ АЛМАТЫ» → Ромашка), без кавычек — как в чеке, без «ТОО».
 export function resolveMerchant(raw) {
   const text = cleanText(raw);
   const known = RECEIPT_MERCHANTS.find(m => m.match.test(text));
   if (known) return { merchant: known.name, merchantRaw: text, splitName: !!known.splitName };
+  const quoted = cleanText(text.match(/["«]([^"«»]+)["»]/)?.[1]);
+  if (quoted) return { merchant: quoted, merchantRaw: text, splitName: false };
   const merchant = text.replace(/^(ТОО|АО|ИП|ТОВАРИЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ)\s+/i, "").replace(/["«»]/g, "").trim();
   return { merchant: merchant || text, merchantRaw: text, splitName: false };
 }

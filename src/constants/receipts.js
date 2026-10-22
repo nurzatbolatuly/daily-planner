@@ -2,7 +2,7 @@
 // не содержат строк конкретных магазинов, новый магазин на поддержанном ОФД — строка здесь.
 
 // Адаптер = источник данных (ОФД / формат файла), а не магазин (§2).
-export const RECEIPT_SOURCES = { kaspi: "kaspi", oofd: "oofd", arbuz: "arbuz" };
+export const RECEIPT_SOURCES = { kaspi: "kaspi", oofd: "oofd", arbuz: "arbuz", ttc: "ttc" };
 
 // Ссылки из QR: хост → адаптер. Путь проверяется, чтобы не принять любую страницу сайта.
 export const RECEIPT_LINK_HOSTS = [
@@ -14,6 +14,7 @@ export const RECEIPT_LINK_HOSTS = [
 // splitName — название позиции «каз. - рус. - бренд» (Small, §2.2): разбирается на этапе 2.
 export const RECEIPT_MERCHANTS = [
   { match: /MAGNUM E-COMMERCE/i, name: "Magnum GO" },
+  { match: /MAGNUM CASH/i, name: "Magnum" },
   { match: /СКИФ ТРЕЙД/i, name: "Small", splitName: true },
   { match: /arbuz/i, name: "Арбуз" },
 ];
@@ -25,6 +26,7 @@ export const RECEIPT_SERVICE_ITEMS = [
   /^упаковка$/i,
   /^доставка$/i,
   /(^|\s-\s)пакет(ы)?(?![а-яё])/iu,
+  /пакеті\s+ақылы/iu,        // «пакет платный» по-казахски (Magnum: «MAGNUM ПАКЕТІ АҚЫЛЫ ЛОГО»)
 ];
 
 // Единица из чека → единица каталога (priceCatalogUtils.UNITS).

@@ -12,7 +12,7 @@ import { ReceiptItemSheet } from "./ReceiptItemSheet";
 import { CategoryChips } from "../../priceCatalog/components/CategoryChips";
 import { chip, chipRow, fieldInput, sheetBtn, hintText, errorText } from "./sharedUi";
 
-// Блок «Чек» (docs/receipts.md §3): ссылка из QR (Kaspi, oofd.kz) или PDF-накладная (Арбуз) →
+// Блок «Чек» (docs/receipts.md §3): ссылка из QR (Kaspi, oofd.kz) или PDF (накладная Арбуза, чек ОФД «Транстелеком») →
 // предпросмотр → прикрепить. Состояние чека — у формы (useTransactionReceipt), здесь только ввод.
 // readOnly — карточка для просмотра (SharedEntryFormPage: транзакцию правит форма группы).
 // Разбор чеков (lib/receiptLoader) — отдельный чанк, грузится при первом «Ссылка» / «PDF».
@@ -122,7 +122,7 @@ export function ReceiptField({
         <Ico n="link" s={14} c={C.mid}/> {prefix}Ссылка из QR
       </button>
       <button type="button" onClick={openPdf} disabled={!!busy} style={{ ...chip(), display:"flex", alignItems:"center", gap:6 }}>
-        <Ico n="report" s={14} c={C.mid}/> {prefix}PDF-накладная
+        <Ico n="report" s={14} c={C.mid}/> {prefix}PDF-чек
       </button>
     </div>
   );
@@ -170,7 +170,7 @@ export function ReceiptField({
       )}
       {notice && <p style={{ ...hintText, margin:"0 0 8px", color:C.amber }}>{notice}</p>}
 
-      <input ref={fileRef} type="file" accept="application/pdf,.pdf" onChange={pickPdf} style={{ display:"none" }} aria-label="PDF-накладная"/>
+      <input ref={fileRef} type="file" accept="application/pdf,.pdf" onChange={pickPdf} style={{ display:"none" }} aria-label="PDF-чек"/>
 
       <BottomSheet open={linkOpen} onClose={() => setLinkOpen(false)} title="Ссылка на чек">
         <input value={linkText} onChange={e => setLinkText(e.target.value)} autoFocus

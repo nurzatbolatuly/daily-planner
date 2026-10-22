@@ -60,6 +60,8 @@ describe("normalize", () => {
     expect(resolveMerchant('ТОО "MAGNUM E-COMMERCE KAZAKHSTAN"').merchant).toBe("Magnum GO");
     expect(resolveMerchant('ТОВАРИЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "СКИФ ТРЕЙД"')).toMatchObject({ merchant: "Small", splitName: true });
     expect(resolveMerchant('ТОО "Ромашка"').merchant).toBe("Ромашка");
+    expect(resolveMerchant('ФИЛИАЛ №3 ТОВАРИЩЕСТВА С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "Ромашка" В ГОРОДЕ АЛМАТЫ').merchant).toBe("Ромашка");
+    expect(resolveMerchant("ИП Иванов").merchant).toBe("Иванов");
   });
 
   test("служебные позиции", () => {

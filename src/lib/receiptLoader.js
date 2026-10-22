@@ -11,7 +11,7 @@ import { formatPack } from "../utils/receipts/attributes";
 
 export { loadReceiptFromLink, fetchCatalogIndex, planReceipt, searchProducts, buildDisplayName, formatPack, productPack, categoriesByKind, inheritCategory };
 
-// PDF-накладная → чек. pdf.js — ещё один чанк, грузится только для PDF.
+// PDF (накладная Арбуза, чек ОФД «Транстелеком») → чек. pdf.js — ещё один чанк, грузится только для PDF.
 export async function loadReceiptFromPdf(file) {
   const { extractPdfPages } = await import("../utils/receipts/pdfText");
   return parsePdfReceipt(await extractPdfPages(file));
