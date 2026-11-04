@@ -5,7 +5,7 @@ import { totalsAcrossGroups } from "../../../utils/sharedExpenses";
 import { BASE_CUR } from "../../../constants/currencies";
 import { computeNetByPerson } from "../../../utils/debtLedger";
 import { PageHeader } from "../../../components/PageHeader";
-import { Ico } from "../../../components/Ico";
+import { AddButton } from "../../../components/AddButton";
 import { PersonRow } from "../components/PersonRow";
 
 const sym = getSym(BASE_CUR);
@@ -53,6 +53,8 @@ export function DebtsListPage({ debtPeople = [], debtEvents = [], accounts = [],
           </div>
         )}
 
+        <AddButton onClick={() => navigate("addDebt")} style={{ marginBottom:12 }}>Добавить долг</AddButton>
+
         {visiblePeople.length === 0 && (
           <p style={{ textAlign:"center", padding:"40px 0", color:C.dim, fontSize:14 }}>Пока никто никому не должен</p>
         )}
@@ -82,12 +84,6 @@ export function DebtsListPage({ debtPeople = [], debtEvents = [], accounts = [],
           );
         })}
 
-        <button
-          onClick={() => navigate("addDebt")}
-          style={{ width:"100%", padding:13, borderRadius:12, background:"transparent", border:`1px dashed rgba(76,175,80,0.4)`, color:C.green, fontSize:14, fontWeight:600, cursor:"pointer", marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
-        >
-          <Ico n="plus" s={16} c={C.green}/> Добавить долг
-        </button>
       </div>
     </div>
   );

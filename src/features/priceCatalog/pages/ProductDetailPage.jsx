@@ -6,6 +6,7 @@ import { getSym, fmtAmtAuto, fmtDateShort } from "../../../utils/format";
 import { BASE_CUR } from "../../../constants/currencies";
 import { sourceSummaries, cheapestSource, unitPriceOf, productAttrsLabel, otherVariants } from "../utils/priceCatalogUtils";
 import { formatPack } from "../../../utils/receipts/attributes";
+import { AddButton } from "../../../components/AddButton";
 
 const sym = getSym(BASE_CUR);
 
@@ -38,6 +39,8 @@ export function ProductDetailPage({ product, category, entries, products = [], a
           </span>
           {attrs && <p style={{ margin:"10px 0 0", fontSize:13, color:C.mid }}>{attrs}</p>}
         </div>
+
+        <AddButton onClick={() => navigate("addEntry", { product })} style={{ marginBottom:12 }}>Добавить цену</AddButton>
 
         {summaries.length === 0 && (
           <p style={{ textAlign:"center", padding:"30px 0", color:C.dim, fontSize:14 }}>Пока нет ни одной цены</p>
@@ -106,12 +109,6 @@ export function ProductDetailPage({ product, category, entries, products = [], a
           </div>
         )}
 
-        <button
-          onClick={() => navigate("addEntry", { product })}
-          style={{ width:"100%", padding:13, borderRadius:12, background:"transparent", border:`1px dashed rgba(76,175,80,0.4)`, color:C.green, fontSize:14, fontWeight:600, cursor:"pointer", marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
-        >
-          <Ico n="plus" s={16} c={C.green}/> Добавить цену
-        </button>
       </div>
     </div>
   );

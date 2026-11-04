@@ -7,6 +7,7 @@ import { ratesFromAccounts, pluralRu } from "../../../utils/format";
 import { personUsage } from "../../../utils/people";
 import { PersonRow } from "../components/PersonRow";
 import { PersonEditSheet } from "../components/PersonEditSheet";
+import { AddButton } from "../../../components/AddButton";
 
 // Меню → Люди (и ссылка из «Долгов»): общий список людей для долгов, сплитов и общих групп.
 // Добавить, переименовать, скрыть, вернуть, удалить — через PersonEditSheet (§7.5 общих расходов).
@@ -38,10 +39,7 @@ export function PeopleListPage({ people = [], debtEvents = [], sharedMembers = [
         {active.length === 0 && (
           <div style={{ textAlign:"center", padding:"32px 0" }}>
             <p style={{ margin:"0 0 14px", color:C.dim, fontSize:14 }}>Пока никого нет</p>
-            <button onClick={() => setTarget({ person: null })}
-              style={{ padding:"12px 20px", borderRadius:12, background:"transparent", border:`1px dashed ${C.greenBorderStrong}`, color:C.green, fontSize:14, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6 }}>
-              <Ico n="plus" s={16} c={C.green}/> Добавить человека
-            </button>
+            <AddButton onClick={() => setTarget({ person: null })} style={{ width:"auto", display:"inline-flex", padding:"12px 20px" }}>Добавить человека</AddButton>
           </div>
         )}
 

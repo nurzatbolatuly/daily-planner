@@ -13,6 +13,7 @@ import { FieldLabel } from "../../../components/FieldLabel";
 import { NumInput } from "../../../components/NumInput";
 import { BottomSheet } from "../../../components/BottomSheet";
 import { CalendarPicker } from "../../../components/CalendarPicker";
+import { AddButton } from "../../../components/AddButton";
 
 const sym = getSym(BASE_CUR);
 
@@ -354,10 +355,7 @@ export function LoanCalculatorPage({ onBack, saveMode = false }) {
         </div>
 
         {saveMode && mode === "payment" && result && (
-          <button onClick={openSave}
-            style={{ width: "100%", padding: 13, borderRadius: 12, background: "transparent", border: `1px dashed rgba(76,175,80,0.4)`, color: C.green, fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 12 }}>
-            Сохранить как кредит
-          </button>
+          <AddButton icon={null} onClick={openSave} style={{ marginTop: 12 }}>Сохранить как кредит</AddButton>
         )}
 
         {mode === "prepay" && (

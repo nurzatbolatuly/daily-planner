@@ -4,6 +4,7 @@ import { RU_MON_GEN } from "../../../constants/locale";
 import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/format";
 import { CatIcon } from "../../../components/CatIcon";
 import { GOAL_TYPES } from "../../../constants/money";
+import { AddButton } from "../../../components/AddButton";
 
 const TYPE_LABEL = Object.fromEntries(GOAL_TYPES.map(t => [t.key, t.label]));
 
@@ -18,6 +19,8 @@ export function GoalListPage({ goals, goalTopups = [], accounts = [], navigate }
 
   return (
     <div style={{ padding: "12px 16px 24px" }}>
+      <AddButton tone="blue" onClick={() => navigate("addGoal")} style={{ marginBottom: 12 }}>Новая цель</AddButton>
+
       {goals.length === 0 && (
         <p style={{ textAlign: "center", padding: "40px 0", color: C.dim, fontSize: 14 }}>
           Нет финансовых целей
@@ -82,16 +85,6 @@ export function GoalListPage({ goals, goalTopups = [], accounts = [], navigate }
         );
       })}
 
-      <button
-        onClick={() => navigate("addGoal")}
-        style={{
-          width: "100%", padding: 13, borderRadius: 12, background: "transparent",
-          border: `1px dashed rgba(96,165,250,0.4)`, color: C.blue,
-          fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 4,
-        }}
-      >
-        + Новая цель
-      </button>
     </div>
   );
 }

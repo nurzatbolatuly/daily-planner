@@ -21,6 +21,7 @@ import { CloseGroupSheet } from "../components/CloseGroupSheet";
 import { RenameMemberSheet } from "../components/RenameMemberSheet";
 import { MoveToTricountSheet } from "../components/MoveToTricountSheet";
 import { sheetBtn } from "../components/sharedUi";
+import { AddButton } from "../../../components/AddButton";
 
 const STATUS_TEXT = { partial: "вернул частично", open: "не вернул" };
 
@@ -177,6 +178,7 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
         )}
 
         {sectionTitle("Счета")}
+        <AddButton onClick={() => navigate("addSharedBill", { groupId: group.id })} style={{ marginBottom:8 }}>Счёт</AddButton>
         {bills.length === 0 && <p style={{ margin:"8px 0 14px", fontSize:13, color:C.dim }}>Добавьте первый счёт</p>}
         {bills.map(b => {
           const acc = accounts.find(a => a.id === b.account_id);
@@ -192,10 +194,6 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
             />
           );
         })}
-        <button onClick={() => navigate("addSharedBill", { groupId: group.id })}
-          style={{ width:"100%", padding:13, borderRadius:12, background:"transparent", border:`1px dashed ${C.greenBorderStrong}`, color:C.green, fontSize:14, fontWeight:600, cursor:"pointer", marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-          <Ico n="plus" s={16} c={C.green}/> Счёт
-        </button>
 
         {(transfers.length > 0 || batches.length > 0) && <div style={{ height:20 }}/>}
         {transfers.length > 0 && sectionTitle("Переводы")}

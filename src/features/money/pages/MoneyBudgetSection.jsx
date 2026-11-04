@@ -15,6 +15,7 @@ import { CalendarPicker } from "../../../components/CalendarPicker";
 import { NumInput } from "../../../components/NumInput";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { GoalListPage } from "./GoalListPage";
+import { AddButton } from "../../../components/AddButton";
 
 // Месяц+1 от (year, month), month — 0-индексный (как Date.getMonth()).
 function addMonth(year, month) {
@@ -835,6 +836,7 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
       {/* ─── Поездки ─── */}
       {budgetTab === "trips" && (
         <div style={{ padding: "0 16px" }}>
+          <AddButton onClick={() => navigate("addTrip")} style={{ marginBottom: 12 }}>Новый план поездки</AddButton>
           {tripPlans.length === 0 && (
             <p style={{ textAlign: "center", padding: "40px 0", color: C.dim, fontSize: 14 }}>Нет планов поездок</p>
           )}
@@ -864,10 +866,6 @@ export const MoneyBudgetSection = memo(function MoneyBudgetSection({ data, navig
               </div>
             );
           })}
-          <button onClick={() => navigate("addTrip")}
-            style={{ width: "100%", padding: "13px", borderRadius: 12, background: "transparent", border: `1px dashed rgba(76,175,80,0.4)`, color: C.green, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-            + Новый план поездки
-          </button>
         </div>
       )}
 

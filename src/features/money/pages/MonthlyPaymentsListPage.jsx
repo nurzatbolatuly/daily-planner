@@ -12,6 +12,7 @@ import { BottomSheet } from "../../../components/BottomSheet";
 import { AccSelect } from "../../../components/AccSelect";
 import { NumInput } from "../../../components/NumInput";
 import { Ico } from "../../../components/Ico";
+import { AddButton } from "../../../components/AddButton";
 
 const sym = getSym(BASE_CUR);
 
@@ -264,6 +265,10 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
           <p style={{ textAlign:"center", padding:"40px 0", color:C.dim, fontSize:14 }}>Пока нет ежемесячных платежей</p>
         )}
 
+        {!selectMode && (
+          <AddButton onClick={() => setAddOpen(true)} style={{ marginBottom:12 }}>Добавить</AddButton>
+        )}
+
         {items.map(it => {
           const isBill = it.kind === "bill";
           const isSelected = selected.has(it.id);
@@ -307,14 +312,6 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
           );
         })}
 
-        {!selectMode && (
-          <button
-            onClick={() => setAddOpen(true)}
-            style={{ width:"100%", padding:13, borderRadius:12, background:"transparent", border:`1px dashed rgba(76,175,80,0.4)`, color:C.green, fontSize:14, fontWeight:600, cursor:"pointer", marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
-          >
-            <Ico n="plus" s={16} c={C.green}/> Добавить
-          </button>
-        )}
       </div>
 
       {selectMode && (

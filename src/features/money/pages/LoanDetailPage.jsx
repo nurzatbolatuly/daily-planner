@@ -16,6 +16,7 @@ import { AccSelect } from "../../../components/AccSelect";
 import { NumInput } from "../../../components/NumInput";
 import { CalendarPicker } from "../../../components/CalendarPicker";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
+import { AddButton } from "../../../components/AddButton";
 
 function fmtDate(s) {
   const d = new Date(s);
@@ -326,10 +327,7 @@ export function LoanDetailPage({ loan, accounts = [], systemCats, navigate, onRe
           )}
 
           {loan.status !== "closed" && (
-            <button onClick={openLump}
-              style={{ width: "100%", marginTop: 12, padding: 12, borderRadius: 12, background: "transparent", border: `1px dashed rgba(96,165,250,0.4)`, color: C.blue, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-              Досрочное погашение
-            </button>
+            <AddButton tone="blue" icon={null} onClick={openLump} style={{ marginTop: 12 }}>Досрочное погашение</AddButton>
           )}
         </div>
 

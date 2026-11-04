@@ -16,6 +16,7 @@ import { NumInput } from "../../../components/NumInput";
 import { CategoryPicker } from "../../../components/CategoryPicker";
 import { Ico } from "../../../components/Ico";
 import { CashflowRuler } from "../components/CashflowRuler";
+import { AddButton } from "../../../components/AddButton";
 
 const sym = getSym(BASE_CUR);
 
@@ -334,10 +335,7 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], system
           <CashflowRuler rangeStart={rulerRange.start} rangeEnd={rulerRange.end} dayMap={dayMap} onTapDay={setDaySheetDate}/>
         </div>
 
-        <button onClick={() => setAddChoiceOpen(true)}
-          style={{ width: "100%", padding: 13, borderRadius: 12, background: "transparent", border: "1px dashed rgba(76,175,80,0.4)", color: C.green, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Ico n="plus" s={16} c={C.green}/> Добавить
-        </button>
+        <AddButton onClick={() => setAddChoiceOpen(true)} style={{ marginBottom:20 }}>Добавить</AddButton>
 
         {/* Upcoming list */}
         <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, color: C.dim }}>Ближайшие события</p>

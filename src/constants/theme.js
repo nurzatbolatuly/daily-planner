@@ -13,6 +13,6 @@ export const C = {
   // Тонированные плашки и рамки: выбранное (green), ошибка (error), инфо (info), предупреждение (warn)
   greenTint: "rgba(76,175,80,0.08)", greenTintStrong: "rgba(76,175,80,0.12)", greenBorder: "rgba(76,175,80,0.3)", greenBorderStrong: "rgba(76,175,80,0.4)",
   errorTint: "rgba(244,67,54,0.12)", errorBorder: "rgba(244,67,54,0.5)",
-  infoTint: "rgba(96,165,250,0.1)", infoBorder: "rgba(96,165,250,0.3)",
+  infoTint: "rgba(96,165,250,0.1)", infoBorder: "rgba(96,165,250,0.3)", infoBorderStrong: "rgba(96,165,250,0.4)",
   warnTint: "rgba(245,158,11,0.1)", warnBorder: "rgba(245,158,11,0.3)",
 };

@@ -1,12 +1,14 @@
 import { C } from "../../../constants/theme";
 import { PageHeader } from "../../../components/PageHeader";
 import { Ico } from "../../../components/Ico";
+import { AddButton } from "../../../components/AddButton";
 
 export function PriceCatsListPage({ categories, navigate, onBack }) {
   return (
     <div style={{ minHeight:"calc(100dvh - var(--app-header-h))", background:C.monBg, color:"#fff", display:"flex", flexDirection:"column" }}>
       <PageHeader title="Категории каталога" onBack={onBack}/>
       <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 100px" }}>
+        <AddButton onClick={() => navigate("addCat")} style={{ marginBottom:12 }}>Добавить категорию</AddButton>
         {categories.length === 0 && (
           <p style={{ textAlign:"center", padding:"20px 0", color:C.dim, fontSize:14 }}>Категорий пока нет</p>
         )}
@@ -17,12 +19,6 @@ export function PriceCatsListPage({ categories, navigate, onBack }) {
             <Ico n="chevR" s={16} c={C.dim}/>
           </div>
         ))}
-        <button
-          onClick={() => navigate("addCat")}
-          style={{ width:"100%", padding:13, borderRadius:12, background:"transparent", border:`1px dashed rgba(76,175,80,0.4)`, color:C.green, fontSize:14, fontWeight:600, cursor:"pointer", marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
-        >
-          <Ico n="plus" s={16} c={C.green}/> Добавить категорию
-        </button>
       </div>
     </div>
   );
