@@ -60,6 +60,11 @@ jobs:
     name: Deno (supabase/functions)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # Функции — не часть npm-проекта фронта: без этого Deno подхватывает корневой package.json
+      # (ищет npm:-пакеты в node_modules фронта, требует перенести их в deno.json).
+      # Так функции проверяются в том же окружении, что и при деплое в Supabase.
+      DENO_NO_PACKAGE_JSON: "1"
     permissions:
       contents: read
     steps:
