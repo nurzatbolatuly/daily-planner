@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SharedTransferFormPage } from "../SharedTransferFormPage";
@@ -6,7 +5,7 @@ import { SharedMirrorTransferPage } from "../SharedMirrorTransferPage";
 import { DebtPersonDetailPage } from "../DebtPersonDetailPage";
 import { supaRpc } from "../../../../lib/supabase";
 
-jest.mock("../../../../lib/supabase", () => ({ supabase: { from: jest.fn() }, supaRpc: jest.fn(() => Promise.resolve()), supaUpsert: jest.fn() }));
+vi.mock("../../../../lib/supabase", () => ({ supabase: { from: vi.fn() }, supaRpc: vi.fn(() => Promise.resolve()), supaUpsert: vi.fn() }));
 
 const kaspi = { id: "kaspi", name: "Kaspi", currency: "KZT", balance: 100000 };
 const people = [{ id: "p-bek", name: "Бек" }, { id: "p-dima", name: "Дима" }];
@@ -21,9 +20,9 @@ describe("вечер: Бек должен за вечер 9 910, а я ему л
     shares: [sh("me", 9910), sh("bek", 9910), sh("asan", 9910)] }];
   const debtEvents = [{ id: "d1", person_id: "p-bek", type: "they_paid", amount: -5000, currency: "KZT", date: "2026-09-01" }];
   const renderTransfer = props => {
-    const onBack = jest.fn();
+    const onBack = vi.fn();
     render(<SharedTransferFormPage group={group} groups={[group]} memberId="bek" direction="in" members={members} entries={entries} people={people}
-      setPeople={jest.fn()} accounts={[kaspi]} transactions={[]} debtEvents={debtEvents} onBack={onBack} {...props}/>);
+      setPeople={vi.fn()} accounts={[kaspi]} transactions={[]} debtEvents={debtEvents} onBack={onBack} {...props}/>);
     return { onBack };
   };
 
@@ -71,7 +70,7 @@ test("§10 квартира: я должен Диме 13 000 по Tricount, он
   const members = [{ id: "me", group_id: "f1", is_me: true }, { id: "dima", group_id: "f1", person_id: "p-dima" }];
   const entries = [{ id: "pc", group_id: "f1", kind: "bill", date: "2026-10-02", payer_member_id: "dima", amount: 52000, amount_group: 52000, shares: [sh("me", 13000)] }];
   const debtEvents = [{ id: "l1", person_id: "p-dima", type: "lent", amount: 20000, currency: "KZT", date: "2026-09-01" }];
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<SharedMirrorTransferPage group={flat} members={members} entries={entries} people={people} accounts={[kaspi]} transactions={[]} debtEvents={debtEvents} onBack={onBack}/>);
   expect(screen.getByText("Лично Дима должен вам ₸20 000")).toBeInTheDocument();
   userEvent.click(screen.getByRole("radio", { name: /Зачесть ₸13 000/ }));
@@ -88,7 +87,7 @@ test("§10 квартира: зачёт выбран, затем направл�
   const members = [{ id: "me", group_id: "f1", is_me: true }, { id: "dima", group_id: "f1", person_id: "p-dima" }];
   const entries = [{ id: "pc", group_id: "f1", kind: "bill", date: "2026-10-02", payer_member_id: "dima", amount: 52000, amount_group: 52000, shares: [sh("me", 13000)] }];
   const debtEvents = [{ id: "l1", person_id: "p-dima", type: "lent", amount: 20000, currency: "KZT", date: "2026-09-01" }];
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<SharedMirrorTransferPage group={flat} members={members} entries={entries} people={people} accounts={[kaspi]} transactions={[]} debtEvents={debtEvents} onBack={onBack}/>);
   userEvent.click(screen.getByRole("radio", { name: /Зачесть ₸13 000/ }));
   userEvent.click(screen.getByRole("button", { name: "Мне перевели" }));
@@ -101,14 +100,14 @@ test("§10 квартира: зачёт выбран, затем направл�
 });
 
 test("§10: в «Долгах» у зачёта нет корзины, тап открывает перевод в группе", () => {
-  const navigate = jest.fn();
+  const navigate = vi.fn();
   const debtEvents = [
     { id: "ev1", person_id: "p-bek", type: "offset", amount: 5000, currency: "KZT", date: "2026-10-05", note: "Зачёт · Вечер 03.10" },
     { id: "d1", person_id: "p-bek", type: "they_paid", amount: -5000, currency: "KZT", date: "2026-09-01" },
   ];
   const sharedEntries = [{ id: "t1", group_id: "g1", kind: "transfer", method: "offset", debt_event_id: "ev1" }];
   render(<DebtPersonDetailPage person={people[0]} people={people} debtEvents={debtEvents} sharedGroups={[]} sharedMembers={[]} sharedEntries={sharedEntries}
-    accounts={[kaspi]} transactions={[]} navigate={navigate} onReload={jest.fn()} onBack={jest.fn()}/>);
+    accounts={[kaspi]} transactions={[]} navigate={navigate} onReload={vi.fn()} onBack={vi.fn()}/>);
   expect(screen.getByText("В расчёте")).toBeInTheDocument();
   expect(screen.getAllByLabelText("Удалить запись")).toHaveLength(1);                 // только у off-book «взял в долг»
   userEvent.click(screen.getByText("Зачёт"));

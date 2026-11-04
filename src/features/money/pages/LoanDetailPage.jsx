@@ -23,7 +23,7 @@ function fmtDate(s) {
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function LoanDetailPage({ loan, accounts = [], systemCats, navigate, onReload, onBack }) {
+export function LoanDetailPage({ loan, accounts = [], systemCats, onReload, onBack }) {
   const sym = getSym(loan.currency || BASE_CUR);
   const monthlyRate = annualToMonthlyRate(loan.rate_annual);
   // Аннуитетный платёж — фиксированная сумма на весь срок (считается от ИСХОДНОГО principal,

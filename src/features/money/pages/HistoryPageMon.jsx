@@ -2,51 +2,16 @@ import { useState, useEffect, useMemo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
 import { SAVINGS_PURPOSES, BALANCE_ADJUSTMENT_NOTE, FEE_TX_NOTE } from "../../../constants/money";
-import { fmtM, fmtAmt, fmtAmtAuto, getSym, isCommodity, round2, avgRateFn } from "../../../utils/format";
+import { fmtM, fmtAmt, fmtAmtAuto, getSym, isCommodity, round2, avgRateFn, fmtDateLong } from "../../../utils/format";
 import { localDate } from "../../../utils/date";
 import { supabase, supaRpc } from "../../../lib/supabase";
-import { RU_MON_GEN, RU_MONTHS_S } from "../../../constants/locale";
+import { usePeriodFilter } from "../../../hooks/usePeriodFilter";
+import { PeriodSwitcher } from "../../../components/PeriodSwitcher";
 import { Ico } from "../../../components/Ico";
 import { CatIcon } from "../../../components/CatIcon";
 import { TxHistoryRow, TxBadge } from "../components/TxHistoryRow";
 import { txBadge } from "../../../utils/txBadges";
 import { BottomSheet } from "../../../components/BottomSheet";
-
-function fmtGroupDate(dateStr) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return `${d} ${RU_MON_GEN[m-1]} ${y}`;
-}
-
-// Период считаем по уже нормализованному entry.date (YYYY-MM-DD) — транзакции и переводы
-// приводятся к нему заранее (см. entries ниже), т.к. у переводов своя дата в created_at.
-function getPeriodFilter(period, offset, now) {
-  if (period === "day") {
-    const d = new Date(now); d.setDate(d.getDate() + offset);
-    const str = localDate(d);
-    const label = offset === 0 ? "Сегодня" : offset === -1 ? "Вчера" : str;
-    return { fn: e => e.date === str, label };
-  }
-  if (period === "week") {
-    const mon = new Date(now);
-    const dow = mon.getDay() || 7;
-    mon.setDate(mon.getDate() - dow + 1 + offset * 7);
-    mon.setHours(0, 0, 0, 0);
-    const sun = new Date(mon); sun.setDate(mon.getDate() + 6); sun.setHours(23, 59, 59, 999);
-    const fmt = d => `${d.getDate()} ${RU_MONTHS_S[d.getMonth()]}`;
-    return { fn: e => { const d = new Date(e.date); return d >= mon && d <= sun; }, label: `${fmt(mon)} – ${fmt(sun)}` };
-  }
-  if (period === "month") {
-    const total = now.getFullYear() * 12 + now.getMonth() + offset;
-    const y = Math.floor(total / 12);
-    const m = total % 12;
-    return { fn: e => { const d = new Date(e.date); return d.getFullYear() === y && d.getMonth() === m; }, label: `${RU_MON_GEN[m]} ${y}` };
-  }
-  if (period === "year") {
-    const y = now.getFullYear() + offset;
-    return { fn: e => new Date(e.date).getFullYear() === y, label: String(y) };
-  }
-  return { fn: () => true, label: "Всё время" };
-}
 
 const OP_TYPES = [["all", "Всё"], ["expense", "Расходы"], ["income", "Доходы"], ["transfer", "Переводы"]];
 
@@ -216,14 +181,12 @@ function TransferRow({ t, accounts, badge, onClick }) {
 // отсортированные по времени и сгруппированные по дате — раньше здесь были только переводы,
 // теперь это общая лента для раздела "Счета" (см. MoneyAccountsSection → "История").
 export function HistoryPageMon({ transactions, transfers, accounts, expCats, incCats, debtEvents = [], debtPeople = [], sharedTxIndex = null, navigate, onReload, onBack }) {
-  const [period,        setPeriod]        = useState("month");
-  const [periodOffset,  setPeriodOffset]  = useState(0);
+  const periodState = usePeriodFilter();
   const [opType,        setOpType]        = useState("all");
   const [selAccIds,     setSelAccIds]     = useState(new Set());
   const [pickerOpen,    setPickerOpen]    = useState(false);
   const [detailT,       setDetailT]       = useState(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const now = new Date();
 
   useEffect(() => {
     if (!detailT) return;
@@ -238,8 +201,7 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
     return next;
   });
 
-  const { fn: periodFn, label: periodLabel } = getPeriodFilter(period, periodOffset, now);
-  const changePeriod = (p) => { setPeriod(p); setPeriodOffset(0); };
+  const { matches: inPeriod } = periodState;
 
   const catFor = (tx) => (tx.type === "expense" ? expCats : incCats).find(c => c.id === tx.category_id);
 
@@ -249,7 +211,7 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
   ], [transactions, transfers]);
 
   const filtered = useMemo(() => entries
-    .filter(e => period === "all" || periodFn(e))
+    .filter(e => inPeriod(e.date))
     .filter(e => {
       if (selAccIds.size === 0) return true;
       return e.kind === "tx" ? selAccIds.has(e.data.account_id) : (selAccIds.has(e.data.from_id) || selAccIds.has(e.data.to_id));
@@ -260,7 +222,7 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
       return e.kind === "tx" && e.data.type === opType;
     })
     .sort((a, b) => String(b.sortAt || "").localeCompare(String(a.sortAt || "")))
-  , [entries, period, periodOffset, selAccIds, opType]); // eslint-disable-line react-hooks/exhaustive-deps
+  , [entries, inPeriod, selAccIds, opType]);
 
   const cancelTransfer = async (t) => {
     const from  = accounts.find(a => a.id === t.from_id);
@@ -336,7 +298,7 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
               {isPos ? "+" : "−"}{fmtM(Math.abs(delta), t.from_currency)}
             </p>
             {lbl("Дата")}
-            <p style={{ margin:0, fontSize:16, fontWeight:600, color:"#fff" }}>{fmtGroupDate(localDate(t.created_at))}</p>
+            <p style={{ margin:0, fontSize:16, fontWeight:600, color:"#fff" }}>{fmtDateLong(localDate(t.created_at))}</p>
           </div>
         </div>
       );
@@ -392,7 +354,7 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
           )}
 
           {lbl("Дата")}
-          <p style={{ margin:"0 0 20px", fontSize:16, fontWeight:600, color:"#fff" }}>{fmtGroupDate(localDate(t.created_at))}</p>
+          <p style={{ margin:"0 0 20px", fontSize:16, fontWeight:600, color:"#fff" }}>{fmtDateLong(localDate(t.created_at))}</p>
 
           {t.analytics && (
             <StoredDealBanner
@@ -438,28 +400,7 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
           ))}
         </div>
 
-        {/* Period tabs */}
-        <div style={{ display:"flex", gap:2, background:"rgba(255,255,255,0.04)", borderRadius:10, padding:3, marginBottom:8 }}>
-          {[["day","День"],["week","Неделя"],["month","Месяц"],["year","Год"],["all","Все"]].map(([v,l]) => (
-            <button key={v} onClick={() => changePeriod(v)} style={{ flex:1, padding:"8px 0", borderRadius:8, border:"none", cursor:"pointer", fontSize:11, fontWeight:600, background:period===v?C.monCard2:"transparent", color:period===v?C.green:C.dim }}>{l}</button>
-          ))}
-        </div>
-
-        {/* Period navigation */}
-        {period !== "all" && (
-          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12 }}>
-            <button onClick={() => setPeriodOffset(o => o - 1)} style={{ background:"none", border:"none", cursor:"pointer", padding:"4px 8px", display:"flex" }}>
-              <Ico n="back" s={18} c={C.mid}/>
-            </button>
-            <span style={{ flex:1, fontSize:13, fontWeight:600, color:"#fff", textAlign:"center" }}>{periodLabel}</span>
-            {periodOffset < 0 && (
-              <button onClick={() => setPeriodOffset(0)} style={{ padding:"3px 10px", borderRadius:20, background:"rgba(76,175,80,0.12)", border:"1px solid rgba(76,175,80,0.3)", color:C.green, fontSize:11, fontWeight:700, cursor:"pointer" }}>Сейчас</button>
-            )}
-            <button onClick={() => setPeriodOffset(o => o + 1)} disabled={periodOffset >= 0} style={{ background:"none", border:"none", cursor:"pointer", padding:"4px 8px", display:"flex", opacity:periodOffset >= 0 ? 0.2 : 1 }}>
-              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.mid} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-            </button>
-          </div>
-        )}
+        <PeriodSwitcher {...periodState}/>
 
         {/* Account filter button */}
         <button onClick={() => setPickerOpen(true)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", borderRadius:12, background:"rgba(255,255,255,0.04)", border:`1px solid ${selAccIds.size > 0 ? C.green : C.border}`, cursor:"pointer", marginBottom:14, boxSizing:"border-box" }}>
@@ -477,7 +418,7 @@ export function HistoryPageMon({ transactions, transfers, accounts, expCats, inc
         {/* Grouped by date */}
         {sortedDates.map(date => (
           <div key={date}>
-            <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:600, color:C.dim }}>{fmtGroupDate(date)}</p>
+            <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:600, color:C.dim }}>{fmtDateLong(date)}</p>
             {grouped[date].map(e => e.kind === "tx"
               ? <TxHistoryRow key={`tx-${e.data.id}`} tx={e.data} cat={catFor(e.data)} badge={txBadge(e.data, { sharedIndex: sharedTxIndex, debtEvents, debtPeople })} onClick={() => navigate("editTx", e.data)}/>
               : <TransferRow key={`tr-${e.data.id}`} t={e.data} accounts={accounts} badge={selfDebtBadge(e.data, accounts)} onClick={() => setDetailT(e.data)}/>

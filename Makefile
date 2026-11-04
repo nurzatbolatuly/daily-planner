@@ -14,7 +14,7 @@ FN_FLAGS_auth-otp := --no-verify-jwt
 FUNCTIONS := $(filter-out _shared,$(notdir $(wildcard supabase/functions/*)))
 
 .DEFAULT_GOAL := help
-.PHONY: help install start test test-watch lint build check \
+.PHONY: help install start test test-watch lint build preview check \
         db-new db-status db-dry db-push db-query \
         fn-deploy fn-deploy-all secrets
 
@@ -26,20 +26,23 @@ help: ## Список команд
 install: ## Зависимости (npm ci — строго по package-lock)
 	npm ci
 
-start: ## Дев-сервер
+start: ## Дев-сервер Vite (http://localhost:3000, доступен и по IP в локальной сети)
 	npm start
 
-test: ## Все тесты один раз
-	CI=true npx react-scripts test --watchAll=false
+test: ## Все тесты один раз (Vitest)
+	npm test
 
 test-watch: ## Тесты в режиме наблюдения
-	npx react-scripts test
+	npm run test:watch
 
-lint: ## ESLint по src
-	npx eslint src
+lint: ## ESLint (eslint.config.js); предупреждения тоже роняют — как в CI
+	npm run lint
 
 build: ## Продакшен-сборка в build/
 	npm run build
+
+preview: ## Открыть собранный build/ локально (проверка перед деплоем)
+	npm run preview
 
 check: lint test build ## Всё перед коммитом: линт, тесты, сборка
 

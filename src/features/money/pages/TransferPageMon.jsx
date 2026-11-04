@@ -344,25 +344,6 @@ export function TransferPageMon({ accounts, transfers = [], expCats, systemCats,
         p_fee_tx:                feeTx,
       });
 
-      // Обновляем снимок аналитики
-      if (analyticsData) {
-        await supabase.from("transfers").update({ analytics: analyticsData }).eq("id", tr.id);
-      }
-      // Создаём новую FX транзакцию с обновлёнными значениями
-      if (fxAccount && hasSellSnap && pnlKzt !== 0) {
-        await supabase.from("transactions").insert({
-          id:          newId(),
-          type:        pnlKzt > 0 ? "income" : "expense",
-          amount:      Math.abs(pnlKzt),
-          currency:    BASE_CUR,
-          account_id:  fxAccount.id,
-          date:        todayStr(),
-          note:        `${fromAcc.currency}→${toAcc.currency}: курсовая ${pnlKzt > 0 ? "прибыль" : "убыток"}`,
-          category_id: fxCategoryId(pnlKzt, systemCats),
-          transfer_id: tr.id,
-        });
-      }
-
     } else {
       // ── CREATE ─────────────────────────────────────────────────────────────
       const baseFromBal = round2(fromAcc.balance - newAmt);
@@ -392,25 +373,26 @@ export function TransferPageMon({ accounts, transfers = [], expCats, systemCats,
           p_to_id:   toId,   p_to_balance:   newToBal,   p_to_avg_rate: newAvgRate,
         });
       }
+    }
 
-      // Сохраняем снимок аналитики в запись перевода
-      if (analyticsData) {
-        await supabase.from("transfers").update({ analytics: analyticsData }).eq("id", tr.id);
-      }
-      // Записываем FX транзакцию в счёт курсовых разниц (не влияет на баланс)
-      if (fxAccount && hasSellSnap && pnlKzt !== 0) {
-        await supabase.from("transactions").insert({
-          id:          newId(),
-          type:        pnlKzt > 0 ? "income" : "expense",
-          amount:      Math.abs(pnlKzt),
-          currency:    BASE_CUR,
-          account_id:  fxAccount.id,
-          date:        todayStr(),
-          note:        `${fromAcc.currency}→${toAcc.currency}: курсовая ${pnlKzt > 0 ? "прибыль" : "убыток"}`,
-          category_id: fxCategoryId(pnlKzt, systemCats),
-          transfer_id: tr.id,
-        });
-      }
+    // И при создании, и при правке (старая FX-транзакция удалена выше по transfer_id):
+    // снимок аналитики — отдельным update, RPC о колонке analytics не знают (§17);
+    // курсовая разница — транзакция в счёт курсовых разниц (на баланс не влияет).
+    if (analyticsData) {
+      await supabase.from("transfers").update({ analytics: analyticsData }).eq("id", tr.id);
+    }
+    if (fxAccount && hasSellSnap && pnlKzt !== 0) {
+      await supabase.from("transactions").insert({
+        id:          newId(),
+        type:        pnlKzt > 0 ? "income" : "expense",
+        amount:      Math.abs(pnlKzt),
+        currency:    BASE_CUR,
+        account_id:  fxAccount.id,
+        date:        todayStr(),
+        note:        `${fromAcc.currency}→${toAcc.currency}: курсовая ${pnlKzt > 0 ? "прибыль" : "убыток"}`,
+        category_id: fxCategoryId(pnlKzt, systemCats),
+        transfer_id: tr.id,
+      });
     }
 
     const linkedGoal = goals.find(g => g.account_id === toId);

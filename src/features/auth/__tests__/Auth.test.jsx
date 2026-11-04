@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { supabase } from "../../../lib/supabase";
 import { requestCode, verifyCode, signInWithPassword, AuthOtpError } from "../../../lib/auth";
@@ -7,16 +6,16 @@ import { AuthProvider, useAuth } from "../AuthProvider";
 import { AccountCard } from "../AccountCard";
 import { LAST_EMAIL_KEY } from "../../../constants/auth";
 
-jest.mock("../../../lib/supabase", () => ({
-  supabase: { auth: { signOut: jest.fn(), onAuthStateChange: jest.fn() } },
+vi.mock("../../../lib/supabase", () => ({
+  supabase: { auth: { signOut: vi.fn(), onAuthStateChange: vi.fn() } },
 }));
-jest.mock("../../../lib/auth", () => {
+vi.mock("../../../lib/auth", () => {
   class AuthOtpError extends Error {
     constructor(code, { retryAfter = null, minLength = null } = {}) {
       super(code); this.code = code; this.retryAfter = retryAfter; this.minLength = minLength;
     }
   }
-  return { requestCode: jest.fn(), verifyCode: jest.fn(), signInWithPassword: jest.fn(), AuthOtpError };
+  return { requestCode: vi.fn(), verifyCode: vi.fn(), signInWithPassword: vi.fn(), AuthOtpError };
 });
 
 // Длину кода и паузу задаёт сервер — в тестах намеренно не 6 и не 15, чтобы ловить захардкоженные значения.
@@ -26,7 +25,7 @@ const PW = "correct-horse";
 let emitAuth;
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   localStorage.clear();
   requestCode.mockResolvedValue(SERVER);
   verifyCode.mockResolvedValue(undefined);
@@ -34,7 +33,7 @@ beforeEach(() => {
   supabase.auth.signOut.mockImplementation(async () => { emitAuth("SIGNED_OUT", null); return { error: null }; });
   supabase.auth.onAuthStateChange.mockImplementation(cb => {
     emitAuth = (e, s) => act(() => cb(e, s));
-    return { data: { subscription: { unsubscribe: jest.fn() } } };
+    return { data: { subscription: { unsubscribe: vi.fn() } } };
   });
 });
 
@@ -159,11 +158,11 @@ test("сервер просит подождать — отсчёт по его 
 
 test("часовой лимит на адрес — в минутах; общий лимит регистраций кнопку не блокирует", async () => {
   requestCode.mockRejectedValueOnce(new AuthOtpError("too_many", { retryAfter: 1500 }));
-  const first = render(<LoginPage/>);
+  const { unmount } = render(<LoginPage/>);
   toSignup();
   fillCodeForm();
   expect(await screen.findByRole("alert")).toHaveTextContent("повторить можно через 25 мин");
-  first.unmount();
+  unmount();
 
   requestCode.mockRejectedValueOnce(new AuthOtpError("signup_busy", { retryAfter: 600 }));
   render(<LoginPage/>);
@@ -216,7 +215,7 @@ test("сессия: загрузка → вошёл → выход стирае�
   fireEvent.click(screen.getByRole("button", { name: "Выйти" }));
   fireEvent.click(screen.getAllByRole("button", { name: "Выйти" }).at(-1));
 
-  await waitFor(() => expect(screen.getByText(/^signedOut/)).toBeInTheDocument());
+  expect(await screen.findByText(/^signedOut/)).toBeInTheDocument();
   expect(supabase.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
   expect(localStorage.getItem("shared.draft.new")).toBeNull();
   expect(localStorage.getItem(LAST_EMAIL_KEY)).toBe("me@mail.kz");

@@ -23,7 +23,7 @@ export const RECEIPT_ERRORS = {
 };
 
 // Табуляции (Kaspi: «…молочко 5 штук по 70 гр\t»), неразрывные пробелы, повторы — в один пробел.
-export const cleanText = s => String(s ?? "").replace(/[\s ]+/g, " ").trim();
+export const cleanText = s => String(s ?? "").replace(/\s+/g, " ").trim();
 
 // «0.684», 1, «1 018 ₸», «5 772», «11537.00», «2,5» → число; иначе null.
 export function toNumber(v) {

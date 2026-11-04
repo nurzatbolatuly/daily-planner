@@ -1,15 +1,14 @@
-import "@testing-library/jest-dom";
 import { act, render, screen } from "@testing-library/react";
 import { TxPage } from "../TxPage";
 
-jest.mock("../../../../lib/supabase", () => ({ supabase: { from: jest.fn() }, supaRpc: jest.fn(), supaUpsert: jest.fn() }));
+vi.mock("../../../../lib/supabase", () => ({ supabase: { from: vi.fn() }, supaRpc: vi.fn(), supaUpsert: vi.fn() }));
 // Чек транзакции грузится лениво при правке (useTransactionReceipt) — чека нет.
-// Не jest.fn: в CRA resetMocks сбрасывает реализации перед каждым тестом.
-jest.mock("../../../../lib/receiptsApi", () => ({ fetchTransactionReceipt: () => Promise.resolve(null) }));
+// Не vi.fn: в CRA resetMocks сбрасывает реализации перед каждым тестом.
+vi.mock("../../../../lib/receiptsApi", () => ({ fetchTransactionReceipt: () => Promise.resolve(null) }));
 
 const accounts = [{ id: "kaspi", name: "Kaspi", currency: "KZT", balance: 1000, icon: "bank", color: "#f00" }];
 const expCats = [{ id: "rest", name: "Рестораны", icon: "eating" }];
-const props = { accounts, expCats, incCats: [], debtPeople: [{ id: "p1", name: "Бек" }], setDebtPeople: jest.fn(), onBack: jest.fn() };
+const props = { accounts, expCats, incCats: [], debtPeople: [{ id: "p1", name: "Бек" }], setDebtPeople: vi.fn(), onBack: vi.fn() };
 
 test("новый расход — без «Оплатил за других»: делить с друзьями — через «Общие расходы»", () => {
   render(<TxPage {...props}/>);

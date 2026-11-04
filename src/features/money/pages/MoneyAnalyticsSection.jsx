@@ -217,7 +217,7 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data,
         ? Math.max(monthsUntil(today, goal.deadline), 1)
         : null;
       const monthlyNeeded = monthsToDeadline && remaining > 0 ? remaining / monthsToDeadline : null;
-      return { goal, totalSaved, targetBase, remaining, monthlyNeeded, pct };
+      return { goal, totalSaved, monthlyNeeded, pct };
     }).filter(g => g.pct < 1); // скрываем выполненные цели
 
     const totalGoalsMonthlyNeeded = goalsAnalysis
@@ -642,7 +642,7 @@ export const MoneyAnalyticsSection = memo(function MoneyAnalyticsSection({ data,
               )}
 
               {/* Список целей */}
-              {yearForecast.goalsAnalysis.map(({ goal, totalSaved, targetBase, monthlyNeeded, pct }) => (
+              {yearForecast.goalsAnalysis.map(({ goal, totalSaved, monthlyNeeded, pct }) => (
                 <div key={goal.id} style={{ marginBottom: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
                     <CatIcon k={goal.icon || "target"} size={22} color={goal.color || C.blue}/>

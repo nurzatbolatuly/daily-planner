@@ -1,11 +1,10 @@
-import "@testing-library/jest-dom";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SharedGroupDetailPage } from "../SharedGroupDetailPage";
 import { SharedGroupsListPage } from "../SharedGroupsListPage";
 import { supaRpc } from "../../../../lib/supabase";
 
-jest.mock("../../../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.resolve()) }));
+vi.mock("../../../../lib/supabase", () => ({ supaRpc: vi.fn(() => Promise.resolve()) }));
 
 const group = { id: "g1", name: "Вечер 03.10", currency: "KZT", date: "2026-10-03", mode: "event" };
 const members = [
@@ -28,11 +27,11 @@ const members2 = [
 ];
 
 const renderDetail = () => {
-  const navigate = jest.fn();
-  const onReload = jest.fn(() => Promise.resolve());
+  const navigate = vi.fn();
+  const onReload = vi.fn(() => Promise.resolve());
   render(<SharedGroupDetailPage group={group} groups={[group, group2]} members={[...members, ...members2]} entries={entries} people={people}
     accounts={[{ id: "kaspi", name: "Kaspi" }]} expCats={[{ id: "rest", name: "Рестораны", icon: "eating" }]}
-    navigate={navigate} onReload={onReload} onBack={jest.fn()}/>);
+    navigate={navigate} onReload={onReload} onBack={vi.fn()}/>);
   return { navigate, onReload };
 };
 
@@ -71,7 +70,7 @@ test("§5.7: счёт, оплаченный участником, — «плат
   const treat = { id: "a1", group_id: "g1", kind: "adjust", date: "2026-10-03", member_id: "asan", reason: "treated_me", amount_group: -4000, bill_id: "b2", transfer_id: null };
   render(<SharedGroupDetailPage group={group} groups={[group]} members={members} entries={[...entries, byAsan, treat]} people={people}
     accounts={[{ id: "kaspi", name: "Kaspi" }]} expCats={[{ id: "rest", name: "Рестораны", icon: "eating" }]}
-    navigate={jest.fn()} onReload={jest.fn()} onBack={jest.fn()}/>);
+    navigate={vi.fn()} onReload={vi.fn()} onBack={vi.fn()}/>);
   expect(screen.getByText("платил Асан · 3 октября")).toBeInTheDocument();
   expect(screen.getByText("угостили меня")).toBeInTheDocument();
   expect(screen.queryByText(/угостили меня ·/)).toBeNull(); // не дублируется отдельной строкой «угощаю»
@@ -94,15 +93,15 @@ test("§7.2: «Сохранить в Люди» — все вечера с эт�
 });
 
 test("список групп: пустое состояние и строка вечера", () => {
-  const navigate = jest.fn();
-  const { rerender } = render(<SharedGroupsListPage groups={[]} members={[]} entries={[]} navigate={navigate} onBack={jest.fn()}/>);
+  const navigate = vi.fn();
+  const { rerender } = render(<SharedGroupsListPage groups={[]} members={[]} entries={[]} navigate={navigate} onBack={vi.fn()}/>);
   expect(screen.getByText("Общих расходов пока нет")).toBeInTheDocument();
   userEvent.click(screen.getByText("Туса с друзьями"));
   expect(navigate).toHaveBeenCalledWith("addSharedBill", {});
   userEvent.click(screen.getByText("Tricount"));
   expect(navigate).toHaveBeenCalledWith("addSharedGroup", { mode: "mirror" });
 
-  rerender(<SharedGroupsListPage groups={[group]} members={members} entries={entries} navigate={navigate} onBack={jest.fn()}/>);
+  rerender(<SharedGroupsListPage groups={[group]} members={members} entries={entries} navigate={navigate} onBack={vi.fn()}/>);
   expect(screen.getByText("Мне должны ₸18 000 · 1 из 2 ✓")).toBeInTheDocument();
   userEvent.click(screen.getByText("Вечер 03.10"));
   expect(navigate).toHaveBeenCalledWith("sharedGroup", { groupId: "g1" });

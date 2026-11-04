@@ -1,16 +1,17 @@
+import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import { RECEIPT_PDF_MAX_BYTES } from "../../constants/receipts";
 import { ReceiptError, RECEIPT_ERRORS } from "./normalize";
 
 // Текст PDF в браузере. pdf.js — только через import(): отдельный чанк, грузится при первом
 // PDF, как ExcelJS в utils/export.js (иначе основной бандл вырастет на мегабайт).
 // legacy-сборка — с полифиллами для старых Safari. Разбор строк — pdfRows.js (чистый, с тестами).
-// Воркер — готовый файл из public/pdfjs (scripts/copy-pdf-worker.js), НЕ через сборщик: Babel CRA
-// ломает его импортами по абсолютным путям машины сборки. Версия в имени — та же, что у библиотеки.
+// Воркер — `?url`: Vite кладёт файл в сборку как есть (без транспиляции) с хешем в имени —
+// после обновления pdfjs-dist браузер не возьмёт старый воркер из кэша.
 
 async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-    pdfjs.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL}/pdfjs/pdf.worker.${pdfjs.version}.min.mjs`;
+    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
   }
   return pdfjs;
 }

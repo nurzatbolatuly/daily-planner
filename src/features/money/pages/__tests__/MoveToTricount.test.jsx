@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SharedGroupDetailPage } from "../SharedGroupDetailPage";
@@ -6,7 +5,7 @@ import { SharedMirrorPage } from "../SharedMirrorPage";
 import { supaRpc } from "../../../../lib/supabase";
 import { todayStr } from "../../../../utils/date";
 
-jest.mock("../../../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.resolve()), supaUpsert: jest.fn() }));
+vi.mock("../../../../lib/supabase", () => ({ supaRpc: vi.fn(() => Promise.resolve()), supaUpsert: vi.fn() }));
 
 // Туса «Шашлыки»: я оплатил 29 730 на троих. Бек — из «Люди», он же в двух группах Tricount; Асан — гость.
 const tusa = { id: "t1", name: "Шашлыки", mode: "event", currency: "KZT", date: "2026-10-03" };
@@ -24,9 +23,9 @@ const people = [{ id: "p-bek", name: "Бек" }];
 const expCats = [{ id: "rest", name: "Рестораны", icon: "eating" }];
 
 const renderTusa = (groups, entries = [bill]) => {
-  const onReload = jest.fn(() => Promise.resolve());
+  const onReload = vi.fn(() => Promise.resolve());
   render(<SharedGroupDetailPage group={tusa} groups={groups} members={members} entries={entries} people={people}
-    accounts={[]} expCats={expCats} navigate={jest.fn()} onReload={onReload} onBack={jest.fn()}/>);
+    accounts={[]} expCats={expCats} navigate={vi.fn()} onReload={onReload} onBack={vi.fn()}/>);
   return { onReload };
 };
 
@@ -67,7 +66,7 @@ test("перенесённый долг в тусе — «записано в Tr
   // со стороны Tricount — то же самое
   supaRpc.mockClear();
   render(<SharedMirrorPage group={flat} members={members} entries={[bill, ...moved]} people={people} accounts={[]} expCats={expCats}
-    navigate={jest.fn()} onReload={onReload} onBack={jest.fn()}/>);
+    navigate={vi.fn()} onReload={onReload} onBack={vi.fn()}/>);
   userEvent.click(screen.getByText("Долг с тусы «Шашлыки»"));
   expect(screen.getByText("Отменить перенос с тусы?")).toBeInTheDocument();
   userEvent.click(screen.getAllByRole("button", { name: "Отменить" }).pop());

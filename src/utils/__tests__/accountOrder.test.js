@@ -1,7 +1,7 @@
 import { supaRpc } from "../../lib/supabase";
 import { sortByIds, withSortOrder, migrateLegacyOrder } from "../accountOrder";
 
-jest.mock("../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.resolve()) }));
+vi.mock("../../lib/supabase", () => ({ supaRpc: vi.fn(() => Promise.resolve()) }));
 
 const acc = ids => ids.map(id => ({ id }));
 const ids = list => list.map(a => a.id);
@@ -31,7 +31,7 @@ test("migrateLegacyOrder: переносит порядок в БД и удал�
 });
 
 test("migrateLegacyOrder: ошибка записи — порядок применён локально, ключ остаётся для повтора", async () => {
-  jest.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
   supaRpc.mockRejectedValueOnce(new Error("offline"));
   localStorage.setItem("accountOrder", JSON.stringify(["b", "a"]));
   expect(ids(await migrateLegacyOrder(acc(["a", "b"])))).toEqual(["b", "a"]);

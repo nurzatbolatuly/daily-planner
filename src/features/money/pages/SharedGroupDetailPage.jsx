@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { C } from "../../../constants/theme";
 import { SHARED_ENTRY_KINDS as K, SHARED_ADJUST_REASONS as R, SHARED_TRANSFER_METHODS as M } from "../../../constants/money";
 import { PageHeader } from "../../../components/PageHeader";
-import { Spinner } from "../../../components/Spinner";
+import { LoadingScreen } from "../../../components/LoadingScreen";
 import { Ico } from "../../../components/Ico";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { supaRpc } from "../../../lib/supabase";
@@ -84,7 +84,7 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
   };
 
   // Группа только что создана и стор ещё перезагружается.
-  if (!group) return <div style={{ background:C.monBg, minHeight:"calc(100dvh - var(--app-header-h))" }}><Spinner color={C.green}/></div>;
+  if (!group) return <LoadingScreen/>;
 
   const labelOf = m => memberLabel(m, { people, members });
   // Куда можно перенести долг человека («Записать в Tricount»): его группы Tricount той же валюты.

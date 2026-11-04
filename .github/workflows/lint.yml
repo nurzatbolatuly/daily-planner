@@ -1,0 +1,110 @@
+# Проверки на каждый PR и пуш в main, независимые задачи:
+#   eslint       — JS/JSX фронта (eslint.config.js, как `make lint` локально);
+#   test         — тесты (Vitest) и продакшен-сборка (Vite), как `make test build`;
+#   deno         — Edge Functions в supabase/functions (Deno, не Node);
+#   super-linter — всё остальное: CSS, HTML, SQL-миграции, YAML, JSON, Markdown, workflows, секреты.
+# Конфиги линтеров Super-Linter — в .github/linters.
+# Экшены закреплены по SHA (версия — в комментарии): теги можно перевесить, SHA — нет.
+---
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eslint:
+    name: ESLint (src)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: make lint
+
+  test:
+    name: Тесты и сборка
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      # Секреты не нужны: тесты мокают Supabase, сборка проверяет только, что бандл собирается.
+      - run: make test
+      - run: make build
+
+  deno:
+    name: Deno (supabase/functions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.9.x
+      - run: deno lint supabase/functions
+      # Точки входа функций; _shared проверяется через их импорты.
+      - run: deno check supabase/functions/*/index.ts
+
+  super-linter:
+    name: Super-Linter
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+      # Отдельный статус на каждый линтер в PR.
+      statuses: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Super-Linter строит список файлов по истории git.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: super-linter/super-linter/slim@2da136927bd4a73596db63044b504547c62cb854 # v9.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENABLE_GITHUB_PULL_REQUEST_SUMMARY_COMMENT: false
+          # Сторонние данные для тестов (страницы и JSON чеков) и lock-файл — не наш код.
+          FILTER_REGEX_EXCLUDE: (^|/)(package-lock\.json|__tests__/fixtures/.*)$|^\.idea/
+          # Явный список: новые линтеры при обновлении образа не включатся сами.
+          # JS/JSX/TS здесь не проверяем: у фронта свой eslint.config.js (задача eslint),
+          # у Edge Functions — deno lint (задача deno).
+          VALIDATE_CSS: true
+          VALIDATE_HTML: true
+          VALIDATE_SQLFLUFF: true
+          VALIDATE_JSON: true
+          VALIDATE_YAML: true
+          VALIDATE_MARKDOWN: true
+          VALIDATE_GITHUB_ACTIONS: true
+          VALIDATE_GITHUB_ACTIONS_ZIZMOR: true
+          VALIDATE_GITLEAKS: true
+          VALIDATE_GIT_MERGE_CONFLICT_MARKERS: true
+          VALIDATE_SPELL_CODESPELL: true

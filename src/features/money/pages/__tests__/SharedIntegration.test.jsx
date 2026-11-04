@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CatTxsPageMon } from "../CatTxsPageMon";
@@ -9,7 +8,7 @@ import { TxHistoryRow } from "../../components/TxHistoryRow";
 import { buildPersonalTransactions } from "../../../../utils/personalTransactions";
 import { buildSharedTxIndex } from "../../../../utils/txBadges";
 
-jest.mock("../../../../lib/supabase", () => ({ supabase: { from: jest.fn() }, supaRpc: jest.fn(), supaUpsert: jest.fn() }));
+vi.mock("../../../../lib/supabase", () => ({ supabase: { from: vi.fn() }, supaRpc: vi.fn(), supaUpsert: vi.fn() }));
 
 // §5.8: ужин 36 000 оплатил я с Kaspi, бильярд 12 000 — Асан. Бек (из «Люди») — компашка × 3.
 const group = { id: "g1", name: "Вечер 03.10", mode: "event", currency: "KZT", date: "2026-10-03" };
@@ -31,9 +30,9 @@ const index = buildSharedTxIndex({ sharedGroups: [group], sharedMembers: members
 
 test("§11.1: категория показывает мою долю, полную сумму и виртуальную строку «платил Асан»", () => {
   const personal = buildPersonalTransactions({ transactions, sharedGroups: [group], sharedMembers: members, sharedEntries: entries });
-  const navigate = jest.fn();
+  const navigate = vi.fn();
   render(<CatTxsPageMon cat={{ id: "rest", name: "Рестораны" }} txs={personal} rawById={new Map(transactions.map(t => [t.id, t]))} sharedTxIndex={index}
-    periodLabel="Октябрь" txType="expense" accounts={accounts} navigate={navigate} onBack={jest.fn()}/>);
+    periodLabel="Октябрь" txType="expense" accounts={accounts} navigate={navigate} onBack={vi.fn()}/>);
   expect(screen.getByText("всего ₸36 000")).toBeInTheDocument();
   expect(screen.getByText("Kaspi · Общие · Вечер 03.10")).toBeInTheDocument();
   expect(screen.getByText("Вечер 03.10 · платил Асан")).toBeInTheDocument();
@@ -51,15 +50,15 @@ test("§11.4: строка истории без категории с бейд�
 
 test("§11.6: в «Долгах» у Бека — отдельная строка долга в общих группах", () => {
   render(<DebtsListPage debtPeople={people} debtEvents={[]} accounts={accounts} sharedGroups={[group]} sharedMembers={members} sharedEntries={entries}
-    navigate={jest.fn()} onBack={jest.fn()}/>);
+    navigate={vi.fn()} onBack={vi.fn()}/>);
   expect(screen.getByText("в расчёте")).toBeInTheDocument();                         // личный NET — 0
   expect(screen.getByText("+ ₸18 000 в общих группах")).toBeInTheDocument();          // ужин × 3; бильярд Бек должен Асану, не мне
 });
 
 test("§11.5: карточка Бека — блок «Общие группы» с переходом в вечер", () => {
-  const navigate = jest.fn();
+  const navigate = vi.fn();
   render(<DebtPersonDetailPage person={people[0]} people={people} debtEvents={[]} sharedGroups={[group]} sharedMembers={members} sharedEntries={entries}
-    accounts={accounts} transactions={transactions} navigate={navigate} onReload={jest.fn()} onBack={jest.fn()}/>);
+    accounts={accounts} transactions={transactions} navigate={navigate} onReload={vi.fn()} onBack={vi.fn()}/>);
   expect(screen.getByText("Общие группы")).toBeInTheDocument();
   expect(screen.getByText("должен ₸18 000")).toBeInTheDocument();
   userEvent.click(screen.getByText("Вечер 03.10"));
@@ -67,8 +66,8 @@ test("§11.5: карточка Бека — блок «Общие группы»
 });
 
 test("§12.1: общие итоги по группам и разбивка по людям и гостям", () => {
-  const navigate = jest.fn();
-  render(<SharedGroupsListPage groups={[group]} members={members} entries={entries} people={people} accounts={accounts} navigate={navigate} onBack={jest.fn()}/>);
+  const navigate = vi.fn();
+  render(<SharedGroupsListPage groups={[group]} members={members} entries={entries} people={people} accounts={accounts} navigate={navigate} onBack={vi.fn()}/>);
   userEvent.click(screen.getByLabelText("Кто кому должен"));
   expect(screen.getByText("Бек")).toBeInTheDocument();
   expect(screen.getByText("Асан")).toBeInTheDocument();
@@ -83,6 +82,6 @@ test("«Долги»: участники группы Tricount не получа
   const food = { id: "food", group_id: "f1", kind: "bill", date: "2026-10-05", payer_member_id: "me2", amount: 6000, amount_group: 6000,
     shares: [sh("me2", 3000), sh("bek2", 3000)] };
   render(<DebtsListPage debtPeople={people} debtEvents={[]} accounts={accounts} sharedGroups={[flat]} sharedMembers={ms} sharedEntries={[food]}
-    navigate={jest.fn()} onBack={jest.fn()}/>);
+    navigate={vi.fn()} onBack={vi.fn()}/>);
   expect(screen.queryByText(/в общих группах/)).toBeNull();
 });

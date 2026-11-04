@@ -64,7 +64,7 @@ export function CalendarPicker({ mode="single", value, valueEnd, onChange, onCha
   const handleDay = (d) => {
     const key = dk(d);
     if (mode === "single") { onChange(key); onClose?.(); return; }
-    if (!value || (value && valueEnd)) { onChange(key); onChangeEnd?.(""); }
+    if (!value || valueEnd) { onChange(key); onChangeEnd?.(""); }
     else if (key > value) { onChangeEnd?.(key); if (!confirmable) onClose?.(); }
     else                  { onChange(key); onChangeEnd?.(""); }
   };

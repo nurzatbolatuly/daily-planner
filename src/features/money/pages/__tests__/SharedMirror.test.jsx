@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SharedPurchaseFormPage } from "../SharedPurchaseFormPage";
@@ -10,7 +9,7 @@ import { supaRpc, supaUpsert } from "../../../../lib/supabase";
 import { todayStr } from "../../../../utils/date";
 import { shiftMonth } from "../../../../utils/sharedMirrorSave";
 
-jest.mock("../../../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.resolve()), supaUpsert: jest.fn(() => Promise.resolve()) }));
+vi.mock("../../../../lib/supabase", () => ({ supaRpc: vi.fn(() => Promise.resolve()), supaUpsert: vi.fn(() => Promise.resolve()) }));
 
 // §5.1: квартира с пацанами, поровну на 4. Даты — в текущем месяце, чтобы тест не зависел от дня запуска.
 const month = todayStr().slice(0, 7);
@@ -41,9 +40,9 @@ const chooseMethod = label => { userEvent.click(screen.getByLabelText("Как д
 
 describe("покупка", () => {
   const renderPurchase = props => {
-    const onSaved = jest.fn();
+    const onSaved = vi.fn();
     render(<SharedPurchaseFormPage group={flat} members={members} entries={october} accounts={[kaspi]} transactions={[]}
-      expCats={expCats} people={people} setPeople={jest.fn()} onBack={jest.fn()} onSaved={onSaved} {...props}/>);
+      expCats={expCats} people={people} setPeople={vi.fn()} onBack={vi.fn()} onSaved={onSaved} {...props}/>);
     return { onSaved };
   };
   const shareOf = (p, id) => p.entries[0].shares.find(x => x.member_id === id)?.amount;
@@ -117,9 +116,9 @@ describe("покупка", () => {
   const foodTx = { id: "tx-food", type: "expense", amount: 40000, currency: "KZT", category_id: "food", account_id: "kaspi", date: `${month}-05`, note: "Продукты · Квартира" };
   const foodEntry = { ...october[1], shares: ["me", "dima", "askhat", "erlan"].map(id => ({ member_id: id, heads: 1, mode: "auto", amount: 10000 })) };
   const editFood = async change => {
-    const onSaved = jest.fn();
+    const onSaved = vi.fn();
     render(<SharedPurchaseFormPage group={flat} entry={foodEntry} members={members} entries={october} accounts={[kaspi]} transactions={[foodTx]}
-      expCats={expCats} people={people} setPeople={jest.fn()} onBack={jest.fn()} onSaved={onSaved}/>);
+      expCats={expCats} people={people} setPeople={vi.fn()} onBack={vi.fn()} onSaved={onSaved}/>);
     change();
     userEvent.click(screen.getByText("Сохранить"));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
@@ -248,9 +247,9 @@ describe("покупка", () => {
       shares: [{ member_id: "me", heads: 1, mode: "amount", value: 3000, fee: 500, amount: 3500 },
                { member_id: "dima", heads: 1, mode: "amount", value: 4000, fee: 500, amount: 4500 },
                { member_id: "askhat", heads: 1, mode: "amount", value: 3000, fee: 500, amount: 3500 }] };
-    const onSaved = jest.fn();
+    const onSaved = vi.fn();
     render(<SharedPurchaseFormPage group={flat} entry={legacy} feesSupported={false} members={members} entries={october} accounts={[kaspi]} transactions={[]}
-      expCats={expCats} people={people} setPeople={jest.fn()} onBack={jest.fn()} onSaved={onSaved}/>);
+      expCats={expCats} people={people} setPeople={vi.fn()} onBack={vi.fn()} onSaved={onSaved}/>);
     expect(screen.getByDisplayValue("Сборы")).toBeInTheDocument();
     expect(screen.getByText(/запустите в Supabase миграцию v30/)).toBeInTheDocument();
     expect(screen.getByText("Распределено ₸10 000 из ₸10 000 ✓")).toBeInTheDocument();
@@ -277,10 +276,10 @@ describe("покупка", () => {
 describe("экран квартиры", () => {
   const smallBills = [bill("bread", "me", 800, 200, "food", "08", { title: "Хлеб" }), bill("water", "dima", 1200, 300, "food", "09", { title: "Вода" })];
   const renderMirror = (entries = [...october, ...smallBills]) => {
-    const navigate = jest.fn();
-    const onReload = jest.fn(() => Promise.resolve());
+    const navigate = vi.fn();
+    const onReload = vi.fn(() => Promise.resolve());
     render(<SharedMirrorPage group={flat} members={members} entries={entries} people={people} accounts={[kaspi]} expCats={expCats}
-      navigate={navigate} onReload={onReload} onBack={jest.fn()}/>);
+      navigate={navigate} onReload={onReload} onBack={vi.fn()}/>);
     return { navigate, onReload };
   };
 
@@ -327,7 +326,7 @@ describe("экран квартиры", () => {
 });
 
 test("§5.1: перевод Диме — по умолчанию весь долг, без корректировок, баланс 0", async () => {
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<SharedMirrorTransferPage group={flat} members={members} entries={october} people={people} accounts={[kaspi]} transactions={[]} onBack={onBack}/>);
   expect(screen.getByDisplayValue("₸73 000")).toBeInTheDocument();
   expect(screen.getByText("После перевода: рассчитались ✓")).toBeInTheDocument();
@@ -339,9 +338,9 @@ test("§5.1: перевод Диме — по умолчанию весь дол
 });
 
 test("§5.1c: новая группа Tricount — соседи и начальный баланс одним вызовом", async () => {
-  const onCreated = jest.fn();
+  const onCreated = vi.fn();
   render(<SharedGroupFormPage group={null} createMode="mirror" data={{ groups: [], members: [], entries: [], transactions: [], debtEvents: [], accounts: [kaspi] }}
-    people={people} setPeople={jest.fn()} cats={expCats} expCats={expCats} onBack={jest.fn()} onDeleted={jest.fn()} onCreated={onCreated}/>);
+    people={people} setPeople={vi.fn()} cats={expCats} expCats={expCats} onBack={vi.fn()} onDeleted={vi.fn()} onCreated={onCreated}/>);
   expect(screen.getByText("Новая группа Tricount")).toBeInTheDocument();
   expect(screen.queryByText("Категория мелочей")).toBeNull();                  // при создании — без выбора категории
   userEvent.type(screen.getByPlaceholderText("Например, Квартира"), "Квартира");
@@ -362,9 +361,9 @@ test("§5.1c: новая группа Tricount — соседи и началь�
 
 test("настройки квартиры: правка начального баланса — в том же вызове", async () => {
   const opening = { id: "o1", group_id: "f1", kind: "opening", date: `${month}-01`, amount: -20000, amount_group: -20000 };
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<SharedGroupFormPage group={flat} data={{ groups: [flat], members, entries: [opening], transactions: [], debtEvents: [], accounts: [kaspi] }}
-    people={people} setPeople={jest.fn()} cats={expCats} expCats={expCats} onBack={onBack} onDeleted={jest.fn()}/>);
+    people={people} setPeople={vi.fn()} cats={expCats} expCats={expCats} onBack={onBack} onDeleted={vi.fn()}/>);
   const input = screen.getByLabelText("Начальный баланс");
   expect(input).toHaveValue("₸20 000");
   userEvent.clear(input);
@@ -375,8 +374,8 @@ test("настройки квартиры: правка начального б�
 });
 
 test("§12.1: Tricount в списке — баланс с группой и метка; в шторке — два типа", () => {
-  const navigate = jest.fn();
-  render(<SharedGroupsListPage groups={[flat]} members={members} entries={october} navigate={navigate} onBack={jest.fn()}/>);
+  const navigate = vi.fn();
+  render(<SharedGroupsListPage groups={[flat]} members={members} entries={october} navigate={navigate} onBack={vi.fn()}/>);
   expect(screen.getByText("Я должен ₸73 000")).toBeInTheDocument();
   expect(screen.getByText("Tricount")).toBeInTheDocument();
   expect(screen.getByText("за месяц ₸113 000")).toBeInTheDocument();

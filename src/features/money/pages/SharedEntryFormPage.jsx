@@ -65,7 +65,7 @@ function validateBill({ needName, name, amount, categoryId, payerId, meId, membe
   return e;
 }
 
-export function SharedEntryFormPage({ group: existingGroup = null, entry = null, feesSupported = true, linkTx = null, copyFrom = null, groups = [], members: allMembers = [], entries: allEntries = [], accounts, transactions, expCats, people, setPeople, onBack, onSaved, onPayRest }) {
+export function SharedEntryFormPage({ group: existingGroup = null, entry = null, feesSupported = true, linkTx = null, copyFrom = null, members: allMembers = [], entries: allEntries = [], accounts, transactions, expCats, people, setPeople, onBack, onSaved, onPayRest }) {
   const isNewGroup = !existingGroup;
   // Привязанная транзакция: новая привязка или уже привязанный счёт при правке.
   const linked = linkTx || (entry?.linked_tx_snapshot ? transactions.find(t => t.id === entry.transaction_id) || null : null);

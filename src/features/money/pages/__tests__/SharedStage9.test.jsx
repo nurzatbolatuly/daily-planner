@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SharedEntryFormPage } from "../SharedEntryFormPage";
@@ -7,9 +6,9 @@ import { SharedGroupFormPage } from "../SharedGroupFormPage";
 import { MakeSharedButton } from "../../components/MakeSharedButton";
 import { supaRpc } from "../../../../lib/supabase";
 
-jest.mock("../../../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.resolve()), supaUpsert: jest.fn(() => Promise.resolve()) }));
+vi.mock("../../../../lib/supabase", () => ({ supaRpc: vi.fn(() => Promise.resolve()), supaUpsert: vi.fn(() => Promise.resolve()) }));
 // Карточка чека привязанной транзакции (TransactionReceiptCard) — чека нет.
-jest.mock("../../../../lib/receiptsApi", () => ({ fetchTransactionReceipt: () => Promise.resolve(null) }));
+vi.mock("../../../../lib/receiptsApi", () => ({ fetchTransactionReceipt: () => Promise.resolve(null) }));
 
 // Счёт в тенге и счёт в лирах (avg_rate даёт курс TRY → KZT для подсказки «≈»).
 const kaspi = { id: "kaspi", name: "Kaspi", currency: "KZT", balance: 100000, icon: "bank", color: "#f00" };
@@ -23,9 +22,9 @@ beforeEach(() => { supaRpc.mockClear(); localStorage.clear(); });
 describe("счёт", () => {
   const members = [{ id: "me", group_id: "g1", is_me: true, heads: 1, sort_order: 0 }, { id: "bek", group_id: "g1", guest_name: "Бек", heads: 1, sort_order: 1 }];
   const renderBill = props => {
-    const onSaved = jest.fn();
-    render(<SharedEntryFormPage group={group} groups={[group]} members={members} entries={[]} accounts={[kaspi, tryAcc]} transactions={[]}
-      expCats={expCats} people={[]} setPeople={jest.fn()} onBack={jest.fn()} onSaved={onSaved} {...props}/>);
+    const onSaved = vi.fn();
+    render(<SharedEntryFormPage group={group} members={members} entries={[]} accounts={[kaspi, tryAcc]} transactions={[]}
+      expCats={expCats} people={[]} setPeople={vi.fn()} onBack={vi.fn()} onSaved={onSaved} {...props}/>);
     return { onSaved };
   };
 
@@ -83,7 +82,7 @@ describe("счёт", () => {
   });
 
   test("из правки своего счёта — кнопка «Доплатил с другого счёта»", () => {
-    const onPayRest = jest.fn();
+    const onPayRest = vi.fn();
     const entry = { id: "b1", group_id: "g1", kind: "bill", date: "2026-10-03", currency: "KZT", category_id: "rest", amount: 1000, amount_group: 1000,
       payer_member_id: "me", shares: [sh("me", 500), sh("bek", 500)] };
     renderBill({ entry, onPayRest });
@@ -94,7 +93,7 @@ describe("счёт", () => {
 
 test("«Сделать общим» недоступно при сплите «Оплатил за других»", () => {
   const tx = { id: "t1", type: "expense" };
-  const onPick = jest.fn();
+  const onPick = vi.fn();
   const { rerender } = render(<MakeSharedButton tx={tx} debtEvents={[{ transaction_id: "t1", type: "paid_for_them" }]} groups={[group]} onPick={onPick}/>);
   expect(screen.getByRole("button", { name: /Сделать общим/ })).toBeDisabled();
   expect(screen.getByText(/Сначала уберите разделение с людьми/)).toBeInTheDocument();
@@ -118,9 +117,9 @@ describe("перевод", () => {
   ];
   const people = [{ id: "p-bek", name: "Бек" }];
   const renderTransfer = props => {
-    const onBack = jest.fn();
+    const onBack = vi.fn();
     render(<SharedTransferFormPage group={group} groups={[group, g2]} memberId="bek1" direction="in" members={members} entries={entries}
-      people={people} setPeople={jest.fn()} accounts={[kaspi]} transactions={[]} debtEvents={[]} onBack={onBack} {...props}/>);
+      people={people} setPeople={vi.fn()} accounts={[kaspi]} transactions={[]} debtEvents={[]} onBack={onBack} {...props}/>);
     return { onBack };
   };
 
@@ -158,6 +157,12 @@ describe("перевод", () => {
   });
 
   test("§5.13: доход уже записан — привязка вместо новой операции", async () => {
+    // К привязке предлагаются операции ±7 дней от даты перевода (по умолчанию — сегодня):
+    // фиксируем «сегодня» рядом с доходом, иначе тест ломается с течением времени.
+    // Подменяем только Date — таймеры (waitFor, userEvent) остаются настоящими.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 5, 12));
+    onTestFinished(() => vi.useRealTimers());
     const income = { id: "i1", type: "income", amount: 22500, currency: "KZT", category_id: "gift", account_id: "kaspi", date: "2026-10-04", note: "от Бека" };
     const { onBack } = renderTransfer({ transactions: [income] });
     userEvent.click(screen.getByText("Уже записан? Выбрать транзакцию ›"));
@@ -177,9 +182,9 @@ test("смена валюты группы — предупреждение с �
   const usd = { id: "usd", name: "USD", currency: "USD", balance: 100, avg_rate: 500 };
   const members = [{ id: "me", group_id: "g1", is_me: true, sort_order: 0 }, { id: "bek", group_id: "g1", guest_name: "Бек", sort_order: 1 }];
   const entries = [{ id: "b1", group_id: "g1", kind: "bill", date: "2026-10-03", currency: "KZT", payer_member_id: "me", amount: 20000, amount_group: 20000, shares: [sh("me", 10000), sh("bek", 10000)] }];
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<SharedGroupFormPage group={group} data={{ groups: [group], members, entries, transactions: [], debtEvents: [], accounts: [kaspi, usd] }}
-    people={[]} setPeople={jest.fn()} cats={expCats} onBack={onBack} onDeleted={jest.fn()}/>);
+    people={[]} setPeople={vi.fn()} cats={expCats} onBack={onBack} onDeleted={vi.fn()}/>);
   userEvent.click(screen.getByLabelText("Валюта группы"));
   userEvent.click(screen.getByText("Доллар США"));
   expect(screen.getByText(/Долги пересчитаются по сегодняшнему курсу/)).toBeInTheDocument();

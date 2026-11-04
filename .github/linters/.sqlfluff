@@ -1,0 +1,9 @@
+# SQLFluff для supabase/migrations (Super-Linter, .github/workflows/lint.yml).
+# Проверяем разбор SQL и смысловые правила (неоднозначные JOIN/колонки, алиасы, структура).
+# Стиль (регистр, отступы, длина строк) не навязываем: схема написана в своём стиле с v1.
+# RF04/RF06: "order", "name", "type" — колонки схемы, экранированы там, где нужно.
+[sqlfluff]
+dialect = postgres
+# Миграции бывают длинными (функции plpgsql); 0 — без лимита размера файла.
+large_file_skip_byte_limit = 0
+exclude_rules = layout,capitalisation,RF04,RF06

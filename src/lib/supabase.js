@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-const SUPA_URL = process.env.REACT_APP_SUPABASE_URL;
-const SUPA_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
+const SUPA_URL = import.meta.env.REACT_APP_SUPABASE_URL;
+const SUPA_KEY = import.meta.env.REACT_APP_SUPABASE_ANON_KEY;
 
 if (!SUPA_URL || !SUPA_KEY) {
   throw new Error("Missing REACT_APP_SUPABASE_URL or REACT_APP_SUPABASE_ANON_KEY in .env");

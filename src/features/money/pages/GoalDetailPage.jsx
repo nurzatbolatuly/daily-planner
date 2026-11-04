@@ -1,9 +1,8 @@
 import { useState, useMemo, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { RU_MON_GEN } from "../../../constants/locale";
 import { daysBetween, monthsUntil, todayStr, monthKey, pad } from "../../../utils/date";
-import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts } from "../../../utils/format";
+import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts, fmtDateLong } from "../../../utils/format";
 import { supaUpsert } from "../../../lib/supabase";
 import { useSave } from "../../../hooks/useSave";
 import { PageHeader } from "../../../components/PageHeader";
@@ -15,12 +14,6 @@ import { GoalCalculator } from "../components/GoalCalculator";
 function fmtDate(s) {
   const d = new Date(s);
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function fmtDeadline(s) {
-  if (!s) return null;
-  const [y, m, d] = s.split("-").map(Number);
-  return `${d} ${RU_MON_GEN[m - 1]} ${y} г.`;
 }
 
 // transactions — «мои» расходы (data.personalTransactions, utils/personalTransactions.js):
@@ -128,7 +121,7 @@ export function GoalDetailPage({ goal: initialGoal, goalTopups = [], accounts, t
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>
               <Ico n="calendar" s={13} c={C.dim}/>
               <span style={{ fontSize: 12, color: C.dim }}>Дедлайн: </span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{fmtDeadline(initialGoal.deadline)}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{`${fmtDateLong(initialGoal.deadline)} г.`}</span>
             </div>
           )}
 

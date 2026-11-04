@@ -1,10 +1,9 @@
 import { useState, useRef } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { RU_MON_GEN } from "../../../constants/locale";
 import { GOAL_TYPES, SAVINGS_PURPOSES } from "../../../constants/money";
 import { todayStr, monthsUntil } from "../../../utils/date";
-import { fmtBal, getSym, fmtAmtAuto } from "../../../utils/format";
+import { fmtBal, getSym, fmtAmtAuto, fmtDateLong } from "../../../utils/format";
 import { supaUpsert, supabase } from "../../../lib/supabase";
 import { newId } from "../../../utils/id";
 import { useSave } from "../../../hooks/useSave";
@@ -21,12 +20,6 @@ import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { GoalCalculator } from "../components/GoalCalculator";
 
 const GOAL_ICONS = ["target", "home", "travel", "wallet", "invest", "salary", "gift", "entertainment", "unplanned", "other"];
-
-function fmtDeadline(s) {
-  if (!s) return null;
-  const [y, m, d] = s.split("-").map(Number);
-  return `${d} ${RU_MON_GEN[m - 1]} ${y} г.`;
-}
 
 export function GoalFormPage({ onBack, onDelete, edit, accounts = [] }) {
   const isEdit = !!edit;
@@ -188,7 +181,7 @@ export function GoalFormPage({ onBack, onDelete, edit, accounts = [] }) {
         <button onClick={() => setShowCalendar(true)}
           style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", boxSizing: "border-box", background: C.monCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", color: deadline ? "#fff" : C.dim, fontSize: 14, cursor: "pointer", marginBottom: 14 }}>
           <Ico n="calendar" s={16} c={C.dim}/>
-          <span style={{ flex: 1, textAlign: "left" }}>{deadline ? fmtDeadline(deadline) : "Выбрать дату"}</span>
+          <span style={{ flex: 1, textAlign: "left" }}>{deadline ? `${fmtDateLong(deadline)} г.` : "Выбрать дату"}</span>
           {deadline && (
             <span onClick={e => { e.stopPropagation(); setDeadline(""); }} style={{ display: "flex", cursor: "pointer" }}>
               <Ico n="x" s={16} c={C.dim}/>

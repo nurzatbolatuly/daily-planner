@@ -1,22 +1,21 @@
-import "@testing-library/jest-dom";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SharedEntryFormPage } from "../SharedEntryFormPage";
 import { supaRpc } from "../../../../lib/supabase";
 
-jest.mock("../../../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.resolve()), supaUpsert: jest.fn(() => Promise.resolve()) }));
+vi.mock("../../../../lib/supabase", () => ({ supaRpc: vi.fn(() => Promise.resolve()), supaUpsert: vi.fn(() => Promise.resolve()) }));
 // Карточка чека привязанной транзакции (TransactionReceiptCard) — чека нет.
-jest.mock("../../../../lib/receiptsApi", () => ({ fetchTransactionReceipt: () => Promise.resolve(null) }));
+vi.mock("../../../../lib/receiptsApi", () => ({ fetchTransactionReceipt: () => Promise.resolve(null) }));
 
 const accounts = [{ id: "kaspi", name: "Kaspi", currency: "KZT", balance: 100000, icon: "bank", color: "#f00" }];
 const expCats = [{ id: "rest", name: "Рестораны", icon: "eating", color: "#0f0" }, { id: "bills-1", name: "Платежи", icon: "payments", color: "#00f", system_key: "bills" }];
 const people = [{ id: "p-bek", name: "Бек", color: "#123456" }];
 
 const renderForm = (props = {}) => {
-  const onSaved = jest.fn();
-  const onBack = jest.fn();
-  const view = render(<SharedEntryFormPage groups={[]} members={[]} accounts={accounts} transactions={[]} expCats={expCats}
-    people={people} setPeople={jest.fn()} onBack={onBack} onSaved={onSaved} {...props}/>);
+  const onSaved = vi.fn();
+  const onBack = vi.fn();
+  const view = render(<SharedEntryFormPage members={[]} accounts={accounts} transactions={[]} expCats={expCats}
+    people={people} setPeople={vi.fn()} onBack={onBack} onSaved={onSaved} {...props}/>);
   return { onSaved, onBack, ...view };
 };
 

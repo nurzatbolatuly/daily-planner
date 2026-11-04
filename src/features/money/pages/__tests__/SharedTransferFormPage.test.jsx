@@ -1,10 +1,9 @@
-import "@testing-library/jest-dom";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SharedTransferFormPage } from "../SharedTransferFormPage";
 import { supaRpc } from "../../../../lib/supabase";
 
-jest.mock("../../../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.resolve()) }));
+vi.mock("../../../../lib/supabase", () => ({ supaRpc: vi.fn(() => Promise.resolve()) }));
 
 const group = { id: "g1", name: "Вечер 03.10", currency: "KZT", date: "2026-10-03" };
 const members = [
@@ -18,7 +17,7 @@ const dinner = { id: "b1", group_id: "g1", kind: "bill", date: "2026-10-03", tit
   shares: [sh("me", 9910), sh("asan", 9910), sh("bek", 9910)] };
 
 const renderForm = (props) => {
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<SharedTransferFormPage group={group} members={members} entries={[dinner]} people={[]} accounts={accounts} transactions={[]}
     direction="in" onBack={onBack} {...props}/>);
   return { onBack };
@@ -45,7 +44,7 @@ test("§5.2: Асан прислал 10 000 — по умолчанию окру
 test("компашка × 3: кнопки «за 1 / за 2 / за всех», недоплата — по умолчанию долг остаётся", async () => {
   const bekDinner = { ...dinner, shares: [sh("me", 6000), sh("bek", 18000, 3)], amount: 24000, amount_group: 24000 };
   render(<SharedTransferFormPage group={group} memberId="bek" direction="in" members={members} entries={[bekDinner]} people={[]}
-    accounts={accounts} transactions={[]} onBack={jest.fn()}/>);
+    accounts={accounts} transactions={[]} onBack={vi.fn()}/>);
   expect(screen.getByText("за 1 · ₸6 000")).toBeInTheDocument();
   expect(screen.getByText("за всех · ₸18 000")).toBeInTheDocument();
   userEvent.click(screen.getByText("за 2 · ₸12 000"));
@@ -60,7 +59,7 @@ test("компашка × 3: кнопки «за 1 / за 2 / за всех», �
 
 test("аванс: перевод до счетов — без вариантов закрытия", () => {
   render(<SharedTransferFormPage group={group} memberId="asan" direction="in" members={members} entries={[]} people={[]}
-    accounts={accounts} transactions={[]} onBack={jest.fn()}/>);
+    accounts={accounts} transactions={[]} onBack={vi.fn()}/>);
   userEvent.type(screen.getByPlaceholderText("0"), "5000");
   expect(screen.getByText(/сохранится как аванс/)).toBeInTheDocument();
   expect(screen.queryByRole("radio")).toBeNull();

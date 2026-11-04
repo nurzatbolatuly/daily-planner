@@ -148,6 +148,12 @@ export function calcCatDelta(transactions, expCats, accounts) {
   }));
 }
 
+// "2026-11-04" → "4 ноября 2026" (группы ленты, дедлайны целей). Без Date — не зависит от часового пояса.
+export const fmtDateLong = s => {
+  const [y, m, d] = s.split("-").map(Number);
+  return `${d} ${RU_MON_GEN[m - 1]} ${y}`;
+};
+
 export function fmtDateShort(s) {
   const d = new Date(s), t = new Date(), yesterday = new Date(t);
   yesterday.setDate(t.getDate()-1);

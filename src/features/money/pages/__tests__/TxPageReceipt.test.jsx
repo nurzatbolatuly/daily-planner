@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom";
 import fs from "fs";
 import path from "path";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
@@ -12,10 +11,10 @@ import { buildReceiptSave } from "../../../../utils/receipts/receiptSave";
 
 // Блок «Чек» в форме транзакции (docs/receipts.md §3, этап 4). Сеть и БД мокаются: разбор —
 // настоящий, на обезличенной фикстуре чека Magnum GO (Kaspi).
-jest.mock("../../../../lib/supabase", () => ({ supabase: { from: jest.fn() }, supaRpc: jest.fn(), supaUpsert: jest.fn() }));
-jest.mock("../../../../lib/receiptProxy", () => ({ loadReceiptFromLink: jest.fn() }));
-jest.mock("../../../../lib/receiptsApi", () => ({
-  fetchTransactionReceipt: jest.fn(), findReceiptOwner: jest.fn(), saveReceipt: jest.fn(), deleteReceipt: jest.fn(), fetchCatalogIndex: jest.fn(),
+vi.mock("../../../../lib/supabase", () => ({ supabase: { from: vi.fn() }, supaRpc: vi.fn(), supaUpsert: vi.fn() }));
+vi.mock("../../../../lib/receiptProxy", () => ({ loadReceiptFromLink: vi.fn() }));
+vi.mock("../../../../lib/receiptsApi", () => ({
+  fetchTransactionReceipt: vi.fn(), findReceiptOwner: vi.fn(), saveReceipt: vi.fn(), deleteReceipt: vi.fn(), fetchCatalogIndex: vi.fn(),
 }));
 
 const LINK = "https://receipt.kaspi.kz/web/fiscal?i=000000000101&f=000000000202&s=5772&t=2026-07-14+13:07:50.871995";
@@ -32,11 +31,11 @@ const accounts = [{ id: "kaspi", name: "Kaspi", currency: "KZT", balance: 100000
 const FX_LOSS = { id: "fx-1", name: "Курсовая разница", icon: "investment", system_key: "fx_loss" };
 const expCats = [{ id: "food", name: "Продукты", icon: "groceries" }, FX_LOSS];
 const incCats = [{ id: "salary", name: "Зарплата", icon: "salary" }];
-const base = { accounts, expCats, incCats, debtPeople: [], setDebtPeople: jest.fn() };
+const base = { accounts, expCats, incCats, debtPeople: [], setDebtPeople: vi.fn() };
 const expense = { id: "t1", type: "expense", amount: 5772, currency: "KZT", category_id: "food", account_id: "kaspi", date: "2026-07-14", note: "" };
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   supaRpc.mockResolvedValue(null);
   // правка расхода пересобирает debt_events (TxPage) — цепочка запроса
   const query = { eq: () => Promise.resolve({ error: null }) };
@@ -66,7 +65,7 @@ const pickAccountAndCategory = () => {
 };
 
 test("новый расход: ссылка → предпросмотр → сумма и дата из чека → чек пишется к той же транзакции", async () => {
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<TxPage {...base} onBack={onBack}/>);
   pickAccountAndCategory();
   await attachByLink();
@@ -83,7 +82,7 @@ test("новый расход: ссылка → предпросмотр → с�
 });
 
 test("сумму уже ввели — не перезаписывается, расхождение видно", async () => {
-  render(<TxPage {...base} onBack={jest.fn()}/>);
+  render(<TxPage {...base} onBack={vi.fn()}/>);
   userEvent.type(screen.getByPlaceholderText("0"), "5700");
   await attachByLink();
   expect(screen.getByDisplayValue("5 700")).toBeInTheDocument();
@@ -92,8 +91,8 @@ test("сумму уже ввели — не перезаписывается, р
 
 test("чек уже прикреплён к другому расходу — ошибка и переход к нему, предпросмотра нет", async () => {
   findReceiptOwner.mockResolvedValue({ transaction_id: "t-other", transactions: { date: "2026-07-14", amount: 5772, currency: "KZT" } });
-  const onOpenTransaction = jest.fn();
-  render(<TxPage {...base} onBack={jest.fn()} onOpenTransaction={onOpenTransaction}/>);
+  const onOpenTransaction = vi.fn();
+  render(<TxPage {...base} onBack={vi.fn()} onOpenTransaction={onOpenTransaction}/>);
   userEvent.click(screen.getByText(/Ссылка из QR/));
   userEvent.type(screen.getByRole("textbox", { name: "Ссылка на чек" }), LINK);
   userEvent.click(screen.getByText("Загрузить"));
@@ -105,7 +104,7 @@ test("чек уже прикреплён к другому расходу — о
 
 test("правка: сохранённый чек виден; «Убрать чек» → delete_receipt при сохранении", async () => {
   fetchTransactionReceipt.mockResolvedValue(storedRow("t1"));
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<TxPage {...base} edit={expense} onBack={onBack}/>);
   expect(fetchTransactionReceipt).toHaveBeenCalledWith("t1");
   userEvent.click(await screen.findByText(/Magnum GO · 7 позиций/));
@@ -119,7 +118,7 @@ test("правка: сохранённый чек виден; «Убрать ч�
 });
 
 test("правка без чека и без изменений чека — ни одного запроса к чекам при сохранении", async () => {
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<TxPage {...base} edit={expense} onBack={onBack}/>);
   await waitFor(() => expect(fetchTransactionReceipt).toHaveBeenCalled());
   userEvent.click(screen.getByText("Сохранить"));
@@ -130,7 +129,7 @@ test("правка без чека и без изменений чека — н�
 
 test("сменили тип на доход — предупреждение, чек откреплён при сохранении", async () => {
   fetchTransactionReceipt.mockResolvedValue(storedRow("t1"));
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<TxPage {...base} edit={expense} onBack={onBack}/>);
   await screen.findByText(/Magnum GO · 7 позиций/);
   userEvent.click(screen.getByText("ДОХОДЫ"));
@@ -144,7 +143,7 @@ test("сменили тип на доход — предупреждение, ч
 
 test("транзакция сохранилась, чек нет — «Повторить» пишет только чек к той же транзакции", async () => {
   saveReceipt.mockRejectedValueOnce(new Error("Чек уже прикреплён к другому расходу"));
-  const onBack = jest.fn();
+  const onBack = vi.fn();
   render(<TxPage {...base} onBack={onBack}/>);
   pickAccountAndCategory();
   await attachByLink();
@@ -162,14 +161,14 @@ test("транзакция сохранилась, чек нет — «Повт�
 });
 
 test("системная категория (курсовая разница) — блока «Чек» нет", async () => {
-  render(<TxPage {...base} edit={{ ...expense, category_id: FX_LOSS.id }} onBack={jest.fn()}/>);
+  render(<TxPage {...base} edit={{ ...expense, category_id: FX_LOSS.id }} onBack={vi.fn()}/>);
   await act(() => Promise.resolve());
   expect(screen.queryByText(/Ссылка из QR/)).toBeNull();
 });
 
 describe("каталог в предпросмотре (этап 5)", () => {
   const openPreview = async () => {
-    render(<TxPage {...base} onBack={jest.fn()}/>);
+    render(<TxPage {...base} onBack={vi.fn()}/>);
     userEvent.click(screen.getByText(/Ссылка из QR/));
     userEvent.type(screen.getByRole("textbox", { name: "Ссылка на чек" }), LINK);
     userEvent.click(screen.getByText("Загрузить"));
@@ -227,7 +226,7 @@ describe("категории в предпросмотре (§7.7)", () => {
   const categories = [{ id: "dairy", name: "Молочные" }, { id: "home", name: "Для дома" }];
   const catalog = { products: [{ id: "p0", name: "Творог «Простоквашино» 9%", kind: "Творог", category_id: "dairy", name_confirmed: true }], links: [], categories };
   const openPreview = async () => {
-    render(<TxPage {...base} onBack={jest.fn()}/>);
+    render(<TxPage {...base} onBack={vi.fn()}/>);
     userEvent.click(screen.getByText(/Ссылка из QR/));
     userEvent.type(screen.getByRole("textbox", { name: "Ссылка на чек" }), LINK);
     userEvent.click(screen.getByText("Загрузить"));

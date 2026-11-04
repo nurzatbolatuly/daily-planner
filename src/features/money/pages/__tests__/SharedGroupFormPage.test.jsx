@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SharedGroupFormPage } from "../SharedGroupFormPage";
@@ -6,7 +5,7 @@ import { SharedGroupDetailPage } from "../SharedGroupDetailPage";
 import { SharedGroupsListPage } from "../SharedGroupsListPage";
 import { supaRpc } from "../../../../lib/supabase";
 
-jest.mock("../../../../lib/supabase", () => ({ supaRpc: jest.fn(() => Promise.resolve()), supaUpsert: jest.fn(() => Promise.resolve()) }));
+vi.mock("../../../../lib/supabase", () => ({ supaRpc: vi.fn(() => Promise.resolve()), supaUpsert: vi.fn(() => Promise.resolve()) }));
 
 // Вечер §5.2: ужин 29 730 оплатил я с Kaspi; Асан вернул 9 910, Бек должен 9 910; Даурен ни в чём не участвует.
 const group = { id: "g1", name: "Вечер 03.10", currency: "KZT", date: "2026-10-03", mode: "event", archived: false };
@@ -28,9 +27,9 @@ const cats = [{ id: "rest", name: "Рестораны", icon: "eating" }];
 const data = { groups: [group], members, entries, transactions, debtEvents: [], accounts };
 
 const renderForm = (extra = {}) => {
-  const onBack = jest.fn();
-  const onDeleted = jest.fn();
-  render(<SharedGroupFormPage group={group} data={data} people={[]} setPeople={jest.fn()} cats={cats} onBack={onBack} onDeleted={onDeleted} {...extra}/>);
+  const onBack = vi.fn();
+  const onDeleted = vi.fn();
+  render(<SharedGroupFormPage group={group} data={data} people={[]} setPeople={vi.fn()} cats={cats} onBack={onBack} onDeleted={onDeleted} {...extra}/>);
   return { onBack, onDeleted };
 };
 
@@ -107,9 +106,9 @@ test("§7.6: «В архив» из удаления — шторка закры
 });
 
 test("§12.3: экран тусы — «Закрыть группу», по умолчанию долги остаются", async () => {
-  const onReload = jest.fn(() => Promise.resolve());
+  const onReload = vi.fn(() => Promise.resolve());
   render(<SharedGroupDetailPage group={group} groups={[group]} members={members} entries={entries} people={[]}
-    accounts={accounts} expCats={cats} navigate={jest.fn()} onReload={onReload} onBack={jest.fn()}/>);
+    accounts={accounts} expCats={cats} navigate={vi.fn()} onReload={onReload} onBack={vi.fn()}/>);
   userEvent.click(screen.getByText("Закрыть группу"));
   userEvent.click(screen.getByRole("button", { name: "В архив" }));
   await waitFor(() => expect(onReload).toHaveBeenCalled());
@@ -120,7 +119,7 @@ test("§12.1: архив свёрнут внизу списка, группы с
   const archived = { ...group, id: "g2", name: "Вечер 01.09", archived: true };
   const ms2 = members.map(m => ({ ...m, id: `${m.id}2`, group_id: "g2" }));
   const es2 = [{ ...entries[0], id: "b2", group_id: "g2", payer_member_id: "me2", transaction_id: null, shares: [sh("me2", 9910), sh("asan2", 9910), sh("bek2", 9910)] }];
-  render(<SharedGroupsListPage groups={[group, archived]} members={[...members, ...ms2]} entries={[...entries, ...es2]} navigate={jest.fn()} onBack={jest.fn()}/>);
+  render(<SharedGroupsListPage groups={[group, archived]} members={[...members, ...ms2]} entries={[...entries, ...es2]} navigate={vi.fn()} onBack={vi.fn()}/>);
   expect(screen.queryByText("Вечер 01.09")).toBeNull();
   expect(screen.getByText("· 1 с долгом")).toBeInTheDocument();
   userEvent.click(screen.getByText(/Архив \(1\)/));

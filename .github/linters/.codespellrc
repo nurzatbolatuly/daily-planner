@@ -1,0 +1,6 @@
+# codespell (Super-Linter). Проверяет только английский — опечатки в коде и комментариях.
+[codespell]
+check-hidden =
+skip = package-lock.json,*/package-lock.json,*.log,.git
+# Не опечатки: ZAR — код валюты, остальное — имена переменных.
+ignore-words-list = zar,labelin,sav,accrate,nd,startd,alle

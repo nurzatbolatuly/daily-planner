@@ -526,7 +526,7 @@ export async function exportTransactionsXLSX({ txs, catData, cats, accounts, txT
     { label: "% кол-ва",         align: "center" },
     { label: "Валюта счёта",     align: "center" },
   ]);
-  Object.entries(byAcc).sort((a, b) => b[1].total - a[1].total).forEach(([id, v], idx) => {
+  Object.values(byAcc).sort((a, b) => b.total - a.total).forEach((v, idx) => {
     const bg  = idx % 2 === 0 ? X.white : accentBg;
     [v.label, v.cnt, v.total, pctStr(v.cnt, txs.length), v.currency || "—"].forEach((val, ci) => {
       const cell = ws1.getCell(r, ci + 1);

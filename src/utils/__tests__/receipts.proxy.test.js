@@ -6,7 +6,7 @@ import { loadReceiptFromLink } from "../../lib/receiptProxy";
 import { RECEIPT_ERRORS } from "../receipts";
 
 // Этап 3: клиент прокси чеков. supabase мокается — функция проверена отдельно (docs/receipts.md §10).
-jest.mock("../../lib/supabase", () => ({ supabase: { functions: { invoke: jest.fn() } } }));
+vi.mock("../../lib/supabase", () => ({ supabase: { functions: { invoke: vi.fn() } } }));
 
 const KASPI = "https://receipt.kaspi.kz/web/fiscal?i=000000000101&f=000000000202&s=5772&t=2026-07-14+13:07:50.871995";
 const html = fs.readFileSync(path.join(__dirname, "fixtures/receipts/kaspi-magnum.html"), "utf8");

@@ -6,7 +6,7 @@ import { PageHeader } from "../../../components/PageHeader";
 import { FieldLabel } from "../../../components/FieldLabel";
 import { CalendarPicker } from "../../../components/CalendarPicker";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
-import { Spinner } from "../../../components/Spinner";
+import { LoadingScreen } from "../../../components/LoadingScreen";
 import { Ico } from "../../../components/Ico";
 import { CurrencyPage } from "../../../components/CurrencyPage";
 import { supaRpc } from "../../../lib/supabase";
@@ -81,7 +81,7 @@ export function SharedGroupFormPage({ group: savedGroup, createMode = null, data
   const { save: execRestore, saving: restoring, saveError: restoreError } = useSave(() => restoreRef.current(), { errorMsg: "Не удалось вернуть из архива" });
 
   // Группа удалена или стор перезагружается.
-  if (!group) return <div style={{ background:C.monBg, minHeight:"calc(100dvh - var(--app-header-h))" }}><Spinner color={C.green}/></div>;
+  if (!group) return <LoadingScreen/>;
 
   const savedById = new Map(savedMembers.map(m => [m.id, m]));
   const isChanged = m => !savedById.has(m.id) || MEMBER_FIELDS.some(k => (savedById.get(m.id)[k] ?? null) !== (m[k] ?? null));

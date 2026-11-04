@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useLayoutEffect, useMemo } from "react";
 import { todayStr } from "../../utils/date";
 import { C } from "../../constants/theme";
-import { Spinner } from "../../components/Spinner";
+import { LoadingScreen, LoadErrorScreen } from "../../components/LoadingScreen";
+import { useScreenStack } from "../../hooks/useScreenStack";
 import { useMoneyData } from "./hooks/useMoneyData";
 import { TxPage } from "./pages/TxPage";
 import { AccPage } from "./pages/AccPage";
@@ -40,8 +41,7 @@ import { MonthlyPaymentsListPage } from "./pages/MonthlyPaymentsListPage";
 import { BillFormPage } from "./pages/BillFormPage";
 import { LoanDetailPage } from "./pages/LoanDetailPage";
 import { CashflowPage } from "./pages/CashflowPage";
-import { PlannedIncomeFormPage } from "./pages/PlannedIncomeFormPage";
-import { PlannedExpenseFormPage } from "./pages/PlannedExpenseFormPage";
+import { PlannedFormPage } from "./pages/PlannedFormPage";
 
 const MON_NAV_HEIGHT = 60;
 
@@ -69,8 +69,8 @@ export default function MoneyManagerSection() {
   // То же для Главной: выбранный период/месяц/счёт/фильтр переживают переход в catTxs и обратно.
   const [homeView, setHomeView] = useState(initialHomeView);
 
-  const [stack, setStack] = useState([]);
-  const screen = stack[stack.length - 1] || null;
+  const { reload } = data;
+  const { screen, navigate, goBack, replace: replaceScreen, pop: popScreens, reset: resetStack } = useScreenStack(reload);
 
   const navRef = useRef(null);
   const contentRef = useRef(null);
@@ -92,44 +92,24 @@ export default function MoneyManagerSection() {
   const setMonTabP    = useCallback((t) => { setMonTab(t);    localStorage.setItem("mon.tab",       t); }, []);
   const setBudgetTabP = useCallback((t) => { setBudgetTab(t); localStorage.setItem("mon.budgetTab", t); }, []);
 
-  const { reload } = data;
-  const navigate = useCallback((name, d) => setStack(s => [...s, { name, data: d }]), []);
-  const goBack = useCallback((doReload = false) => { if (doReload) reload(); setStack(s => s.slice(0, -1)); }, [reload]);
-  // Заменить текущий экран другим (с перезагрузкой данных): форма создала сущность — открываем её
-  // вместо формы, чтобы «назад» не возвращал в уже сохранённую форму.
-  const replaceScreen = useCallback((name, d) => { reload(); setStack(s => [...s.slice(0, -1), { name, data: d }]); }, [reload]);
-  // Закрыть несколько экранов сразу: удалили группу из её настроек — назад к списку, минуя её экран.
-  const popScreens = useCallback((n) => { reload(); setStack(s => s.slice(0, -n)); }, [reload]);
   // Всё, что нужно шторке удаления группы для расчёта последствий (§7.6) — одним стабильным объектом.
   const { sharedGroups, sharedMembers, sharedEntries, transactions, debtEvents, accounts } = data;
   const rawTxById = useMemo(() => new Map(transactions.map(t => [t.id, t])), [transactions]);
   const sharedData = useMemo(
     () => ({ groups: sharedGroups, members: sharedMembers, entries: sharedEntries, transactions, debtEvents, accounts }),
     [sharedGroups, sharedMembers, sharedEntries, transactions, debtEvents, accounts]);
-  const goBackToTrips = useCallback((doReload = false) => { setBudgetTabP("trips"); setMonTabP("budget"); if (doReload) reload(); setStack([]); }, [setBudgetTabP, setMonTabP, reload]);
-  const goToGoalsList = useCallback(() => { setBudgetTabP("goals"); setMonTabP("budget"); reload(); setStack([]); }, [setBudgetTabP, setMonTabP, reload]);
+  const goBackToTrips = useCallback((doReload = false) => { setBudgetTabP("trips"); setMonTabP("budget"); resetStack(doReload); }, [setBudgetTabP, setMonTabP, resetStack]);
+  const goToGoalsList = useCallback(() => { setBudgetTabP("goals"); setMonTabP("budget"); resetStack(true); }, [setBudgetTabP, setMonTabP, resetStack]);
 
-  if (data.loading) return (
-    <div style={{ background: C.monBg, minHeight: "calc(100dvh - var(--app-header-h))" }}>
-      <Spinner color={C.green}/>
-    </div>
-  );
-
-  if (data.loadError) return (
-    <div style={{ background: C.monBg, minHeight: "calc(100dvh - var(--app-header-h))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 16 }}>
-      <p style={{ margin: 0, fontSize: 15, color: C.errorLight, textAlign: "center" }}>{data.loadError}</p>
-      <button onClick={data.reload} style={{ padding: "12px 28px", borderRadius: 30, background: C.greenDim, border: `1px solid ${C.green}`, color: C.green, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-        Повторить
-      </button>
-    </div>
-  );
+  if (data.loading) return <LoadingScreen/>;
+  if (data.loadError) return <LoadErrorScreen message={data.loadError} onRetry={reload}/>;
 
   // Декларативный роутер: каждый экран — функция (d) => JSX
   if (screen) {
     const { name, data: d } = screen;
     const sharedGroupById = id => data.sharedGroups.find(g => g.id === id) || null;
     const sharedEntryForm = (group, entry = null, { linkTx = null, copyFrom = null } = {}) => (
-      <SharedEntryFormPage group={group} entry={entry} feesSupported={data.sharedSchema.fees} linkTx={linkTx} copyFrom={copyFrom} groups={data.sharedGroups} members={data.sharedMembers} entries={data.sharedEntries}
+      <SharedEntryFormPage group={group} entry={entry} feesSupported={data.sharedSchema.fees} linkTx={linkTx} copyFrom={copyFrom} members={data.sharedMembers} entries={data.sharedEntries}
         accounts={data.accounts} transactions={data.transactions} expCats={data.expCats}
         people={data.debtPeople} setPeople={data.setDebtPeople} onBack={goBack}
         onSaved={(groupId, isNewGroup) => (isNewGroup ? replaceScreen("sharedGroup", { groupId }) : goBack(true))}
@@ -225,12 +205,12 @@ export default function MoneyManagerSection() {
       menuMonthly:  ()  => <MonthlyPaymentsListPage recurring={data.recurring} loans={data.loans} accounts={data.accounts} systemCats={data.systemCats} navigate={navigate} onReload={data.reload} onBack={() => goBack(false)}/>,
       addBill:      ()  => <BillFormPage onBack={goBack}/>,
       editBill:     (d) => <BillFormPage onBack={goBack} edit={d}/>,
-      loanDetail:   (d) => <LoanDetailPage loan={data.loans.find(l => l.id === d.id) || d} accounts={data.accounts} systemCats={data.systemCats} navigate={navigate} onReload={data.reload} onBack={goBack}/>,
+      loanDetail:   (d) => <LoanDetailPage loan={data.loans.find(l => l.id === d.id) || d} accounts={data.accounts} systemCats={data.systemCats} onReload={data.reload} onBack={goBack}/>,
       cashflow:     ()  => <CashflowPage accounts={data.accounts} expCats={data.expCats} incCats={data.incCats} systemCats={data.systemCats} recurring={data.recurring} loans={data.loans} monthPlans={data.monthPlans} plannedIncomes={data.plannedIncomes} plannedExpenses={data.plannedExpenses} navigate={navigate} onReload={data.reload} onBack={() => goBack(false)}/>,
-      addPlannedIncome:  ()  => <PlannedIncomeFormPage incCats={data.incCats} onBack={goBack}/>,
-      editPlannedIncome: (d) => <PlannedIncomeFormPage incCats={data.incCats} onBack={goBack} edit={d}/>,
-      addPlannedExpense:  ()  => <PlannedExpenseFormPage expCats={data.expCats} onBack={goBack}/>,
-      editPlannedExpense: (d) => <PlannedExpenseFormPage expCats={data.expCats} onBack={goBack} edit={d}/>,
+      addPlannedIncome:   ()  => <PlannedFormPage kind="income"  cats={data.incCats} onBack={goBack}/>,
+      editPlannedIncome:  (d) => <PlannedFormPage kind="income"  cats={data.incCats} onBack={goBack} edit={d}/>,
+      addPlannedExpense:  ()  => <PlannedFormPage kind="expense" cats={data.expCats} onBack={goBack}/>,
+      editPlannedExpense: (d) => <PlannedFormPage kind="expense" cats={data.expCats} onBack={goBack} edit={d}/>,
       catTxs: (d) => {
         const week = new Date(); week.setDate(week.getDate() - 7);
         // «Мои» транзакции, как в итоге категории на Главной (доли, виртуальные строки, §11.1).
@@ -271,7 +251,7 @@ export default function MoneyManagerSection() {
       <div ref={navRef}
         style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: `calc(${MON_NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px))`, paddingBottom: "env(safe-area-inset-bottom, 0px)", background: C.monHeader, borderTop: "1px solid rgba(76,175,80,0.1)", display: "flex", zIndex: 30 }}>
         {MON_TABS.map(t => (
-          <button key={t.id} onClick={() => { setMonTabP(t.id); setStack([]); }}
+          <button key={t.id} onClick={() => { setMonTabP(t.id); resetStack(); }}
             style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, background: "none", border: "none", cursor: "pointer", color: monTab === t.id ? C.green : "rgba(255,255,255,0.3)", minWidth: 0 }}>
             <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               {t.d.split("M").filter(Boolean).map((p, i) => <path key={i} d={`M${p}`}/>)}

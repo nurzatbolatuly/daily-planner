@@ -1,18 +1,11 @@
 import { useMemo } from "react";
 import { C } from "../../../constants/theme";
-import { RU_MON_GEN } from "../../../constants/locale";
-import { getSym, fmtAmtAuto, toBase, ratesFromAccounts } from "../../../utils/format";
+import { getSym, fmtAmtAuto, toBase, ratesFromAccounts, fmtDateLong } from "../../../utils/format";
 import { CatIcon } from "../../../components/CatIcon";
 import { GOAL_TYPES } from "../../../constants/money";
 import { AddButton } from "../../../components/AddButton";
 
 const TYPE_LABEL = Object.fromEntries(GOAL_TYPES.map(t => [t.key, t.label]));
-
-function fmtDeadline(s) {
-  if (!s) return null;
-  const [y, m, d] = s.split("-").map(Number);
-  return `${d} ${RU_MON_GEN[m - 1]} ${y}`;
-}
 
 export function GoalListPage({ goals, goalTopups = [], accounts = [], navigate }) {
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
@@ -48,7 +41,7 @@ export function GoalListPage({ goals, goalTopups = [], accounts = [], navigate }
                 <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#fff" }}>{goal.name}</p>
                 <p style={{ margin: "2px 0 0", fontSize: 11, color: C.dim }}>
                   {goal.deadline
-                    ? `до ${fmtDeadline(goal.deadline)}`
+                    ? `до ${fmtDateLong(goal.deadline)}`
                     : (TYPE_LABEL[goal.type] || "Цель")}
                 </p>
               </div>
