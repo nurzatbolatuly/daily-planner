@@ -18,7 +18,7 @@ FUNCTIONS := $(filter-out _shared,$(notdir $(wildcard supabase/functions/*)))
 .DEFAULT_GOAL := help
 .PHONY: help install start test test-watch lint build preview check \
         db-new db-status db-dry db-push db-query db-test \
-        fn-deploy fn-deploy-all secrets
+        fn-deploy fn-deploy-all secrets shortcut
 
 help: ## Список команд
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -71,6 +71,11 @@ db-test: ## SQL-тесты в транзакции с откатом: make db-te
 	@test -n "$(file)" || { echo 'Укажи file=supabase/tests/<тест>.sql'; exit 1; }
 	@grep -q '^ROLLBACK;' $(file) || { echo 'Тест должен заканчиваться ROLLBACK;'; exit 1; }
 	$(SUPABASE) db query $(LINKED) --file $(file)
+
+# ── Команда iOS ──────────────────────────────────────────────────
+
+shortcut: ## Собрать и подписать команду iOS «CashFlow: покупка» → public/ (macOS, вход в iCloud)
+	node --env-file=.env scripts/build-wallet-shortcut.mjs
 
 # ── Edge Functions ───────────────────────────────────────────────
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { C } from "../../../constants/theme";
 import {
   WALLET_INGEST_URL, WALLET_SHORTCUT_URL, TOKEN_NAME_MAX, TOKEN_LIMIT, TOKEN_DEFAULT_NAME,
-  SIGNAL_POLL_MS, SIGNAL_TIMEOUT_MS, SHORTCUT_STEPS, AUTOMATION_STEPS,
+  SIGNAL_POLL_MS, SIGNAL_TIMEOUT_MS, SHORTCUT_STEPS, AUTOMATION_STEPS, INSTALL_STEPS,
 } from "../../../constants/wallet";
 import { useSave } from "../../../hooks/useSave";
 import { lastSignalText } from "../../../utils/walletInbox";
@@ -54,17 +54,20 @@ export function WalletSetupPage({ wallet, accounts, expCats, onBack }) {
         </Step>
 
         <Step n={2} title="Команда «CashFlow: покупка»">
-          {WALLET_SHORTCUT_URL ? (
-            <a href={WALLET_SHORTCUT_URL} target="_blank" rel="noopener noreferrer" style={{ ...sheetBtn("primary"), textDecoration:"none", marginBottom:8 }}>
-              Установить команду
-            </a>
-          ) : (
+          <ol style={{ margin:"0 0 12px", paddingLeft:20, color:C.mid, fontSize:13, lineHeight:1.5 }}>
+            {INSTALL_STEPS.map(s => <li key={s} style={{ marginBottom:4 }}>{s}</li>)}
+          </ol>
+          <a href={WALLET_SHORTCUT_URL} download style={{ ...sheetBtn("primary"), textDecoration:"none", marginBottom:12 }}>
+            Установить команду
+          </a>
+          <details>
+            <summary style={{ fontSize:13, color:C.dim, cursor:"pointer", marginBottom:8 }}>Не открывается — собрать вручную</summary>
             <ol style={{ margin:"0 0 10px", paddingLeft:20, color:C.mid, fontSize:13, lineHeight:1.5 }}>
               {SHORTCUT_STEPS.map(s => <li key={s} style={{ marginBottom:4 }}>{s}</li>)}
             </ol>
-          )}
-          <p style={{ ...hintText, margin:"0 0 6px" }}>При установке команда спросит ключ — вставьте его из шага 1. Адрес:</p>
-          <CopyField value={WALLET_INGEST_URL} label="Адрес скопирован"/>
+            <p style={{ ...hintText, margin:"0 0 6px" }}>Адрес для «Получить содержимое URL»:</p>
+            <CopyField value={WALLET_INGEST_URL} label="Адрес скопирован"/>
+          </details>
         </Step>
 
         <Step n={3} title="Автоматизация" done={signalled}>

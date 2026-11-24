@@ -165,7 +165,7 @@ describe("handleRequest", () => {
   test("покупка → RPC с разобранными полями и хешем ключа, ответ без уведомления", async () => {
     const { res, rpc } = await run(req(purchase));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ id: "in1", message: "2 500 ₸ · MAGNUM 0123 → во «Входящих» CashFlow", notify: false });
+    expect(await res.json()).toEqual({ id: "in1", message: "2 500 ₸ · MAGNUM 0123 → во «Входящих» CashFlow", notify: false, alert: "" });
     expect(rpc).toHaveBeenCalledWith("wallet_ingest", { p: {
       token_hash: await sha256Hex(TOKEN), max_per_hour: 60, retention_days: 90, test: false,
       amount: 2500, currency: "KZT", merchant: "MAGNUM 0123", merchant_key: "magnum", card_label: "Kaspi Gold",
@@ -175,8 +175,23 @@ describe("handleRequest", () => {
 
   test("проверка связи → уведомление", async () => {
     const { res, rpc } = await run(req({ v: 1, test: true }), { status: "ok", test: true });
-    expect(await res.json()).toEqual({ message: "Связь с CashFlow есть ✅", notify: true });
+    expect(await res.json()).toEqual({ message: "Связь с CashFlow есть ✅", notify: true, alert: "Связь с CashFlow есть ✅" });
     expect(rpc.mock.calls[0][1].p.test).toBe(true);
+  });
+
+  test("ручной запуск команды (все поля пустые) — тоже проверка связи", async () => {
+    const { res, rpc } = await run(req({ amount: "", merchant: "", card: "", input: "" }), { status: "ok", test: true });
+    expect(rpc.mock.calls[0][1].p.test).toBe(true);
+    expect((await res.json()).alert).toBe("Связь с CashFlow есть ✅");
+  });
+
+  test("есть только карта (сбой iOS: пустые сумма и продавец) — это покупка, не проверка", async () => {
+    const { rpc } = await run(req({ amount: "", merchant: "", card: "Kaspi Gold" }));
+    expect(rpc.mock.calls[0][1].p.test).toBe(false);
+  });
+
+  test("версия текстом «1» из словаря команды", async () => {
+    expect((await run(req({ v: "1", amount: "1" }))).res.status).toBe(200);
   });
 
   test("v по умолчанию — 1; неизвестная версия → 400", async () => {
@@ -199,14 +214,14 @@ describe("handleRequest", () => {
   test("ключ не найден/отозван → 401", async () => {
     const { res } = await run(req(purchase), { status: "invalid_token" });
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: "invalid_token" });
+    expect(await res.json()).toEqual({ error: "invalid_token", alert: expect.stringMatching(/ключ не принят/) });
   });
 
   test("лимит → 429 + Retry-After", async () => {
     const { res } = await run(req(purchase), { status: "too_many", retry_after: 120.4 });
     expect(res.status).toBe(429);
     expect(res.headers.get("Retry-After")).toBe("121");
-    expect(await res.json()).toEqual({ error: "too_many", retry_after: 121 });
+    expect(await res.json()).toEqual({ error: "too_many", alert: expect.stringMatching(/слишком много/), retry_after: 121 });
   });
 
   test("не JSON / массив / слишком большое тело → 400", async () => {
@@ -235,6 +250,7 @@ describe("handleRequest", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.notify).toBe(true);
+    expect(body.alert).toMatch(/сумма не пришла/);
     expect(rpc.mock.calls[0][1].p).toMatchObject({ amount: null, merchant: "", merchant_key: "" });
   });
 });

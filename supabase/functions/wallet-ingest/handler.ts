@@ -5,9 +5,11 @@
 //
 // POST, Authorization: Bearer cf_<64 hex>, тело — JSON:
 //   { v: 1, amount, merchant, card, name, occurred_at, tz }  — покупка;
-//   { v: 1, test: true }                                      — проверка связи (команду запустили руками).
-// Ответ 200: { id?, message, notify } — notify: команде показать уведомление (только при проблеме
-// или проверке связи). 400 bad_request, 401 invalid_token, 405, 429 too_many + retry_after, 500 internal.
+//   { v: 1, test: true } или запрос без amount/merchant/card/input — проверка связи (команду
+//   запустили руками: входа нет, поля пустые). input — вход команды целиком текстом (для отладки).
+// Ответ 200: { id?, message, notify, alert } — alert: текст уведомления команде или "" (молчать).
+// Уведомление — только при проблеме или проверке связи. Ошибки (400/401/429/500) — тоже с alert:
+// команда iOS не различает HTTP-коды, показывает alert, если он не пустой.
 import {
   cleanText, formatMoney, merchantKey, parseAmount, parseOccurredAt,
 } from "../_shared/walletParse.ts";
@@ -47,8 +49,16 @@ type IngestResult = {
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", ...headers } });
+// Тексты уведомлений команде при ошибках — что сделать пользователю.
+export const ERROR_ALERTS: Record<string, string> = {
+  invalid_token: "CashFlow: ключ не принят — создайте новый (Меню → Apple Pay) и вставьте в команду",
+  too_many: "CashFlow: слишком много покупок за час — эта не записана, введите её вручную",
+  bad_request: "CashFlow: команда устарела — установите заново (Меню → Apple Pay)",
+  internal: "CashFlow: сервер не ответил — покупку введите вручную",
+  method_not_allowed: "",
+};
 const fail = (status: number, error: string, extra: Record<string, unknown> = {}, headers: Record<string, string> = {}) =>
-  json(status, { error, ...extra }, headers);
+  json(status, { error, alert: ERROR_ALERTS[error] ?? "", ...extra }, headers);
 
 export async function sha256Hex(text: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -96,9 +106,11 @@ export async function handleRequest(req: Request, deps: Deps): Promise<Response>
   if (body === "too_large") return fail(400, "bad_request", { reason: "too_large" });
   if (!body) return fail(400, "bad_request", { reason: "not_json" });
   const v = body.v ?? 1;
-  if (!FORMAT_VERSIONS.includes(v as number)) return fail(400, "bad_request", { reason: "version" });
+  // Словарь команды шлёт значения текстом — «1» тоже версия 1.
+  if (!FORMAT_VERSIONS.includes(Number(v))) return fail(400, "bad_request", { reason: "version" });
 
-  const test = body.test === true;
+  const blank = (x: unknown) => x === undefined || x === null || String(x).trim() === "";
+  const test = body.test === true || [body.amount, body.merchant, body.card, body.input].every(blank);
   const { amount, currency } = parseAmount(body.amount);
   const merchant = cleanText(body.merchant, MERCHANT_MAX);
   const card = cleanText(body.card, CARD_MAX);
@@ -130,6 +142,10 @@ export async function handleRequest(req: Request, deps: Deps): Promise<Response>
     const retry = Math.max(1, Math.ceil(Number(r.retry_after) || 60));
     return fail(429, "too_many", { retry_after: retry }, { "Retry-After": String(retry) });
   }
-  if (test) return json(200, { message: "Связь с CashFlow есть ✅", notify: true });
-  return json(200, { id: r.id, ...buildMessage({ amount, currency, merchant, card }, r) });
+  if (test) {
+    const message = "Связь с CashFlow есть ✅";
+    return json(200, { message, notify: true, alert: message });
+  }
+  const m = buildMessage({ amount, currency, merchant, card }, r);
+  return json(200, { id: r.id, ...m, alert: m.notify ? m.message : "" });
 }

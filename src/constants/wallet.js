@@ -2,8 +2,9 @@
 
 // Адрес функции приёма — из того же URL проекта, что и клиент Supabase (не хардкод).
 export const WALLET_INGEST_URL = `${import.meta.env.REACT_APP_SUPABASE_URL}/functions/v1/wallet-ingest`;
-// iCloud-ссылка на готовую команду (этап 3). Пусто — экран показывает рецепт сборки.
-export const WALLET_SHORTCUT_URL = import.meta.env.REACT_APP_WALLET_SHORTCUT_URL || "";
+// Готовая команда: собирается `make shortcut` в public/ (подписанный файл, ключа в нём нет).
+// REACT_APP_WALLET_SHORTCUT_URL — переопределить (например, iCloud-ссылкой).
+export const WALLET_SHORTCUT_URL = import.meta.env.REACT_APP_WALLET_SHORTCUT_URL || "/cashflow-purchase.shortcut";
 
 // Пределы — как в БД (v41): issue_api_token, CHECK api_tokens.name.
 export const TOKEN_NAME_MAX = 40;
@@ -19,14 +20,19 @@ export const SIGNAL_TIMEOUT_MS = 2 * 60 * 1000;
 export const REPEAT_WINDOW_MS = 2 * 60 * 1000;
 export const MATCH_DAYS = 1;
 
-// Шаги настройки (экран «Apple Pay»). Названия — как в русском интерфейсе «Команд».
-export const SHORTCUT_STEPS = [
-  "Откройте «Команды» → ＋ → назовите «CashFlow: покупка».",
-  "«Текст» — вставьте ключ из шага 1.",
-  "«Если» Вход команды имеет любое значение → «Словарь»: v = 1, amount = Сумма, merchant = Продавец, card = Карта, name = Имя, occurred_at = Текущая дата (ISO 8601). Иначе → «Словарь»: v = 1, test = да.",
-  "«Получить содержимое URL»: адрес ниже, метод POST, заголовок Authorization = «Bearer » + Текст, тело — «Файл» = результат «Если».",
-  "«Получить значение» notify; если да — «Показать уведомление» с message.",
+// Установка готовой команды (экран «Apple Pay», шаг 2).
+export const INSTALL_STEPS = [
+  "Нажмите «Установить команду» → «Добавить команду».",
+  "Команда спросит ключ — вставьте скопированный в шаге 1.",
 ];
+
+// Запасной путь — собрать команду вручную, если файл не открывается. Названия — как в «Командах».
+export const SHORTCUT_STEPS = [
+  "«Команды» → ＋ → назовите «CashFlow: покупка».",
+  "«Текст» — вставьте ключ из шага 1.",
+  "«Получить содержимое URL»: адрес ниже, метод POST, заголовок Authorization = «Bearer » + Текст, тело JSON: amount = Вход команды → Сумма, merchant = → Продавец, card = → Карта, input = Вход команды.",
+  "«Получить значение» alert из «Содержимого URL»; «Если» оно имеет любое значение → «Показать уведомление» с ним.",
+]
 
 export const AUTOMATION_STEPS = [
   "«Команды» → «Автоматизация» → ＋ → «Транзакция».",
