@@ -22,6 +22,8 @@ import { MakeSharedButton } from "../components/MakeSharedButton";
 import { ReceiptField } from "../components/ReceiptField";
 import { useTransactionReceipt } from "../hooks/useTransactionReceipt";
 import { receiptLog } from "../../../utils/receipts/log";
+import { txDelta } from "../../../utils/txSave";
+import { inboxErrorText } from "../../../utils/walletInbox";
 
 // Системные категории — чек к ним не прикрепляется (курсовая разница — не покупка).
 const NO_RECEIPT_KEYS = new Set([SYSTEM_CATEGORIES.fxLoss.system_key, SYSTEM_CATEGORIES.fxGain.system_key]);
@@ -32,8 +34,8 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
   const [type, setType] = useState(edit?.type || prefill?.type || "expense");
   const [amt, setAmt] = useState(edit?.amount ? String(edit.amount) : prefill?.amount ? String(prefill.amount) : "");
   const [cur, setCur] = useState(edit?.currency || prefill?.currency || BASE_CUR);
-  const [cat, setCat] = useState(edit?.category_id || "");
-  const [accId, setAccId] = useState(edit?.account_id || "");
+  const [cat, setCat] = useState(edit?.category_id || prefill?.category_id || "");
+  const [accId, setAccId] = useState(edit?.account_id || prefill?.account_id || "");
   const [date, setDate] = useState(edit?.date || prefill?.date || todayStr());
   const [note, setNote] = useState(edit?.note || prefill?.note || "");
   const [showCur, setShowCur] = useState(false);
@@ -72,7 +74,7 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
   // Refs hold latest closures so useSave can be called unconditionally at top level
   const saveRef = useRef(null);
   const deleteRef = useRef(null);
-  const { save: execSave, saving, saveError } = useSave(() => saveRef.current(), { errorMsg: "Не удалось сохранить транзакцию" });
+  const { save: execSave, saving, saveError } = useSave(() => saveRef.current(), { errorMsg: e => inboxErrorText(e, "Не удалось сохранить транзакцию") });
   const { save: del } = useSave(() => deleteRef.current?.(), { errorMsg: "Не удалось удалить транзакцию" });
 
   const cats = type === "expense" ? expCats : incCats;
@@ -98,12 +100,14 @@ export function TxPage({ accounts, expCats, incCats, onBack, edit, prefill, debt
   // Always update refs with latest state closures
   saveRef.current = async () => {
     const acc = accounts.find(a => a.id === accId);
-    const delta = type === "income" ? parseFloat(amt) : -parseFloat(amt);
-    const tx = { id: txId, type, amount: parseFloat(amt), currency: cur, category_id: cat, account_id: accId, date, note };
+    const delta = txDelta(type, amt);
+    // Покупка из «Входящих» Apple Pay (prefill.wallet_inbox_id): БД закроет её вместе с записью.
+    const inbox = !edit && prefill?.wallet_inbox_id ? { wallet_inbox_id: prefill.wallet_inbox_id } : {};
+    const tx = { id: txId, type, amount: parseFloat(amt), currency: cur, category_id: cat, account_id: accId, date, note, ...inbox };
     // Откат старой суммы должен лечь на тот счёт, с которого она реально была списана/
     // зачислена (edit.account_id), а не на выбранный сейчас — иначе при смене счёта
     // возврат и новое списание взаимно гасятся на новом счёте, а старый не трогается.
-    const oldDelta = edit ? (edit.type === "income" ? -edit.amount : edit.amount) : 0;
+    const oldDelta = edit ? -txDelta(edit.type, edit.amount) : 0;
     if (edit && edit.account_id !== accId) {
       const oldAcc = accounts.find(a => a.id === edit.account_id);
       await supaRpc("save_tx_change_account", {

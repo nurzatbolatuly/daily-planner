@@ -4,6 +4,7 @@ import { C } from "../../constants/theme";
 import { LoadingScreen, LoadErrorScreen } from "../../components/LoadingScreen";
 import { useScreenStack } from "../../hooks/useScreenStack";
 import { useMoneyData } from "./hooks/useMoneyData";
+import { useWalletInbox } from "./hooks/useWalletInbox";
 import { TxPage } from "./pages/TxPage";
 import { AccPage } from "./pages/AccPage";
 import { AccDetailPage } from "./pages/AccDetailPage";
@@ -42,6 +43,8 @@ import { BillFormPage } from "./pages/BillFormPage";
 import { LoanDetailPage } from "./pages/LoanDetailPage";
 import { CashflowPage } from "./pages/CashflowPage";
 import { PlannedFormPage } from "./pages/PlannedFormPage";
+import { WalletInboxPage } from "./pages/WalletInboxPage";
+import { WalletSetupPage } from "./pages/WalletSetupPage";
 
 const MON_NAV_HEIGHT = 60;
 
@@ -69,8 +72,13 @@ export default function MoneyManagerSection() {
   // То же для Главной: выбранный период/месяц/счёт/фильтр переживают переход в catTxs и обратно.
   const [homeView, setHomeView] = useState(initialHomeView);
 
+  // Apple Pay → «Входящие» (docs/apple-pay-inbox.md): своя очередь, перезагружается и сама
+  // (возврат в приложение после покупки), и вместе с разделом — запись расхода закрывает покупку.
+  const wallet = useWalletInbox();
   const { reload } = data;
-  const { screen, navigate, goBack, replace: replaceScreen, pop: popScreens, reset: resetStack } = useScreenStack(reload);
+  const { reload: reloadWallet } = wallet;
+  const reloadAll = useCallback(() => { reload(); reloadWallet(); }, [reload, reloadWallet]);
+  const { screen, navigate, goBack, replace: replaceScreen, pop: popScreens, reset: resetStack } = useScreenStack(reloadAll);
 
   const navRef = useRef(null);
   const contentRef = useRef(null);
@@ -125,8 +133,8 @@ export default function MoneyManagerSection() {
         accounts={data.accounts} transactions={data.transactions} expCats={data.expCats} people={data.debtPeople} setPeople={data.setDebtPeople}
         onBack={goBack} onSaved={() => goBack(true)}/>
     );
-    const mirrorTransferForm = (group, edit = null) => (
-      <SharedMirrorTransferPage group={group} edit={edit} members={data.sharedMembers} entries={data.sharedEntries} people={data.debtPeople}
+    const mirrorTransferForm = (group, { edit = null, initial = null } = {}) => (
+      <SharedMirrorTransferPage group={group} edit={edit} initial={initial} members={data.sharedMembers} entries={data.sharedEntries} people={data.debtPeople}
         accounts={data.accounts} transactions={data.transactions} debtEvents={data.debtEvents} onBack={goBack}/>
     );
     const groupForm = (group, extra = {}) => (
@@ -142,8 +150,11 @@ export default function MoneyManagerSection() {
       // Пара «Записать в Tricount» не правится формой — открываем группу (там — отмена пары).
       const moved = entry.batch_id && data.sharedEntries.some(x => x.batch_id === entry.batch_id && x.method === "group");
       if (moved) return screenMap.sharedGroup({ groupId: group.id });
+      // Перевод между двумя другими участниками (отмечен по плану) — форм у него нет, отмена — на экране группы.
+      const meId = data.sharedMembers.find(m => m.group_id === group.id && m.is_me)?.id;
+      if (entry.kind === "transfer" && entry.from_member_id !== meId && entry.to_member_id !== meId) return screenMap.sharedGroup({ groupId: group.id });
       if (group.mode === "mirror") {
-        if (entry.kind === "transfer") return mirrorTransferForm(group, entry);
+        if (entry.kind === "transfer") return mirrorTransferForm(group, { edit: entry });
         if (entry.kind === "bill" || entry.kind === "refund") return purchaseForm(group, { entry });
         return groupForm(group);
       }
@@ -192,7 +203,7 @@ export default function MoneyManagerSection() {
       editSharedGroup: (d) => groupForm(sharedGroupById(d.groupId)),
       addSharedGroup: (d) => groupForm(null, { createMode: d.mode }),
       addSharedPurchase: (d) => purchaseForm(sharedGroupById(d.groupId)),
-      addMirrorTransfer: (d) => mirrorTransferForm(sharedGroupById(d.groupId)),
+      addMirrorTransfer: (d) => mirrorTransferForm(sharedGroupById(d.groupId), { initial: d.memberId ? { memberId: d.memberId, direction: d.direction, amount: d.amount } : null }),
       addSharedTransfer: (d) => sharedTransferForm(sharedGroupById(d.groupId), d),
       editSharedEntry: (d) => {
         const entry = data.sharedEntries.find(e => e.id === d.entryId);
@@ -231,6 +242,9 @@ export default function MoneyManagerSection() {
       editGoal:     (d) => <GoalFormPage accounts={data.accounts} onBack={goBack} onDelete={goToGoalsList} edit={d}/>,
       goalDetail:   (d) => <GoalDetailPage goal={data.goals.find(g => g.id === d.id) || d} goalTopups={data.goalTopups} accounts={data.accounts} transactions={data.personalTransactions} navigate={navigate} onBack={goBack}/>,
       addTopup:     (d) => <GoalTopupPage goal={d.goal} onBack={goBack}/>,
+      walletInbox:  ()  => <WalletInboxPage wallet={wallet} accounts={data.accounts} expCats={data.expCats} transactions={data.transactions}
+        onRecorded={reloadAll} onDetails={prefill => navigate("addTx", prefill)} onBack={goBack}/>,
+      walletSetup:  ()  => <WalletSetupPage wallet={wallet} accounts={data.accounts} expCats={data.expCats} onBack={goBack}/>,
       editTopup:    (d) => <GoalTopupPage goal={d.goal} onBack={goBack} edit={d.topup}/>,
     };
     const render = screenMap[name];
@@ -240,11 +254,12 @@ export default function MoneyManagerSection() {
   return (
     <div style={{ background: C.monBg, minHeight: "calc(100dvh - var(--app-header-h))", color: "#fff" }}>
       <div ref={contentRef} style={{ overflowY: "auto", height: `calc(100dvh - var(--app-header-h) - var(--mon-nav-h, ${MON_NAV_HEIGHT}px))` }}>
-        {monTab === "home"      && <MoneyHomeSection      data={data} navigate={navigate} view={homeView} setView={setHomeView}/>}
+        {monTab === "home"      && <MoneyHomeSection      data={data} navigate={navigate} view={homeView} setView={setHomeView}
+          inboxCount={wallet.items.length} inboxError={wallet.loadError}/>}
         {monTab === "accounts"  && <MoneyAccountsSection  data={data} navigate={navigate}/>}
         {monTab === "budget"    && <MoneyBudgetSection    data={data} navigate={navigate} budgetTab={budgetTab} setBudgetTab={setBudgetTabP} planMonth={planMonth} setPlanMonth={setPlanMonth} planYear={planYear} setPlanYear={setPlanYear}/>}
         {monTab === "analytics" && <MoneyAnalyticsSection data={data} navigate={navigate}/>}
-        {monTab === "menu"      && <MoneyMenuPage         navigate={navigate}/>}
+        {monTab === "menu"      && <MoneyMenuPage         navigate={navigate} walletAvailable={wallet.available}/>}
       </div>
 
       {/* Bottom nav */}

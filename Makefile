@@ -11,11 +11,13 @@ LINKED      := --linked --project-ref $(PROJECT_REF)
 
 # Флаги деплоя функций, которых нет в config.toml: auth-otp вызывается до входа — без JWT.
 FN_FLAGS_auth-otp := --no-verify-jwt
+# wallet-ingest вызывает команда iOS со своим ключом (api_tokens), JWT у неё нет.
+FN_FLAGS_wallet-ingest := --no-verify-jwt
 FUNCTIONS := $(filter-out _shared,$(notdir $(wildcard supabase/functions/*)))
 
 .DEFAULT_GOAL := help
 .PHONY: help install start test test-watch lint build preview check \
-        db-new db-status db-dry db-push db-query \
+        db-new db-status db-dry db-push db-query db-test \
         fn-deploy fn-deploy-all secrets
 
 help: ## Список команд
@@ -64,6 +66,11 @@ db-push: ## Применить новые миграции к БД
 db-query: ## SQL к БД: make db-query sql="select 1"  |  make db-query file=path.sql
 	@test -n "$(sql)$(file)" || { echo 'Укажи sql="…" или file=путь.sql'; exit 1; }
 	$(SUPABASE) db query $(LINKED) $(if $(file),--file $(file),"$(sql)")
+
+db-test: ## SQL-тесты в транзакции с откатом: make db-test file=supabase/tests/v41_wallet_inbox.sql
+	@test -n "$(file)" || { echo 'Укажи file=supabase/tests/<тест>.sql'; exit 1; }
+	@grep -q '^ROLLBACK;' $(file) || { echo 'Тест должен заканчиваться ROLLBACK;'; exit 1; }
+	$(SUPABASE) db query $(LINKED) --file $(file)
 
 # ── Edge Functions ───────────────────────────────────────────────
 

@@ -1,0 +1,173 @@
+{
+  "base": "KZT",
+  "defaultPrecision": 2,
+  "precision": {
+    "KZT": 0,
+    "JPY": 0,
+    "KRW": 0
+  },
+  "list": [
+    {
+      "code": "KZT",
+      "sym": "₸",
+      "name": "Казахстанский тенге",
+      "group": "main"
+    },
+    {
+      "code": "USD",
+      "sym": "$",
+      "name": "Доллар США",
+      "group": "main"
+    },
+    {
+      "code": "EUR",
+      "sym": "€",
+      "name": "Евро",
+      "group": "main"
+    },
+    {
+      "code": "XAU",
+      "sym": "г",
+      "name": "Золото (Au)",
+      "group": "metal"
+    },
+    {
+      "code": "XAG",
+      "sym": "г",
+      "name": "Серебро (Ag)",
+      "group": "metal"
+    },
+    {
+      "code": "RUB",
+      "sym": "₽",
+      "name": "Российский рубль",
+      "group": "other"
+    },
+    {
+      "code": "GBP",
+      "sym": "£",
+      "name": "Британский фунт",
+      "group": "other"
+    },
+    {
+      "code": "CHF",
+      "sym": "Fr",
+      "name": "Швейцарский франк",
+      "group": "other"
+    },
+    {
+      "code": "JPY",
+      "sym": "¥",
+      "name": "Японская иена",
+      "group": "other"
+    },
+    {
+      "code": "AED",
+      "sym": "د.إ",
+      "name": "Дирхам ОАЭ",
+      "group": "other"
+    },
+    {
+      "code": "TRY",
+      "sym": "₺",
+      "name": "Турецкая лира",
+      "group": "other"
+    },
+    {
+      "code": "CAD",
+      "sym": "CA$",
+      "name": "Канадский доллар",
+      "group": "other"
+    },
+    {
+      "code": "AUD",
+      "sym": "A$",
+      "name": "Австралийский доллар",
+      "group": "other"
+    },
+    {
+      "code": "PLN",
+      "sym": "zł",
+      "name": "Польский злотый",
+      "group": "other"
+    },
+    {
+      "code": "UAH",
+      "sym": "₴",
+      "name": "Украинская гривна",
+      "group": "other"
+    },
+    {
+      "code": "UZS",
+      "sym": "сўм",
+      "name": "Узбекский сум",
+      "group": "other"
+    },
+    {
+      "code": "KGS",
+      "sym": "с",
+      "name": "Киргизский сом",
+      "group": "other"
+    },
+    {
+      "code": "AZN",
+      "sym": "₼",
+      "name": "Азербайджанский манат",
+      "group": "other"
+    },
+    {
+      "code": "GEL",
+      "sym": "₾",
+      "name": "Грузинский лари",
+      "group": "other"
+    },
+    {
+      "code": "SGD",
+      "sym": "S$",
+      "name": "Сингапурский доллар",
+      "group": "other"
+    },
+    {
+      "code": "KRW",
+      "sym": "₩",
+      "name": "Южнокорейская вона",
+      "group": "other"
+    },
+    {
+      "code": "INR",
+      "sym": "₹",
+      "name": "Индийская рупия",
+      "group": "other"
+    },
+    {
+      "code": "THB",
+      "sym": "฿",
+      "name": "Тайский бат",
+      "group": "other"
+    },
+    {
+      "code": "ZAR",
+      "sym": "R",
+      "name": "Южноафриканский рэнд",
+      "group": "other"
+    },
+    {
+      "code": "ILS",
+      "sym": "₪",
+      "name": "Израильский шекель",
+      "group": "other"
+    },
+    {
+      "code": "NZD",
+      "sym": "NZ$",
+      "name": "Новозеландский доллар",
+      "group": "other"
+    },
+    {
+      "code": "BTC",
+      "sym": "₿",
+      "name": "Биткоин",
+      "group": "other"
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import { BASE_CUR } from "../../../constants/currencies";
 import { RU_MONTHS } from "../../../constants/locale";
 import { ACC_PURPOSES } from "../../../constants/money";
 import { pad, todayStr } from "../../../utils/date";
-import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts, calcTotalBalance, calcCatDelta } from "../../../utils/format";
+import { getSym, fmtAmtAuto, fmtBal, toBase, ratesFromAccounts, calcTotalBalance, calcCatDelta, pluralRu } from "../../../utils/format";
 import { exportTransactionsXLSX } from "../../../utils/export";
 import { virtualTxAccountLabel } from "../../../utils/txBadges";
 import { projectRecurringItems, projectPlanItems, buildDayMap, addMonths } from "../../../utils/cashflowTimeline";
@@ -26,7 +26,7 @@ export const initialHomeView = () => {
   };
 };
 
-export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate, view, setView }) {
+export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate, view, setView, inboxCount = 0, inboxError = null }) {
   const { accounts, personalTransactions: transactions, expCats, incCats, monthPlans, recurring, loans, plannedIncomes, plannedExpenses } = data;
   // transactions — «мои» доходы и расходы (моя доля в сплитах и общих группах, без движений денег
   // без категории), собраны один раз в useMoneyData — см. utils/personalTransactions.js.
@@ -149,6 +149,20 @@ export const MoneyHomeSection = memo(function MoneyHomeSection({ data, navigate,
           ))}
         </div>
       </div>
+
+      {/* Покупки Apple Pay ждут подтверждения (docs/apple-pay-inbox.md §8.1). Нет — плашки нет. */}
+      {(inboxCount > 0 || inboxError) && (
+        <button type="button" onClick={() => navigate("walletInbox")}
+          style={{ width:"calc(100% - 24px)", margin:"12px 12px 0", padding:"12px 16px", borderRadius:16, cursor:"pointer", textAlign:"left",
+            display:"flex", alignItems:"center", gap:10, background: inboxError ? C.warnTint : C.infoTint,
+            border:`1px solid ${inboxError ? C.warnBorder : C.infoBorder}` }}>
+          <Ico n="walletLine" s={20} c={inboxError ? C.amber : C.blue}/>
+          <span style={{ flex:1, fontSize:14, fontWeight:600, color:C.main }}>
+            {inboxError ? "Покупки Apple Pay не загрузились" : `${inboxCount} ${pluralRu(inboxCount, ["новая покупка", "новые покупки", "новых покупок"])} — подтвердить`}
+          </span>
+          <Ico n="chevR" s={16} c={C.dim}/>
+        </button>
+      )}
 
       {/* Денежный поток — мини-лента */}
       <div onClick={() => navigate("cashflow")} style={{ margin: "12px 12px 0", background: C.monCard, borderRadius: 20, cursor: "pointer" }}>
