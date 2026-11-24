@@ -5,14 +5,16 @@
 BEGIN;
 CREATE TEMP TABLE t_ctx (k text PRIMARY KEY, v text);
 GRANT ALL ON t_ctx TO authenticated;
-INSERT INTO t_ctx SELECT 'uid', id::text FROM auth.users ORDER BY created_at LIMIT 1;
-INSERT INTO t_ctx SELECT 'acc', id FROM accounts WHERE user_id = (SELECT v::uuid FROM t_ctx WHERE k='uid') LIMIT 1;
-INSERT INTO t_ctx SELECT 'cat', id FROM exp_categories WHERE user_id = (SELECT v::uuid FROM t_ctx WHERE k='uid') LIMIT 1;
+INSERT INTO t_ctx (k, v) SELECT 'uid' AS k, u.id::text AS v FROM auth.users AS u ORDER BY u.created_at LIMIT 1;
+INSERT INTO t_ctx (k, v) SELECT 'acc' AS k, a.id AS v FROM accounts AS a
+  WHERE a.user_id = (SELECT c.v::uuid FROM t_ctx AS c WHERE c.k = 'uid') ORDER BY a.id LIMIT 1;
+INSERT INTO t_ctx (k, v) SELECT 'cat' AS k, e.id AS v FROM exp_categories AS e
+  WHERE e.user_id = (SELECT c.v::uuid FROM t_ctx AS c WHERE c.k = 'uid') ORDER BY e.id LIMIT 1;
 
 -- как пользователь
 SELECT set_config('request.jwt.claims', json_build_object('sub', (SELECT v FROM t_ctx WHERE k='uid'), 'role', 'authenticated')::text, true);
 SET LOCAL ROLE authenticated;
-INSERT INTO t_ctx SELECT 'tok', issue_api_token('test') ->> 'token';
+INSERT INTO t_ctx (k, v) SELECT 'tok' AS k, issue_api_token('test') ->> 'token' AS v;
 
 DO $$ BEGIN
   PERFORM token_hash FROM api_tokens;
