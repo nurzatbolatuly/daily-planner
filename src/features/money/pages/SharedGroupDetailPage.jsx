@@ -10,7 +10,8 @@ import { useSave } from "../../../hooks/useSave";
 import { newId } from "../../../utils/id";
 import { todayStr } from "../../../utils/date";
 import { fmtAmtAuto, getSym, getPrecision, pluralRu } from "../../../utils/format";
-import { memberBalances, memberStatus, memberLabel, groupSummary, myShareOf, memberDebtLines, adjustLabel, groupHeadcount } from "../../../utils/sharedExpenses";
+import { memberBalances, memberStatus, memberLabel, groupSummary, myShareOf, memberDebtBreakdown, adjustLabel, groupHeadcount } from "../../../utils/sharedExpenses";
+import { groupSettlement, sortPlanRows } from "../../../utils/sharedSettlement";
 import { fmtEventDate, treatedMeAdjustments, buildEntryDelete } from "../../../utils/sharedSave";
 import { buildTreatSave, buildAdjustmentsDelete } from "../../../utils/sharedTransferSave";
 import { tricountTargets } from "../../../utils/sharedMirrorSave";
@@ -22,12 +23,14 @@ import { RenameMemberSheet } from "../components/RenameMemberSheet";
 import { MoveToTricountSheet } from "../components/MoveToTricountSheet";
 import { sheetBtn } from "../components/sharedUi";
 import { AddButton } from "../../../components/AddButton";
+import { SettlementBlock } from "../components/SettlementBlock";
+import { PeerTransferSheet } from "../components/PeerTransferSheet";
 
-const STATUS_TEXT = { partial: "вернул частично", open: "не вернул" };
+// Подпись под моей строкой плана: статус возврата по долгу со мной.
+const STATUS_NOTE = { partial: "вернул частично", advance: "аванс" };
 
 const sectionTitle = text => <p style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:C.dim }}>{text}</p>;
 const rowBox = { display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:12, marginBottom:6, background:C.rowBg, border:`1px solid ${C.border}` };
-const actionBtn = { padding:"8px 14px", borderRadius:20, border:"none", background:C.green, color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", flexShrink:0 };
 
 // Корректировки без перевода («угощаю») хранятся по строке на счёт с общим batch_id — показываем пачкой.
 // «Угостили меня» (treated_me без перевода) — часть счёта, видна на его строке и правится в нём.
@@ -40,7 +43,8 @@ function treatBatches(entries) {
   return [...map.values()];
 }
 
-// Экран вечера (event, docs/shared-expenses.md §12.3): кто кому должен, счета, переводы.
+// Экран вечера (event, docs/shared-expenses.md §12.3): «Как рассчитаться» по всей группе (как в
+// Tricount, utils/sharedSettlement), счета, переводы.
 export function SharedGroupDetailPage({ group, groups, members: allMembers, entries: allEntries, people, accounts, expCats, navigate, onReload, onBack }) {
   const members = useMemo(() => allMembers.filter(m => m.group_id === group?.id), [allMembers, group]);
   const entries = useMemo(() => allEntries.filter(e => e.group_id === group?.id), [allEntries, group]);
@@ -51,6 +55,8 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
   const balances = useMemo(() => memberBalances(entries, members, { precision }), [entries, members, precision]);
   const summary = useMemo(() => groupSummary(entries, members, { precision }), [entries, members, precision]);
   const meId = members.find(m => m.is_me)?.id;
+  const settlement = useMemo(() => groupSettlement(entries, meId, { memberIds: members.map(m => m.id), precision }), [entries, members, meId, precision]);
+  const planRows = useMemo(() => sortPlanRows(settlement.plan, meId), [settlement, meId]);
 
   const [sheetMemberId, setSheetMemberId] = useState(null);
   const [treatMemberId, setTreatMemberId] = useState(null);
@@ -60,6 +66,8 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
   const [renameId, setRenameId] = useState(null);
   const [moveId, setMoveId] = useState(null);
   const [undoMove, setUndoMove] = useState(null);
+  const [peerRow, setPeerRow] = useState(null);
+  const [undoPeer, setUndoPeer] = useState(null);
 
   const treatRef = useRef(null);
   const { save: execTreat, saving: treating, saveError: treatError } = useSave(() => treatRef.current(), { errorMsg: "Не удалось сохранить" });
@@ -93,17 +101,14 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
   const catOf = id => expCats.find(c => c.id === id);
   const titleOf = e => e.title || catOf(e.category_id)?.name || "Счёт";
 
-  const participants = members
-    .filter(m => !m.is_me && balances[m.id] && (balances[m.id].accrued || balances[m.id].balance))
-    .map(m => ({ m, ...balances[m.id], status: memberStatus(balances[m.id]) }));
-  const iOwe = participants.filter(p => p.balance < 0 && p.status !== "advance").sort((a, b) => a.balance - b.balance);
-  const owedToMe = participants.filter(p => p.balance > 0).sort((a, b) => b.balance - a.balance);
-  const settled = participants.filter(p => p.balance === 0);
-  const advances = participants.filter(p => p.status === "advance");
+  const nameOf = id => labelOf(memberById(id) || {});
+  const otherOf = row => (row.from === meId ? row.to : row.from);
+  const statusOf = row => (balances[otherOf(row)] ? memberStatus(balances[otherOf(row)]) : null);
 
   const bills = entries.filter(e => e.kind === K.bill);
   const headcount = groupHeadcount(entries, members);
-  const allSettled = summary.participants > 0 && summary.settled === summary.participants;
+  // Рассчитались все — и со мной, и между собой (план группы пуст).
+  const allSettled = bills.length > 0 && settlement.plan.length === 0;
   const hasOpenDebts = summary.owedToMe > 0 || summary.iOwe > 0;
   const transfers = entries.filter(e => e.kind === K.transfer);
   // Часть одного платежа на несколько долгов (§5.14): показываем весь платёж — части могут быть
@@ -120,16 +125,17 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
     navigate("addSharedTransfer", { groupId: group.id, memberId, direction });
   };
 
-  const debtorRow = ({ m, balance, status }) => (
-    <div key={m.id} style={rowBox}>
-      <div onClick={() => setSheetMemberId(m.id)} style={{ flex:1, minWidth:0, cursor:"pointer" }}>
-        <p style={{ margin:0, fontSize:14, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color: balance === 0 ? C.dim : "#fff" }}>{labelOf(m)}</p>
-        <p style={{ margin:"2px 0 0", fontSize:12, color: balance === 0 ? C.green : C.dim }}>
-          {balance === 0 ? "закрыто ✓" : status === "advance" ? `аванс ${fmt(-balance)}` : `${fmt(Math.abs(balance))} · ${balance < 0 ? "я должен" : STATUS_TEXT[status] || ""}`}
+  // Перевод между двумя другими (отмечен по плану): без счёта, тап — отменить.
+  const peerTransferRow = t => (
+    <div key={t.id} onClick={() => setUndoPeer(t)} style={{ ...rowBox, cursor:"pointer" }}>
+      <Ico n="transfer" s={18} c={C.dim}/>
+      <div style={{ flex:1, minWidth:0 }}>
+        <p style={{ margin:0, fontSize:14, fontWeight:600, color:C.mid, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {nameOf(t.from_member_id)} → {nameOf(t.to_member_id)}
         </p>
+        <p style={{ margin:"2px 0 0", fontSize:11, color:C.dim }}>{fmtEventDate(t.date)} · между ними, мои счета не затронуты</p>
       </div>
-      {balance > 0 && <button onClick={() => openTransfer(m.id, "in")} style={actionBtn}>Получено</button>}
-      {balance < 0 && status !== "advance" && <button onClick={() => openTransfer(m.id, "out")} style={actionBtn}>Вернуть</button>}
+      <span style={{ fontSize:14, fontWeight:700, color:C.mid, whiteSpace:"nowrap", flexShrink:0 }}>{fmt(Number(t.amount_group))}</span>
     </div>
   );
 
@@ -172,9 +178,13 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
           </button>
         )}
 
-        {iOwe.length > 0 && <>{sectionTitle("Я должен")}{iOwe.map(debtorRow)}<div style={{ height:14 }}/></>}
-        {(owedToMe.length > 0 || settled.length > 0 || advances.length > 0) && (
-          <>{sectionTitle("Мне должны")}{[...owedToMe, ...advances, ...settled].map(debtorRow)}<div style={{ height:14 }}/></>
+        {bills.length > 0 && (
+          <SettlementBlock rows={planRows} nets={settlement.nets} meId={meId} nameOf={nameOf} fmt={fmt}
+            noteOf={row => STATUS_NOTE[statusOf(row)] || null}
+            canAct={row => statusOf(row) !== "advance"}
+            onMine={row => openTransfer(otherOf(row), row.to === meId ? "in" : "out")}
+            onMark={setPeerRow}
+            onMember={setSheetMemberId}/>
         )}
 
         {sectionTitle("Счета")}
@@ -198,6 +208,7 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
         {(transfers.length > 0 || batches.length > 0) && <div style={{ height:20 }}/>}
         {transfers.length > 0 && sectionTitle("Переводы")}
         {transfers.map(t => {
+          if (t.from_member_id !== meId && t.to_member_id !== meId) return peerTransferRow(t);
           const incoming = t.to_member_id === meId;
           const other = memberById(incoming ? t.from_member_id : t.to_member_id);
           const adj = entries.filter(e => e.transfer_id === t.id);
@@ -252,7 +263,7 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
         <SharedMemberDebtSheet
           label={labelOf(sheetMember)} groupName={group.name}
           balance={balances[sheetMember.id]?.balance || 0}
-          lines={memberDebtLines(entries, sheetMember.id, meId)}
+          lines={memberDebtBreakdown(entries, sheetMember.id, meId, balances[sheetMember.id]?.balance || 0, { precision })}
           fmt={fmt} titleOf={titleOf}
           onTransfer={direction => openTransfer(sheetMember.id, direction)}
           onTreat={() => { setSheetMemberId(null); setTreatMemberId(sheetMember.id); }}
@@ -261,6 +272,15 @@ export function SharedGroupDetailPage({ group, groups, members: allMembers, entr
           onMoveToTricount={moveTargets(sheetMember).length ? () => { setSheetMemberId(null); setMoveId(sheetMember.id); } : null}
           onClose={() => setSheetMemberId(null)}
         />
+      )}
+
+      {peerRow && (
+        <PeerTransferSheet group={group} row={peerRow} nameOf={nameOf} fmt={fmt}
+          onSaved={async () => { setPeerRow(null); await onReload(); }} onClose={() => setPeerRow(null)}/>
+      )}
+      {undoPeer && (
+        <PeerTransferSheet group={group} entry={undoPeer} nameOf={nameOf} fmt={fmt}
+          onSaved={async () => { setUndoPeer(null); await onReload(); }} onClose={() => setUndoPeer(null)}/>
       )}
 
       {memberById(moveId) && (

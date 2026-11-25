@@ -59,7 +59,7 @@ function validateBill({ needName, name, amount, categoryId, payerId, meId, membe
   if (!categoryId) e.category = "Выберите категорию";
   if (!payerId) e.payer = "Выберите, кто платил";
   if (payerId === meId && !members.some(m => m.id !== meId && included(m.id))) e.coverage = "Отметьте, за кого вы платили";
-  else if (payerId && payerId !== meId && !included(meId)) e.coverage = "Отметьте себя — иначе этот счёт вас не касается";
+  // Платил другой и меня в доле нет — счёт всё равно меняет итог группы (кто кому, как в Tricount).
   else if (methodError) e.coverage = methodError;
   else if (!split.valid) e.coverage = SPLIT_REASON_TEXT[split.reason]?.(`${sym}${fmtAmtAuto(split.gap)}`) || "Проверьте доли";
   return e;
@@ -374,7 +374,7 @@ export function SharedEntryFormPage({ group: existingGroup = null, entry = null,
         {errors.coverage && <p style={{ ...errorText, margin:"10px 0 0" }}>{errors.coverage}</p>}
         <BillFeesEditor fees={fees} supported={feesSupported} onChange={f => { setFees(f); clearError("coverage"); }} sym={sym}/>
 
-        {!iPaid && (
+        {!iPaid && rows[meId]?.included && (
           <div style={{ marginTop:16, padding:"12px 14px", borderRadius:12, background:C.segmentBg }}>
             <Toggle value={treatedMe} onChange={setTreatedMe} label="Угостили меня — возвращать не нужно"/>
             {treatedMe && <p style={{ ...hintText, margin:"8px 0 0" }}>Долга не будет, и в ваши расходы эта трата не попадёт — вы ничего не платили.</p>}

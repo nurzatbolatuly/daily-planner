@@ -1,9 +1,10 @@
 import { roundTo, getPrecision, convertAmount, pluralRu } from "./format";
-import { SHARED_ENTRY_KINDS as K, SHARED_ADJUST_REASONS as R, SHARED_TRANSFER_NOTE_PREFIX, DEBT_WORDS } from "../constants/money";
-import { memberDebtLines, closingOptions, splitAdjustmentByBills, memberBalances, allocateTransfer } from "./sharedExpenses";
+import { SHARED_ENTRY_KINDS as K, SHARED_ADJUST_REASONS as R, SHARED_TRANSFER_METHODS as M, SHARED_TRANSFER_NOTE_PREFIX, DEBT_WORDS } from "../constants/money";
+import { closingOptions, splitAdjustmentByBills, memberBalances, allocateTransfer } from "./sharedExpenses";
 import { normName } from "./people";
 import { computeNetByPerson } from "./debtLedger";
 import { BASE_CUR } from "../constants/currencies";
+import { pairBalanceOf } from "./sharedSettlement";
 import { EMPTY_ENTRY, adjustEntry, balanceUpdates, balancesAfter, txRow, txSnapshot } from "./sharedSave";
 
 // Общие расходы — переводы в группе: закрытие долга (§9), зачёт (§10), привязка уже записанной
@@ -12,10 +13,11 @@ import { EMPTY_ENTRY, adjustEntry, balanceUpdates, balancesAfter, txRow, txSnaps
 
 // ─── Переводы и закрытие долга (этап 6, §9) ────────────────────────────────────────────────
 
-// Долг участника передо мной без учёта правимого перевода и его корректировок (+ должен мне).
+// Долг участника передо мной без учёта правимого перевода и его корректировок (+ должен мне) —
+// по плану расчёта группы, как на экране группы (sharedSettlement).
 export function debtWithout(entries, memberId, meId, edit = null, precision = 2) {
   const base = edit ? entries.filter(e => e.id !== edit.id && e.transfer_id !== edit.id) : entries;
-  return { base, debt: roundTo(memberDebtLines(base, memberId, meId).reduce((s, l) => s + l.amount, 0), precision) };
+  return { base, debt: pairBalanceOf(base, memberId, meId, { precision }) };
 }
 
 // Что показать в форме перевода: долг до перевода и варианты закрытия (closingOptions).
@@ -145,6 +147,27 @@ function transferMoneyBase({ form, edit, accounts, transactions, amount, note, n
   return {
     entryFields: { method: account ? "account" : "cash", account_id: account?.id || null, transaction_id: tx?.id || null, linked_tx_snapshot: null },
     payload: { tx, tx_delete_id: oldTx && !tx ? oldTx.id : null, balances: balanceUpdates(accounts, { oldTx, newTx: tx }) },
+  };
+}
+
+// Перевод между двумя другими участниками по плану расчёта («Бек → Асан», как «Отметить как
+// оплачено» в Tricount): мои деньги не двигаются — без счёта и транзакции, в мою статистику и
+// долги со мной не идёт, меняет только итог группы.
+export function buildPeerTransferSave({ group, fromId, toId, amount, date, newId }) {
+  return {
+    entries: [{
+      ...EMPTY_ENTRY,
+      id: newId(),
+      group_id: group.id,
+      kind: K.transfer,
+      date,
+      currency: group.currency,
+      amount,
+      amount_group: amount,
+      from_member_id: fromId,
+      to_member_id: toId,
+      method: M.cash,
+    }],
   };
 }
 

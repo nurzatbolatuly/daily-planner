@@ -33,7 +33,7 @@ beforeEach(() => supaRpc.mockClear());
 
 test("Бек есть в двух группах Tricount — выбор группы, долг закрывается в тусе и записывается туда", async () => {
   const { onReload } = renderTusa([tusa, flat, office]);
-  userEvent.click(screen.getByText("Бек"));
+  userEvent.click(screen.getAllByText("Бек")[0]);
   userEvent.click(screen.getByText("Записать в Tricount"));
   expect(screen.getByText("Куда записать")).toBeInTheDocument();
   userEvent.click(screen.getByRole("radio", { name: /Офис/ }));
@@ -47,7 +47,7 @@ test("Бек есть в двух группах Tricount — выбор гру�
 
 test("гостю (нет в группах Tricount) кнопки нет; одна группа — без выбора", () => {
   renderTusa([tusa, flat]);
-  userEvent.click(screen.getByText("Асан"));
+  userEvent.click(screen.getAllByText("Асан")[0]);
   expect(screen.queryByText("Записать в Tricount")).toBeNull();
 });
 

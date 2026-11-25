@@ -282,7 +282,8 @@ describe("управление группой (этап 8)", () => {
     const entries = [dinner, tr, adj, hisBill];
     const p = buildArchiveSave({ group: g, members: ms, entries, forgive: true, date: "2026-10-05", newId, precision: 0 });
     expect(p.group).toMatchObject({ id: "g1", archived: true });
-    expect(p.entries).toEqual([expect.objectContaining({ reason: "treat", member_id: "bek", amount_group: 9910 })]); // Асану я должен 1 000 — не прощается
+    // План: Бек → я 8 910, Бек → Асан 1 000 (мой долг Асану упрощён через Бека) — прощаю только своё.
+    expect(p.entries).toEqual([expect.objectContaining({ reason: "treat", member_id: "bek", amount_group: 8910 })]);
     expect(buildArchiveSave({ group: g, members: ms, entries, date: "2026-10-05", newId }).entries).toEqual([]);
     expect(buildArchiveSave({ group: { ...g, archived: true }, members: ms, entries, archived: false, forgive: true, newId }).entries).toEqual([]);
   });

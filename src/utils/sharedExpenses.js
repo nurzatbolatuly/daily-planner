@@ -1,6 +1,10 @@
 import { roundTo, ceilTo, floorTo, getPrecision } from "./format";
 import { normName } from "./people";
 import { SHARED_ENTRY_KINDS as K, SHARED_ADJUST_REASONS as R } from "../constants/money";
+import { isBill, groupAmount, toGroup, shareRow, billMemberDebt } from "./sharedAmounts";
+import { groupNets, settlementPlan, pairBalances } from "./sharedSettlement";
+
+export { billMemberDebt };
 
 // Общие расходы — чистые функции расчёта (docs/shared-expenses.md §8–§9). Без React и БД.
 //
@@ -15,30 +19,10 @@ import { SHARED_ENTRY_KINDS as K, SHARED_ADJUST_REASONS as R } from "../constant
 // Все суммы долгов — в валюте группы по amount_group (курс зафиксирован при вводе, §5.18),
 // а не через текущие rates, чтобы долг не «плыл» вместе с курсом.
 
-const isBill = e => e.kind === K.bill || e.kind === K.refund;
-
-// Сумма записи в валюте группы. У переводов и корректировок amount_group — сама сумма.
-const groupAmount = e => Number(e.amount_group ?? e.amount) || 0;
-
-// Пересчёт части счёта (доли, extra) из валюты чека в валюту группы — по той же пропорции,
-// что и весь счёт, поэтому Σ долей в валюте группы = amount_group.
-const toGroup = (bill, x) => {
-  const amt = Number(bill.amount) || 0;
-  return bill.amount_group != null && amt !== 0 ? x * Number(bill.amount_group) / amt : x;
-};
-
-const shareRow = (bill, memberId) => (bill.shares || []).find(s => s.member_id === memberId);
-
 // По дате, в один день — в порядке создания (стор грузит записи в обратном порядке).
 const byDate = (a, b) => (a.date || "").localeCompare(b.date || "") || (a.created_at || "").localeCompare(b.created_at || "");
 
 export const meIdOf = members => members.find(m => m.is_me)?.id ?? null;
-
-// Доля участника в одном счёте, в валюте группы. 0 — если он в счёте не участвует.
-export function billMemberDebt(bill, memberId) {
-  const s = shareRow(bill, memberId);
-  return s ? toGroup(bill, Number(s.amount) || 0) : 0;
-}
 
 // Сколько счёт стоил лично мне, с корректировками, отнесёнными к нему (bill_id).
 // Для возврата (refund, §5.16) доля со знаком минус — возврат уменьшает мой расход.
@@ -50,45 +34,21 @@ export function myShareOf(bill, meId, adjustments = [], { precision = 2 } = {}) 
   return roundTo(sign * billMemberDebt(bill, meId) + adj, precision);
 }
 
-// Долг каждого участника передо мной (режим event, §8.2).
+// Долг каждого участника передо мной (режим event, §8.2) — по плану расчёта группы, как в
+// Tricount (sharedSettlement): долги упрощаются по всей группе, в том числе «через меня».
+// Участник, с кем у меня в плане нет перевода, — 0, даже если его доли были в моих счетах.
 // → { [member_id]: { balance, accrued } }
 //   balance — текущий долг (+ мне должны, − я должен), с учётом переводов и корректировок;
-//   accrued — сколько набежало только по счетам/возвратам (для статуса «частично»).
+//   accrued — то же только по счетам/возвратам (для статуса «частично» / «аванс»).
 export function memberBalances(entries, members, { precision = 2 } = {}) {
   const meId = meIdOf(members);
+  const memberIds = members.map(m => m.id);
+  const pairsOf = list => pairBalances(settlementPlan(groupNets(list, meId, { memberIds, precision }), meId, { precision }), meId);
+  const now = pairsOf(entries);
+  const accrued = pairsOf(entries.filter(isBill));
   const res = {};
-  members.forEach(m => { if (m.id !== meId) res[m.id] = { balance: 0, accrued: 0 }; });
-
-  const add = (memberId, x, accrues) => {
-    const r = res[memberId];
-    if (!r) return;
-    r.balance += x;
-    if (accrues) r.accrued += x;
-  };
-
-  entries.forEach(e => {
-    if (isBill(e)) {
-      // Счёт: кто платил — тому должны остальные. Возврат — наоборот: кто получил деньги,
-      // тот должен остальным их часть.
-      const sign = e.kind === K.refund ? -1 : 1;
-      if (e.payer_member_id === meId) {
-        (e.shares || []).forEach(s => {
-          if (s.member_id !== meId) add(s.member_id, sign * toGroup(e, Number(s.amount) || 0), true);
-        });
-      } else {
-        add(e.payer_member_id, -sign * billMemberDebt(e, meId), true);
-      }
-    } else if (e.kind === K.transfer) {
-      if (e.to_member_id === meId) add(e.from_member_id, -groupAmount(e), false);
-      else if (e.from_member_id === meId) add(e.to_member_id, groupAmount(e), false);
-    } else if (e.kind === K.adjust) {
-      add(e.member_id, -groupAmount(e), false);
-    }
-  });
-
-  Object.values(res).forEach(r => {
-    r.balance = roundTo(r.balance, precision);
-    r.accrued = roundTo(r.accrued, precision);
+  members.forEach(m => {
+    if (m.id !== meId) res[m.id] = { balance: roundTo(now[m.id] || 0, precision), accrued: roundTo(accrued[m.id] || 0, precision) };
   });
   return res;
 }
@@ -168,11 +128,16 @@ export function closingOptions(debt, transferAmount, direction, { precision = 2 
 // → [{ bill_id, amount }], Σ amount === amount ровно. Счетов нет → одна строка с bill_id: null.
 export function splitAdjustmentByBills(amount, reason, entries, memberId, meId, { precision = 2 } = {}) {
   const closesHisDebt = reason !== R.overpaid_them && reason !== R.treated_me;
-  const weighted = entries
-    .filter(e => e.kind === K.bill && e.payer_member_id === (closesHisDebt ? meId : memberId))
+  const debtorId = closesHisDebt ? memberId : meId;
+  const weightedBy = payerOk => entries
+    .filter(e => e.kind === K.bill && payerOk(e.payer_member_id))
     .sort(byDate)
-    .map(b => ({ bill_id: b.id, w: billMemberDebt(b, closesHisDebt ? memberId : meId) }))
+    .map(b => ({ bill_id: b.id, w: billMemberDebt(b, debtorId) }))
     .filter(x => x.w > 0);
+  // Долг пришёл упрощением по группе (план расчёта): прямых счетов между нами может не быть —
+  // тогда по всем счетам, где был в доле тот, чей долг закрывается.
+  const direct = weightedBy(p => p === (closesHisDebt ? meId : memberId));
+  const weighted = direct.length ? direct : weightedBy(p => p !== debtorId);
 
   if (weighted.length === 0) return [{ bill_id: null, amount: roundTo(amount, precision) }];
 
@@ -227,7 +192,8 @@ export function memberLabel(member, { people = [], members = [] } = {}) {
 }
 
 // Из чего сложился долг участника передо мной (§5.8 «по тапу видно, из чего 3 600», §11.7).
-// → [{ kind, entry, amount }] по дате; amount — вклад в его долг (+ должен мне больше), Σ = баланс.
+// → [{ kind, entry, amount }] по дате; amount — вклад в его долг (+ должен мне больше), Σ = долг
+//   один-на-один, без упрощения по группе (для шторки — memberDebtBreakdown).
 //   kind: bill (я платил, он в доле) · their_bill (он платил, я в доле) · refund_mine / refund_his
 //   (возврат получил я / он) · transfer_in (он → я) · transfer_out (я → он) · adjust.
 export function memberDebtLines(entries, memberId, meId) {
@@ -243,6 +209,14 @@ export function memberDebtLines(entries, memberId, meId) {
     else if (e.kind === K.adjust && e.member_id === memberId) push("adjust", e, -groupAmount(e));
   });
   return lines;
+}
+
+// Раскладка долга для шторки участника: прямые строки (memberDebtLines) + «взаимозачёт в группе» —
+// разница с долгом по плану расчёта (долги упрощены через других участников). Σ amount = balance.
+export function memberDebtBreakdown(entries, memberId, meId, balance, { precision = 2 } = {}) {
+  const lines = memberDebtLines(entries, memberId, meId);
+  const settle = roundTo(balance - lines.reduce((s, l) => s + l.amount, 0), precision);
+  return settle ? [...lines, { kind: "settle", entry: null, amount: settle }] : lines;
 }
 
 export const ADJUST_REASON_LABEL = {
@@ -268,6 +242,7 @@ export function debtLineText(line, { fmt, titleOf }) {
     case "refund_his":   return `${titleOf(entry)} — возврат у тебя, моя часть ${abs}`;
     case "transfer_in":  return `Ты перевёл −${abs}`;
     case "transfer_out": return `Я перевёл ${abs}`;
+    case "settle":       return `Взаимозачёт в группе ${amount < 0 ? "−" : "+"}${abs}`;
     default:             return `${adjustLabel(entry)} ${amount < 0 ? "−" : ""}${abs}`;
   }
 }

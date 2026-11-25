@@ -52,7 +52,9 @@ test("§11.6: в «Долгах» у Бека — отдельная строк�
   render(<DebtsListPage debtPeople={people} debtEvents={[]} accounts={accounts} sharedGroups={[group]} sharedMembers={members} sharedEntries={entries}
     navigate={vi.fn()} onBack={vi.fn()}/>);
   expect(screen.getByText("в расчёте")).toBeInTheDocument();                         // личный NET — 0
-  expect(screen.getByText("+ ₸18 000 в общих группах")).toBeInTheDocument();          // ужин × 3; бильярд Бек должен Асану, не мне
+  // План группы: Бек → я 25 200 (ужин 18 000 + бильярд 7 200 — Асан должен мне за ужин, долги упрощены),
+  // Даурен → Асан 3 600, Даурен → я 2 400.
+  expect(screen.getByText("+ ₸25 200 в общих группах")).toBeInTheDocument();
 });
 
 test("§11.5: карточка Бека — блок «Общие группы» с переходом в вечер", () => {
@@ -60,7 +62,7 @@ test("§11.5: карточка Бека — блок «Общие группы»
   render(<DebtPersonDetailPage person={people[0]} people={people} debtEvents={[]} sharedGroups={[group]} sharedMembers={members} sharedEntries={entries}
     accounts={accounts} transactions={transactions} navigate={navigate} onReload={vi.fn()} onBack={vi.fn()}/>);
   expect(screen.getByText("Общие группы")).toBeInTheDocument();
-  expect(screen.getByText("должен ₸18 000")).toBeInTheDocument();
+  expect(screen.getByText("должен ₸25 200")).toBeInTheDocument();
   userEvent.click(screen.getByText("Вечер 03.10"));
   expect(navigate).toHaveBeenCalledWith("sharedGroup", { groupId: "g1" });
 });
@@ -70,8 +72,8 @@ test("§12.1: общие итоги по группам и разбивка по
   render(<SharedGroupsListPage groups={[group]} members={members} entries={entries} people={people} accounts={accounts} navigate={navigate} onBack={vi.fn()}/>);
   userEvent.click(screen.getByLabelText("Кто кому должен"));
   expect(screen.getByText("Бек")).toBeInTheDocument();
-  expect(screen.getByText("Асан")).toBeInTheDocument();
-  expect(screen.getByText("₸3 600")).toBeInTheDocument();                             // 6 000 − 2 400
+  expect(screen.queryByText("Асан")).toBeNull();                                      // со мной в расчёте: его долг ушёл в план через Бека
+  expect(screen.getAllByText("₸25 200").length).toBeGreaterThan(0);
   userEvent.click(screen.getByText("Бек"));
   expect(navigate).toHaveBeenCalledWith("debtPersonDetail", people[0]);
 });

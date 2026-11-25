@@ -15,10 +15,14 @@ import { shiftMonth } from "../../../utils/sharedMirrorSave";
 import { SharedEntryRow } from "../components/SharedEntryRow";
 import { ReconcileSheet } from "../components/ReconcileSheet";
 import { RepeatMonthSheet } from "../components/RepeatMonthSheet";
-import { sheetBtn } from "../components/sharedUi";
+import { sheetBtn, hintText } from "../components/sharedUi";
+import { SettlementBlock } from "../components/SettlementBlock";
+import { PeerTransferSheet } from "../components/PeerTransferSheet";
+import { groupSettlement, sortPlanRows } from "../../../utils/sharedSettlement";
 
-// Квартира — зеркало Tricount (docs/shared-expenses.md §12.4): мой накопительный баланс с группой
-// (с раскладкой по месяцам), лента месяца с покупками и переводами.
+// Квартира — Tricount (docs/shared-expenses.md §12.4): мой накопительный баланс с группой
+// (с раскладкой по месяцам), «Как рассчитаться» по всей группе (utils/sharedSettlement),
+// лента месяца с покупками и переводами.
 const rowBox = { display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:12, marginBottom:6, background:C.rowBg, border:`1px solid ${C.border}` };
 const navBtn = { background:"none", border:"none", cursor:"pointer", display:"flex", padding:8 };
 const monthLabel = key => `${RU_MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
@@ -34,6 +38,9 @@ export function SharedMirrorPage({ group, members: allMembers, entries: allEntri
   const signed = n => `${n < 0 ? "−" : "+"}${fmt(Math.abs(n))}`;
 
   const balance = useMemo(() => mirrorBalance(entries, meId, { precision }), [entries, meId, precision]);
+  const settlement = useMemo(() => groupSettlement(entries, meId, { memberIds: members.map(m => m.id), precision }), [entries, members, meId, precision]);
+  const planRows = useMemo(() => sortPlanRows(settlement.plan, meId), [settlement, meId]);
+  const hasCarried = entries.some(e => e.kind === K.opening || e.kind === K.reconcile);
   const months = useMemo(() => mirrorBalanceByMonth(entries, meId, { precision }), [entries, meId, precision]);
   const [month, setMonth] = useState(() => todayStr().slice(0, 7));
   const summary = useMemo(() => groupMonthSummary(entries, month, meId, { precision }), [entries, month, meId, precision]);
@@ -44,6 +51,8 @@ export function SharedMirrorPage({ group, members: allMembers, entries: allEntri
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [deleteReconcile, setDeleteReconcile] = useState(null);
   const [undoMove, setUndoMove] = useState(null);
+  const [peerRow, setPeerRow] = useState(null);
+  const [undoPeer, setUndoPeer] = useState(null);
 
   const deleteRef = useRef(null);
   const { save: execDelete, saving: deleting, saveError: deleteError } = useSave(() => deleteRef.current(), { errorMsg: "Не удалось удалить сверку" });
@@ -64,6 +73,10 @@ export function SharedMirrorPage({ group, members: allMembers, entries: allEntri
   };
   const labelOf = m => memberLabel(m, { people, members });
   const memberById = id => members.find(m => m.id === id);
+  const nameOf = id => labelOf(memberById(id) || {});
+  const openMyTransfer = row => navigate("addMirrorTransfer", {
+    groupId: group.id, memberId: row.to === meId ? row.from : row.to, direction: row.to === meId ? "in" : "out", amount: row.amount,
+  });
   const catOf = id => expCats.find(c => c.id === id);
   const titleOf = e => e.title || catOf(e.category_id)?.name || "Покупка";
   const payerOf = e => (e.payer_member_id === meId ? "я" : labelOf(memberById(e.payer_member_id) || {}));
@@ -82,6 +95,18 @@ export function SharedMirrorPage({ group, members: allMembers, entries: allEntri
 
   const feedRow = item => {
     if (item.kind === K.bill) return billRow(item);
+    if (item.kind === K.transfer && item.from_member_id !== meId && item.to_member_id !== meId) {
+      return (
+        <div key={item.id} onClick={() => setUndoPeer(item)} style={{ ...rowBox, cursor:"pointer" }}>
+          <Ico n="transfer" s={18} c={C.dim}/>
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ margin:0, fontSize:14, fontWeight:600, color:C.mid, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{nameOf(item.from_member_id)} → {nameOf(item.to_member_id)}</p>
+            <p style={{ margin:"2px 0 0", fontSize:11, color:C.dim }}>{fmtEventDate(item.date)} · между ними, мой баланс не меняется</p>
+          </div>
+          <span style={{ fontSize:14, fontWeight:700, color:C.mid, whiteSpace:"nowrap", flexShrink:0 }}>{fmt(Number(item.amount_group))}</span>
+        </div>
+      );
+    }
     if (item.kind === K.transfer) {
       const out = item.from_member_id === meId;
       const other = memberById(out ? item.to_member_id : item.from_member_id);
@@ -162,6 +187,16 @@ export function SharedMirrorPage({ group, members: allMembers, entries: allEntri
           </div>
         </div>
 
+        {entries.length > 0 && (
+          <>
+            <SettlementBlock rows={planRows} nets={settlement.nets} meId={meId} nameOf={nameOf} fmt={fmt}
+              onMine={openMyTransfer} onMark={setPeerRow}/>
+            {hasCarried && planRows.length > 0 && (
+              <p style={{ ...hintText, marginTop:-12 }}>Начальный баланс и сверки — мой долг с группой целиком, в плане он поделён поровну между остальными.</p>
+            )}
+          </>
+        )}
+
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
           <button onClick={() => setMonth(k => shiftKey(k, -1))} aria-label="Предыдущий месяц" style={navBtn}><Ico n="back" s={18} c={C.mid}/></button>
           <span style={{ fontSize:15, fontWeight:700 }}>{monthLabel(month)}</span>
@@ -183,6 +218,14 @@ export function SharedMirrorPage({ group, members: allMembers, entries: allEntri
         )}
       </div>
 
+      {peerRow && (
+        <PeerTransferSheet group={group} row={peerRow} nameOf={nameOf} fmt={fmt}
+          onSaved={async () => { setPeerRow(null); await onReload(); }} onClose={() => setPeerRow(null)}/>
+      )}
+      {undoPeer && (
+        <PeerTransferSheet group={group} entry={undoPeer} nameOf={nameOf} fmt={fmt}
+          onSaved={async () => { setUndoPeer(null); await onReload(); }} onClose={() => setUndoPeer(null)}/>
+      )}
       {reconcileOpen && <ReconcileSheet group={group} balance={balance} fmt={fmt} sym={sym} onSaved={reload} onClose={() => setReconcileOpen(false)}/>}
       {repeatOpen && (
         <RepeatMonthSheet group={group} bills={prevMonthBills} meId={meId} accounts={accounts} titleOf={titleOf} payerOf={payerOf} sym={sym}

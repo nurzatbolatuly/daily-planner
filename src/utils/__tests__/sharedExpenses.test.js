@@ -1,7 +1,7 @@
 import {
   memberBalances, memberStatus, myShareOf, billMemberDebt,
   closingOptions, splitAdjustmentByBills, perHeadOf, memberLabel, groupSummary,
-  memberDebtLines, debtLineText, debtShareText,
+  memberDebtLines, memberDebtBreakdown, debtLineText, debtShareText,
   guestNameSuggestions, guestOccurrences, adjustLabel, memberUsage, allocateTransfer, mirrorBalance, mirrorBalanceByMonth, groupMonthSummary, totalsAcrossGroups, personGroupSummary, offsetOptions, groupHeadcount,
 } from "../sharedExpenses";
 
@@ -30,11 +30,14 @@ const taxi = bill("taxi", "me", 4500, [sh("bek", 4500, 3)]);
 const evening = [dinner, billiards, taxi];
 
 describe("memberBalances", () => {
-  test("§5.8: долги только между мной и участником, взаимный долг сворачивается", () => {
+  test("§5.8: долги упрощаются по всей группе, как в Tricount", () => {
+    // Итоги: я +32 100, Асан +3 600 (бильярд за Бека), Бек −29 700, Даурен −6 000.
+    // План: Бек → я 29 700, Даурен → Асан 3 600, Даурен → я 2 400 — Асану я ничего не должен,
+    // и он мне тоже: его долг за ужин гасится бильярдом Бека.
     const b = memberBalances(evening, members, P);
-    expect(b.asan.balance).toBe(3600);
-    expect(b.bek.balance).toBe(22500);
-    expect(b.dauren.balance).toBe(6000);
+    expect(b.asan).toEqual({ balance: 0, accrued: 0 });
+    expect(b.bek.balance).toBe(29700);
+    expect(b.dauren.balance).toBe(2400);
     expect(b.me).toBeUndefined();
   });
 
@@ -175,7 +178,7 @@ describe("memberLabel", () => {
 
 describe("groupSummary", () => {
   test("§5.8: моя доля 8 400, мне должны 32 100, никто ещё не рассчитался", () => {
-    expect(groupSummary(evening, members, P)).toEqual({ myShare: 8400, owedToMe: 32100, iOwe: 0, participants: 3, settled: 0 });
+    expect(groupSummary(evening, members, P)).toEqual({ myShare: 8400, owedToMe: 32100, iOwe: 0, participants: 2, settled: 0 });
   });
 
   test("§5.2: Асан закрыт округлением — 1 из 2, моя доля 9 820", () => {
@@ -189,11 +192,19 @@ describe("memberDebtLines / debtShareText", () => {
   const fmt = n => `${n}`;
   const titleOf = e => e.id;
 
-  test("Σ строк = баланс участника (§5.8)", () => {
+  test("Σ прямых строк — долг один-на-один (§5.8)", () => {
+    const sum = id => memberDebtLines(evening, id, "me").reduce((s, l) => s + l.amount, 0);
+    expect([sum("asan"), sum("bek"), sum("dauren")]).toEqual([3600, 22500, 6000]);
+  });
+
+  test("раскладка в шторке: прямые строки + «взаимозачёт в группе», Σ = долг по плану", () => {
     const b = memberBalances(evening, members, P);
     ["asan", "bek", "dauren"].forEach(id => {
-      expect(memberDebtLines(evening, id, "me").reduce((s, l) => s + l.amount, 0)).toBe(b[id].balance);
+      const lines = memberDebtBreakdown(evening, id, "me", b[id].balance, P);
+      expect(lines.reduce((s, l) => s + l.amount, 0)).toBe(b[id].balance);
     });
+    expect(memberDebtBreakdown(evening, "bek", "me", 29700, P).at(-1)).toEqual({ kind: "settle", entry: null, amount: 7200 });
+    expect(debtLineText({ kind: "settle", entry: null, amount: -3600 }, { fmt: n => `${n}`, titleOf: e => e.id })).toBe("Взаимозачёт в группе −3600");
   });
 
   test("§11.7: текст напоминания Асану — ужин, его бильярд, итого 3 600", () => {
@@ -361,10 +372,10 @@ describe("этап 11: итоги по группам и карточка чел
   test("§12.1: мне должны / я должен по всем группам, по людям, гостям и квартирам; архив учитывается", () => {
     const t = totalsAcrossGroups({ groups: [g1, g2, f1, us], members: ms, entries: es, people, toBase });
     const row = key => t.rows.find(r => r.key === key);
-    expect(row("p:p-bek")).toMatchObject({ kind: "person", name: "Бек", owedToMe: 24000 });       // 22 500 + 2 000 − 500
+    expect(row("p:p-bek")).toMatchObject({ kind: "person", name: "Бек", owedToMe: 31200 });       // 29 700 (план g1) + 2 000 − 500
     expect(row("p:p-bek").items.map(i => i.group.id)).toEqual(["g1", "g2"]);
-    expect(row("g:асан")).toMatchObject({ kind: "guest", owedToMe: 8600 });                         // 3 600 ₸ + $10
-    expect(row("g:даурен")).toMatchObject({ owedToMe: 6000 });
+    expect(row("g:асан")).toMatchObject({ kind: "guest", owedToMe: 5000 });                         // 0 ₸ (план g1) + $10
+    expect(row("g:даурен")).toMatchObject({ owedToMe: 2400 });
     expect(row("m:anon2")).toMatchObject({ kind: "unnamed", owedToMe: 1000 });
     expect(row("grp:f1")).toMatchObject({ kind: "group", name: "Квартира", iOwe: 100000 });
     expect(t).toMatchObject({ owedToMe: 39600, iOwe: 100000 });
@@ -373,7 +384,7 @@ describe("этап 11: итоги по группам и карточка чел
 
   test("§11.5: Бек в карточке — его участники в вечерах и переводы, которые прислал он", () => {
     const s = personGroupSummary("p-bek", { groups: [g1, g2, f1], members: ms, entries: es });
-    expect(s.groups.map(x => [x.group.id, x.balance])).toEqual([["g2", 1500], ["g1", 22500]]);
+    expect(s.groups.map(x => [x.group.id, x.balance])).toEqual([["g2", 1500], ["g1", 29700]]);
     expect(s.transfers).toEqual([expect.objectContaining({ incoming: true, group: g2 })]);
     expect(personGroupSummary("p-dima", { groups: [f1], members: ms, entries: es }).groups).toEqual([]); // квартира — долг с группой
   });

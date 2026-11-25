@@ -35,12 +35,15 @@ const renderDetail = () => {
   return { navigate, onReload };
 };
 
-test("экран вечера: моя доля, кто сколько должен, счета, переводы", () => {
+test("экран вечера: моя доля, как рассчитаться, балансы, счета, переводы", () => {
   const { navigate } = renderDetail();
   expect(screen.getAllByText("₸6 000").length).toBeGreaterThan(0);       // моя доля
-  expect(screen.getByText("₸18 000")).toBeInTheDocument();                // мне должны
-  expect(screen.getByText("₸18 000 · не вернул")).toBeInTheDocument();    // Бек × 3
-  expect(screen.getByText("закрыто ✓")).toBeInTheDocument();              // Асан вернул
+  expect(screen.getByText("Как рассчитаться")).toBeInTheDocument();
+  expect(screen.getAllByText("₸18 000")).toHaveLength(2);                 // мне должны + строка плана «Бек × 3 → Я»
+  expect(screen.getAllByText("Я")).toHaveLength(2);                       // строка плана + балансы
+  expect(screen.getByText("+₸18 000")).toBeInTheDocument();               // балансы: я
+  expect(screen.getByText("−₸18 000")).toBeInTheDocument();               // Бек × 3
+  expect(screen.getByText("0 ✓")).toBeInTheDocument();                    // Асан вернул
   expect(screen.getByText("← Асан")).toBeInTheDocument();                 // перевод
   userEvent.click(screen.getByText("Получено"));
   expect(navigate).toHaveBeenCalledWith("addSharedTransfer", { groupId: "g1", memberId: "bek", direction: "in" });
@@ -53,7 +56,8 @@ test("экран вечера: моя доля, кто сколько долже
 test("шторка участника: раскладка долга и «угощаю» одним сохранением", async () => {
   supaRpc.mockClear();
   const { onReload } = renderDetail();
-  userEvent.click(screen.getByText("Бек × 3"));
+  userEvent.click(screen.getAllByText("Бек × 3")[0]);                     // строка плана
+
   expect(screen.getByText("Ужин — твоя доля ₸18 000")).toBeInTheDocument();
   expect(screen.getByText("Должен мне ₸18 000")).toBeInTheDocument();
   userEvent.click(screen.getByText("Угощаю — простить весь долг"));
@@ -92,6 +96,24 @@ test("§7.2: «Сохранить в Люди» — все вечера с эт�
   expect(p.entries).toEqual([]);
 });
 
+test("как в Tricount: долг упрощается между другими, «Отметить» — перевод без счёта", async () => {
+  supaRpc.mockClear();
+  // Асан платил за Бека: Бек должен Асану, со мной — ничего.
+  const byAsan = { id: "b3", group_id: "g1", kind: "bill", date: "2026-10-03", title: "Такси", payer_member_id: "asan", amount: 3000, amount_group: 3000, category_id: "rest",
+    shares: [sh("bek", 3000, 3)] };
+  const onReload = vi.fn(() => Promise.resolve());
+  render(<SharedGroupDetailPage group={group} groups={[group]} members={members} entries={[byAsan]} people={people}
+    accounts={[]} expCats={[{ id: "rest", name: "Рестораны", icon: "eating" }]} navigate={vi.fn()} onReload={onReload} onBack={vi.fn()}/>);
+  expect(screen.queryByText("Получено")).toBeNull();
+  userEvent.click(screen.getByText("Отметить"));
+  userEvent.click(screen.getByRole("button", { name: "Перевод сделан" }));
+  await waitFor(() => expect(onReload).toHaveBeenCalled());
+  const [fn, { p }] = supaRpc.mock.calls[0];
+  expect(fn).toBe("save_shared_entry");
+  expect(p.entries).toEqual([expect.objectContaining({ kind: "transfer", from_member_id: "bek", to_member_id: "asan", amount: 3000, method: "cash", transaction_id: null })]);
+  expect(p.tx).toBeUndefined();
+});
+
 test("список групп: пустое состояние и строка вечера", () => {
   const navigate = vi.fn();
   const { rerender } = render(<SharedGroupsListPage groups={[]} members={[]} entries={[]} navigate={navigate} onBack={vi.fn()}/>);
@@ -110,7 +132,8 @@ test("список групп: пустое состояние и строка �
 test("экран тусы: «Переименовать» в шторке участника — save_shared_members с новым названием", async () => {
   supaRpc.mockClear();
   const { onReload } = renderDetail();
-  userEvent.click(screen.getByText("Бек × 3"));
+  userEvent.click(screen.getAllByText("Бек × 3")[0]);                     // строка плана
+
   userEvent.click(screen.getByText("Переименовать"));
   const input = screen.getByRole("textbox", { name: "Название участника" });
   expect(input).toHaveAttribute("placeholder", "Бек × 3");

@@ -101,7 +101,7 @@ test("§5.12: платил друг, я должен свою долю — та 
   expect(p.entries[1]).toMatchObject({ kind: "adjust", reason: "treated_me", amount_group: -8500, member_id: asan.id });
 });
 
-test("§5.7: платил участник — без счёта списания, меня нужно отметить", async () => {
+test("§5.7: платил участник — без счёта списания", async () => {
   renderForm();
   typeGroupName();
   userEvent.click(screen.getByText("＋ Гость"));
@@ -113,9 +113,9 @@ test("§5.7: платил участник — без счёта списани�
   userEvent.type(screen.getByPlaceholderText("0"), "12000");
   userEvent.click(screen.getByText("Рестораны"));
 
+  // Без меня в доле «Угостили меня» не предлагается (счёт меняет только итог группы).
   userEvent.click(screen.getAllByLabelText("Не участвует")[0]); // снять себя (первая строка)
-  userEvent.click(screen.getByText("Сохранить"));
-  expect(await screen.findByText("Отметьте себя — иначе этот счёт вас не касается")).toBeInTheDocument();
+  expect(screen.queryByText("Угостили меня — возвращать не нужно")).toBeNull();
   userEvent.click(screen.getAllByLabelText("Участвует")[0]);
 
   userEvent.click(screen.getByText("Сохранить"));

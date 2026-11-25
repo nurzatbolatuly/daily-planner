@@ -27,7 +27,8 @@ import { fieldInput, chip, chipRow, segmentWrap, segmentBtn, hintText, errorText
 // лично Дима должен мне 20 000 → зачесть, деньги не двигаются.
 const byOrder = (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0);
 
-export function SharedMirrorTransferPage({ group, edit = null, members: allMembers, entries: allEntries, people, accounts, transactions, debtEvents = [], onBack }) {
+// initial — из строки плана «Как рассчитаться»: { memberId, direction, amount } (необязательно).
+export function SharedMirrorTransferPage({ group, edit = null, initial = null, members: allMembers, entries: allEntries, people, accounts, transactions, debtEvents = [], onBack }) {
   const members = useMemo(() => allMembers.filter(m => m.group_id === group.id).sort(byOrder), [allMembers, group.id]);
   const entries = useMemo(() => allEntries.filter(e => e.group_id === group.id), [allEntries, group.id]);
   const meId = members.find(m => m.is_me)?.id;
@@ -39,9 +40,10 @@ export function SharedMirrorTransferPage({ group, edit = null, members: allMembe
   // Баланс без правимого перевода — от него считаются подсказка суммы и «после перевода».
   const balance = useMemo(() => mirrorBalance(edit ? entries.filter(e => e.id !== edit.id) : entries, meId, { precision }), [entries, edit, meId, precision]);
 
-  const [direction, setDirection] = useState(edit ? (edit.from_member_id === meId ? "out" : "in") : balance < 0 ? "out" : "in");
-  const [memberId, setMemberId] = useState(edit ? (edit.from_member_id === meId ? edit.to_member_id : edit.from_member_id) : others[0]?.id);
-  const [amount, setAmount] = useState(edit ? String(edit.amount) : balance ? String(Math.abs(balance)) : "");
+  const [direction, setDirection] = useState(edit ? (edit.from_member_id === meId ? "out" : "in") : initial?.direction || (balance < 0 ? "out" : "in"));
+  const [memberId, setMemberId] = useState(edit ? (edit.from_member_id === meId ? edit.to_member_id : edit.from_member_id)
+    : others.some(m => m.id === initial?.memberId) ? initial.memberId : others[0]?.id);
+  const [amount, setAmount] = useState(edit ? String(edit.amount) : initial?.amount ? String(initial.amount) : balance ? String(Math.abs(balance)) : "");
   const [accountId, setAccountId] = useState(edit ? edit.account_id || "" : accountsInCur[0]?.id || "");
   const [date, setDate] = useState(edit?.date || todayStr());
   const [linkTx, setLinkTx] = useState(() => (edit?.linked_tx_snapshot ? transactions.find(t => t.id === edit.transaction_id) || null : null));
