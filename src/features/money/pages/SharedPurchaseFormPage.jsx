@@ -22,7 +22,9 @@ import { PersonPicker } from "../components/PersonPicker";
 import { GuestNameSheet } from "../components/GuestNameSheet";
 import { SPLIT_REASON_TEXT, emptyRow, initialRows, toShare, includedHeads, splitRowsFor, methodCheck, defaultWeights, methodOfEntry, feeHeadsOf, feesFromEntry, feesTotalOf } from "../components/coverageRows";
 import { SplitMethodPicker } from "../components/SplitMethodPicker";
-import { fieldInput, chip, chipRow, errorText } from "../components/sharedUi";
+import { fieldInput, chip, chipRow, errorText, hintText } from "../components/sharedUi";
+import { purchaseAmountFor } from "../../../utils/walletInbox";
+import { fmtM } from "../../../utils/format";
 
 // Покупка в группе Tricount — зеркале Tricount (docs/shared-expenses.md §5.1, §12.4): сумма, кто
 // платил и кто в доле — галками, как в Tricount. Видно, сколько на каждого; себя можно снять
@@ -36,7 +38,9 @@ import { fieldInput, chip, chipRow, errorText } from "../components/sharedUi";
 const MEMBER_FIELDS = ["label", "heads", "person_id", "guest_name", "sort_order"];
 const byOrder = (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0);
 
-export function SharedPurchaseFormPage({ group, entry = null, feesSupported = true, members: allMembers, entries: allEntries, accounts, transactions, expCats, people, setPeople, onBack, onSaved }) {
+// fromInbox — покупка Apple Pay «оплатил за всех» (docs/apple-pay-inbox.md §6.3): поля подставлены,
+// «Платил: я» и счёт обязательны; транзакция новая, с wallet_inbox_id — покупка закроется вместе с ней.
+export function SharedPurchaseFormPage({ group, entry = null, fromInbox = null, feesSupported = true, members: allMembers, entries: allEntries, accounts, transactions, expCats, people, setPeople, onBack, onSaved }) {
   const savedMembers = useMemo(() => allMembers.filter(m => m.group_id === group.id).sort(byOrder), [allMembers, group.id]);
   const groupEntries = useMemo(() => allEntries.filter(e => e.group_id === group.id), [allEntries, group.id]);
   const sym = getSym(group.currency);
@@ -50,12 +54,15 @@ export function SharedPurchaseFormPage({ group, entry = null, feesSupported = tr
   const [rows, setRows] = useState(() => initialRows(savedMembers, entry));
   const [method, setMethod] = useState(() => methodOfEntry(entry));
   const [fees, setFees] = useState(() => feesFromEntry(entry));
-  const [title, setTitle] = useState(entry?.title || "");
-  const [amount, setAmount] = useState(entry ? String(entry.amount) : "");
+  const inboxAmount = fromInbox ? purchaseAmountFor(fromInbox, group.currency) : null;
+  const [title, setTitle] = useState(entry?.title || fromInbox?.title || "");
+  const [amount, setAmount] = useState(entry ? String(entry.amount) : inboxAmount ? String(inboxAmount) : "");
   const [payerId, setPayerId] = useState(entry?.payer_member_id || meId);
-  const [accountId, setAccountId] = useState(() => (entry ? entry.account_id || "" : accountsInCur[0]?.id || ""));
-  const [categoryId, setCategoryId] = useState(entry?.category_id || "");
-  const [date, setDate] = useState(entry?.date || todayStr());
+  const [accountId, setAccountId] = useState(() => (entry ? entry.account_id || ""
+    : fromInbox ? (accountsInCur.some(a => a.id === fromInbox.accountId) ? fromInbox.accountId : "")
+    : accountsInCur[0]?.id || ""));
+  const [categoryId, setCategoryId] = useState(entry?.category_id || fromInbox?.categoryId || "");
+  const [date, setDate] = useState(entry?.date || fromInbox?.date || todayStr());
   const [errors, setErrors] = useState({});
   const [pickerOpen, setPickerOpen] = useState(false);
   const [guestOpen, setGuestOpen] = useState(false);
@@ -108,7 +115,7 @@ export function SharedPurchaseFormPage({ group, entry = null, feesSupported = tr
   saveRef.current = async () => {
     const p = buildBillSave({
       form: { title: title.trim(), date, currency: group.currency, amount: value, accountAmount: value, amountGroup: value,
-              accountId, categoryId, payerId, fees, splitPeople: includedHeads(members, rows), shares: split.shares.map(s => toShare(s, rows, method)) },
+              accountId, categoryId, payerId, fees, walletInboxId: fromInbox?.inboxId, splitPeople: includedHeads(members, rows), shares: split.shares.map(s => toShare(s, rows, method)) },
       group, members: members.filter(isChanged), meId, edit: entry, entries: groupEntries, accounts, transactions, newId,
     });
     await supaRpc("save_shared_entry", { p });
@@ -126,6 +133,7 @@ export function SharedPurchaseFormPage({ group, entry = null, feesSupported = tr
     const e = {};
     if (!(value > 0)) e.amount = "Введите сумму";
     if (!categoryId) e.category = "Выберите категорию";
+    if (fromInbox && !accountId) e.account = `Выберите счёт в ${group.currency} — покупка уже списалась с карты`;
     const check = methodCheck(method, members, rows);
     if (!members.some(m => rows[m.id]?.included)) e.coverage = "Отметьте, кто в доле";
     else if (check.error) e.coverage = check.error;
@@ -153,19 +161,28 @@ export function SharedPurchaseFormPage({ group, entry = null, feesSupported = tr
         <NumInput value={amount} onChange={v => { setAmount(v); clearError("amount"); }} placeholder="0" prefix={sym}
           style={{ ...fieldInput(errors.amount), fontSize:22, fontWeight:700, marginBottom: errors.amount ? 4 : 16 }}/>
         {errors.amount && <p style={errorText}>{errors.amount}</p>}
+        {fromInbox && !inboxAmount && fromInbox.amount && (
+          <p style={hintText}>Покупка — {fmtM(fromInbox.amount, fromInbox.currency)}: впишите, сколько это в {group.currency}.</p>
+        )}
 
-        <FieldLabel>Кто платил</FieldLabel>
-        <div style={{ ...chipRow, marginBottom:16 }}>
-          {members.map(m => (
-            <button key={m.id} onClick={() => setPayerId(m.id)} style={{ ...chip(payerId === m.id), maxWidth:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-              {labelOf(m)}
-            </button>
-          ))}
-        </div>
+        {fromInbox ? (
+          <p style={{ ...hintText, fontSize:13, color:C.mid }}>Платил: <b style={{ color:"#fff" }}>я</b> — оплата Apple Pay</p>
+        ) : (
+          <>
+            <FieldLabel>Кто платил</FieldLabel>
+            <div style={{ ...chipRow, marginBottom:16 }}>
+              {members.map(m => (
+                <button key={m.id} onClick={() => setPayerId(m.id)} style={{ ...chip(payerId === m.id), maxWidth:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {labelOf(m)}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {iPaid && (
-          <AccSelect accounts={accountsInCur} value={accountId} onChange={setAccountId}
-            label="С какого счёта" allowNone noneLabel="Без счёта (наличные мимо учёта)"/>
+          <AccSelect accounts={accountsInCur} value={accountId} onChange={v => { setAccountId(v); clearError("account"); }}
+            label="С какого счёта" allowNone={!fromInbox} noneLabel="Без счёта (наличные мимо учёта)" error={errors.account}/>
         )}
 
         <FieldLabel>Что</FieldLabel>

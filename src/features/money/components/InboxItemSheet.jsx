@@ -7,7 +7,7 @@ import { fmtM, getSym, ratesFromAccounts, fmtDateShort } from "../../../utils/fo
 import { newTxRpcParams } from "../../../utils/txSave";
 import {
   suggestForItem, isForeign, itemCurrency, estimateCharged, validateConfirm, buildInboxTx,
-  findInboxMatches, isPossibleRepeat, inboxErrorText, inboxNote, timeLabel,
+  findInboxMatches, isPossibleRepeat, inboxErrorText, inboxNote, timeLabel, inboxSharePrefill,
 } from "../../../utils/walletInbox";
 import { localDate } from "../../../utils/date";
 import { BottomSheet } from "../../../components/BottomSheet";
@@ -20,8 +20,9 @@ import { fieldInput, sheetBtn, hintText, errorText } from "./sharedUi";
 // Карточка покупки из «Входящих» (docs/apple-pay-inbox.md §6, §7). Одно главное действие —
 // «Записать» (мой расход); остальное — второстепенной строкой. Транзакция — в валюте счёта;
 // валютная покупка требует «Списалось со счёта» (§6.1). wallet_inbox_id закрывает покупку в БД.
-// onSaved() — записано/закрыто (страница откроет следующую); onDetails(prefill) — в TxPage.
-export function InboxItemSheet({ item, items, accounts, expCats, transactions, cards, merchants, onClose, onSaved, onDetails, onDismiss, onLink }) {
+// onSaved() — записано/закрыто (страница откроет следующую); onDetails(prefill) — в TxPage;
+// onShare(prefill) — «оплатил за всех» → в общие расходы (выбор группы — на странице).
+export function InboxItemSheet({ item, items, accounts, expCats, transactions, cards, merchants, onClose, onSaved, onDetails, onShare, onDismiss, onLink }) {
   const suggestion = useMemo(() => suggestForItem(item, { cards, merchants, accounts, expCats }), [item, cards, merchants, accounts, expCats]);
   const [accountId, setAccountId] = useState(suggestion.accountId);
   const [categoryId, setCategoryId] = useState(suggestion.categoryId);
@@ -137,6 +138,10 @@ export function InboxItemSheet({ item, items, accounts, expCats, transactions, c
       {error && <p style={{ ...errorText, textAlign:"center" }}>{error}</p>}
       <button type="button" onClick={submit} disabled={busy} style={{ ...sheetBtn("primary", busy), marginBottom:10 }}>
         {saving ? "Запись…" : "Записать"}
+      </button>
+      <button type="button" disabled={busy} onClick={() => onShare(inboxSharePrefill({ item, account, categoryId, amount, charged }))}
+        style={{ ...sheetBtn("secondary", busy), color:C.green, marginBottom:10 }}>
+        В общие расходы — оплатил за всех
       </button>
       <div style={{ display:"flex", gap:8 }}>
         <button type="button" onClick={details} disabled={busy} style={{ ...sheetBtn("secondary", busy), flex:1 }}>Подробнее</button>

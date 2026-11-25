@@ -47,8 +47,8 @@ const MEMBER_FIELDS = ["label", "heads", "person_id", "guest_name", "sort_order"
 
 const byOrder = (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0);
 
-// Ключ черновика: shared.draft.<groupId|new> (§12.0).
-const draftKey = group => `shared.draft.${group?.id || "new"}`;
+// Ключ черновика: shared.draft.<groupId|new> (§12.0); покупка из «Входящих» — свой, на покупку.
+const draftKey = (group, fromInbox) => `shared.draft.${fromInbox ? `inbox.${fromInbox.inboxId}` : group?.id || "new"}`;
 
 function validateBill({ needName, name, amount, categoryId, payerId, meId, members, rows, split, sym, money, accountAmount, methodError }) {
   const e = {};
@@ -65,11 +65,14 @@ function validateBill({ needName, name, amount, categoryId, payerId, meId, membe
   return e;
 }
 
-export function SharedEntryFormPage({ group: existingGroup = null, entry = null, feesSupported = true, linkTx = null, copyFrom = null, members: allMembers = [], entries: allEntries = [], accounts, transactions, expCats, people, setPeople, onBack, onSaved, onPayRest }) {
+// fromInbox — покупка Apple Pay «оплатил за всех» (docs/apple-pay-inbox.md §6.3, inboxSharePrefill):
+// поля подставлены, «Платил: Я» и счёт обязательны — деньги уже списались с карты; транзакция
+// новая, с wallet_inbox_id — покупка закроется вместе со счётом.
+export function SharedEntryFormPage({ group: existingGroup = null, entry = null, feesSupported = true, linkTx = null, copyFrom = null, fromInbox = null, members: allMembers = [], entries: allEntries = [], accounts, transactions, expCats, people, setPeople, onBack, onSaved, onPayRest }) {
   const isNewGroup = !existingGroup;
   // Привязанная транзакция: новая привязка или уже привязанный счёт при правке.
   const linked = linkTx || (entry?.linked_tx_snapshot ? transactions.find(t => t.id === entry.transaction_id) || null : null);
-  const groupCurrency = existingGroup?.currency || linkTx?.currency || BASE_CUR;
+  const groupCurrency = existingGroup?.currency || linkTx?.currency || fromInbox?.currency || BASE_CUR;
   const rates = useMemo(() => ratesFromAccounts(accounts), [accounts]);
   const prefill = linkTx || copyFrom;
   const groupEntries = useMemo(() => (existingGroup ? allEntries.filter(e => e.group_id === existingGroup.id) : []), [allEntries, existingGroup]);
@@ -86,17 +89,19 @@ export function SharedEntryFormPage({ group: existingGroup = null, entry = null,
   const [payerId, setPayerId] = useState(() => (entry ? entry.payer_member_id : meId));
   const [treatedMe, setTreatedMe] = useState(() => !!entry && treatedMeAdjustments(groupEntries, entry.id).length > 0);
 
-  const [date, setDate] = useState(entry?.date || prefill?.date || todayStr());
+  const [date, setDate] = useState(entry?.date || prefill?.date || fromInbox?.date || todayStr());
   const [name, setName] = useState(existingGroup?.name || "");
-  const [title, setTitle] = useState(entry?.title || copyFrom?.title || linkTx?.note || "");
-  const [currency, setCurrency] = useState(entry?.currency || linkTx?.currency || copyFrom?.currency || groupCurrency);
-  const [amount, setAmount] = useState(entry ? String(entry.amount) : linkTx ? String(linkTx.amount) : "");
+  const [title, setTitle] = useState(entry?.title || copyFrom?.title || linkTx?.note || fromInbox?.title || "");
+  const [currency, setCurrency] = useState(entry?.currency || linkTx?.currency || copyFrom?.currency || fromInbox?.currency || groupCurrency);
+  const [amount, setAmount] = useState(entry ? String(entry.amount) : linkTx ? String(linkTx.amount) : fromInbox?.amount ? String(fromInbox.amount) : "");
   const [accountId, setAccountId] = useState(() => (entry ? entry.account_id || ""
     : linkTx ? linkTx.account_id
+    : fromInbox ? (accounts.some(a => a.id === fromInbox.accountId) ? fromInbox.accountId : "")
     : (accounts.find(a => a.currency === currency && a.id !== copyFrom?.account_id) || accounts.find(a => a.id !== copyFrom?.account_id))?.id || ""));
-  const [accountAmount, setAccountAmount] = useState(entry?.account_amount != null && entry.currency !== accounts.find(a => a.id === entry.account_id)?.currency ? String(entry.account_amount) : "");
+  const [accountAmount, setAccountAmount] = useState(entry?.account_amount != null && entry.currency !== accounts.find(a => a.id === entry.account_id)?.currency ? String(entry.account_amount)
+    : fromInbox?.accountAmount ? String(fromInbox.accountAmount) : "");
   const [venueTotal, setVenueTotal] = useState(entry?.venue_total ? String(entry.venue_total) : "");
-  const [categoryId, setCategoryId] = useState(entry?.category_id || linkTx?.category_id || copyFrom?.category_id || "");
+  const [categoryId, setCategoryId] = useState(entry?.category_id || linkTx?.category_id || copyFrom?.category_id || fromInbox?.categoryId || "");
   const [showCur, setShowCur] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -116,7 +121,7 @@ export function SharedEntryFormPage({ group: existingGroup = null, entry = null,
   const cats = useMemo(() => expCats.filter(c => !c.system_key), [expCats]);
 
   // Черновик новой записи (§12.0): всё введённое, включая ещё не сохранённых участников.
-  const draft = useFormDraft(draftKey(existingGroup), {
+  const draft = useFormDraft(draftKey(existingGroup, fromInbox), {
     groupId, members, unsavedIds: members.filter(isUnsaved).map(m => m.id), rows, method, fees, payerId, treatedMe,
     date, name, title, currency, amount, accountId, accountAmount, venueTotal, categoryId,
   }, { enabled: !entry && !prefill });
@@ -215,7 +220,7 @@ export function SharedEntryFormPage({ group: existingGroup = null, entry = null,
     const group = existingGroup || newEventGroup(groupId, { name: name.trim(), date, currency: groupCurrency });
     const payload = buildBillSave({
       form: { title: title.trim(), date, currency, amount: money.amount, accountAmount: money.accountAmount, amountGroup: money.amountGroup,
-              accountId, venueTotal, categoryId, payerId, treatedMe, linkTx, fees,
+              accountId, venueTotal, categoryId, payerId, treatedMe, linkTx, fees, walletInboxId: fromInbox?.inboxId,
               shares: split.shares.map(s => toShare(s, rows, method)) },
       group, isNewGroup,
       members: members.filter(isChanged),
@@ -236,6 +241,7 @@ export function SharedEntryFormPage({ group: existingGroup = null, entry = null,
   const save = () => {
     const e = validateBill({ needName: isNewGroup, name, amount, categoryId, payerId, meId, members, rows, split, sym, money, accountAmount,
       methodError: methodCheck(method, members, rows).error });
+    if (fromInbox && !accountId) e.account = "Выберите счёт — покупка уже списалась с карты";
     setErrors(e);
     if (Object.values(e).some(Boolean)) return;
     execSave();
@@ -310,7 +316,9 @@ export function SharedEntryFormPage({ group: existingGroup = null, entry = null,
           <Ico n="calendar" s={16} c={C.dim}/> {fmtEventDate(date)}{date === todayStr() ? " · сегодня" : ""}
         </button>
 
-        {!linked && (
+        {fromInbox ? (
+          <p style={{ ...hintText, fontSize:13, color:C.mid }}>Платил: <b style={{ color:"#fff" }}>я</b> — оплата Apple Pay</p>
+        ) : !linked && (
           <SharedPayerPicker members={members} meId={meId} payerId={payerId} labelOf={labelOf} onChange={changePayer} error={errors.payer}/>
         )}
 
@@ -328,8 +336,8 @@ export function SharedEntryFormPage({ group: existingGroup = null, entry = null,
         {errors.amount && <p style={errorText}>{errors.amount}</p>}
 
         {iPaid && !linked && (
-          <AccSelect accounts={accounts} value={accountId} onChange={v => { setAccountId(v); setAccountAmount(""); clearError("accountAmount"); }}
-            label="С какого счёта" allowNone noneLabel="Без счёта (наличные мимо учёта)"/>
+          <AccSelect accounts={accounts} value={accountId} onChange={v => { setAccountId(v); setAccountAmount(""); clearError("accountAmount"); clearError("account"); }}
+            label="С какого счёта" allowNone={!fromInbox} noneLabel="Без счёта (наличные мимо учёта)" error={errors.account}/>
         )}
         {money.needsAccountAmount && !linked && (
           <>

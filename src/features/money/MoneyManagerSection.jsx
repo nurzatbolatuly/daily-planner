@@ -116,8 +116,8 @@ export default function MoneyManagerSection() {
   if (screen) {
     const { name, data: d } = screen;
     const sharedGroupById = id => data.sharedGroups.find(g => g.id === id) || null;
-    const sharedEntryForm = (group, entry = null, { linkTx = null, copyFrom = null } = {}) => (
-      <SharedEntryFormPage group={group} entry={entry} feesSupported={data.sharedSchema.fees} linkTx={linkTx} copyFrom={copyFrom} members={data.sharedMembers} entries={data.sharedEntries}
+    const sharedEntryForm = (group, entry = null, { linkTx = null, copyFrom = null, fromInbox = null } = {}) => (
+      <SharedEntryFormPage group={group} entry={entry} feesSupported={data.sharedSchema.fees} linkTx={linkTx} copyFrom={copyFrom} fromInbox={fromInbox} members={data.sharedMembers} entries={data.sharedEntries}
         accounts={data.accounts} transactions={data.transactions} expCats={data.expCats}
         people={data.debtPeople} setPeople={data.setDebtPeople} onBack={goBack}
         onSaved={(groupId, isNewGroup) => (isNewGroup ? replaceScreen("sharedGroup", { groupId }) : goBack(true))}
@@ -128,8 +128,8 @@ export default function MoneyManagerSection() {
         members={data.sharedMembers} entries={data.sharedEntries} people={data.debtPeople} setPeople={data.setDebtPeople}
         accounts={data.accounts} transactions={data.transactions} onBack={goBack}/>
     );
-    const purchaseForm = (group, { entry = null } = {}) => (
-      <SharedPurchaseFormPage group={group} entry={entry} feesSupported={data.sharedSchema.fees} members={data.sharedMembers} entries={data.sharedEntries}
+    const purchaseForm = (group, { entry = null, fromInbox = null } = {}) => (
+      <SharedPurchaseFormPage group={group} entry={entry} fromInbox={fromInbox} feesSupported={data.sharedSchema.fees} members={data.sharedMembers} entries={data.sharedEntries}
         accounts={data.accounts} transactions={data.transactions} expCats={data.expCats} people={data.debtPeople} setPeople={data.setDebtPeople}
         onBack={goBack} onSaved={() => goBack(true)}/>
     );
@@ -199,10 +199,11 @@ export default function MoneyManagerSection() {
       addSharedBill: (d) => sharedEntryForm(d.groupId ? sharedGroupById(d.groupId) : null, null, {
         linkTx: d.linkTxId ? data.transactions.find(t => t.id === d.linkTxId) || null : null,
         copyFrom: d.copyFromId ? data.sharedEntries.find(e => e.id === d.copyFromId) || null : null,
+        fromInbox: d.fromInbox || null,
       }),
       editSharedGroup: (d) => groupForm(sharedGroupById(d.groupId)),
       addSharedGroup: (d) => groupForm(null, { createMode: d.mode }),
-      addSharedPurchase: (d) => purchaseForm(sharedGroupById(d.groupId)),
+      addSharedPurchase: (d) => purchaseForm(sharedGroupById(d.groupId), { fromInbox: d.fromInbox || null }),
       addMirrorTransfer: (d) => mirrorTransferForm(sharedGroupById(d.groupId), { initial: d.memberId ? { memberId: d.memberId, direction: d.direction, amount: d.amount } : null }),
       addSharedTransfer: (d) => sharedTransferForm(sharedGroupById(d.groupId), d),
       editSharedEntry: (d) => {
@@ -243,7 +244,9 @@ export default function MoneyManagerSection() {
       goalDetail:   (d) => <GoalDetailPage goal={data.goals.find(g => g.id === d.id) || d} goalTopups={data.goalTopups} accounts={data.accounts} transactions={data.personalTransactions} navigate={navigate} onBack={goBack}/>,
       addTopup:     (d) => <GoalTopupPage goal={d.goal} onBack={goBack}/>,
       walletInbox:  ()  => <WalletInboxPage wallet={wallet} accounts={data.accounts} expCats={data.expCats} transactions={data.transactions}
-        onRecorded={reloadAll} onDetails={prefill => navigate("addTx", prefill)} onBack={goBack}/>,
+        sharedGroups={data.sharedGroups} sharedEntries={data.sharedEntries}
+        onRecorded={reloadAll} onDetails={prefill => navigate("addTx", prefill)} onBack={goBack}
+        onShare={(group, fromInbox) => navigate(group?.mode === "mirror" ? "addSharedPurchase" : "addSharedBill", { groupId: group?.id, fromInbox })}/>,
       walletSetup:  ()  => <WalletSetupPage wallet={wallet} accounts={data.accounts} expCats={data.expCats} onBack={goBack}/>,
       editTopup:    (d) => <GoalTopupPage goal={d.goal} onBack={goBack} edit={d.topup}/>,
     };

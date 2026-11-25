@@ -5,10 +5,11 @@ import { supaRpc } from "../../../lib/supabase";
 import { newId } from "../../../utils/id";
 import { fmtM, pluralRu } from "../../../utils/format";
 import {
-  groupByDay, suggestForItem, isPossibleRepeat, bulkReady, buildBulk, inboxErrorText, timeLabel, fmtInboxAmount,
+  groupByDay, suggestForItem, isPossibleRepeat, bulkReady, buildBulk, inboxErrorText, timeLabel, fmtInboxAmount, shareTargets,
 } from "../../../utils/walletInbox";
 import { PageHeader } from "../../../components/PageHeader";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
+import { BottomSheet } from "../../../components/BottomSheet";
 import { AddButton } from "../../../components/AddButton";
 import { CatIcon } from "../../../components/CatIcon";
 import { Ico } from "../../../components/Ico";
@@ -16,11 +17,14 @@ import { InboxItemSheet } from "../components/InboxItemSheet";
 
 // «Новые покупки» из Apple Pay (docs/apple-pay-inbox.md §8.2). После записи открывается следующая
 // покупка — пачку разбирают подряд; список пуст — назад. Записанное попадает в общие данные через
-// onRecorded (перезагрузка раздела + очереди).
-export function WalletInboxPage({ wallet, accounts, expCats, transactions, onRecorded, onDetails, onBack }) {
+// onRecorded (перезагрузка раздела + очереди). «Оплатил за всех» → выбор группы → onShare(group|null,
+// prefill): форма тусы или Tricount с подставленной покупкой (null — новая туса).
+export function WalletInboxPage({ wallet, accounts, expCats, transactions, sharedGroups = [], sharedEntries = [], onRecorded, onDetails, onShare, onBack }) {
   const { items, cards, merchants, loadError, reload } = wallet;
   const [openId, setOpenId] = useState(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [sharePrefill, setSharePrefill] = useState(null);
+  const targets = useMemo(() => shareTargets(sharedGroups, sharedEntries), [sharedGroups, sharedEntries]);
 
   const ctx = useMemo(() => ({ cards, merchants, accounts, expCats, transactions }), [cards, merchants, accounts, expCats, transactions]);
   const groups = useMemo(() => groupByDay(items), [items]);
@@ -88,7 +92,26 @@ export function WalletInboxPage({ wallet, accounts, expCats, transactions, onRec
         <InboxItemSheet key={open.id} item={open} items={items} accounts={accounts} expCats={expCats} transactions={transactions}
           cards={cards} merchants={merchants} onClose={() => setOpenId(null)} onSaved={afterResolved}
           onDetails={prefill => { setOpenId(null); onDetails(prefill); }}
+          onShare={prefill => { setOpenId(null); setSharePrefill(prefill); }}
           onDismiss={wallet.dismiss} onLink={wallet.link}/>
+      )}
+
+      {sharePrefill && (
+        <BottomSheet open onClose={() => setSharePrefill(null)} title="Куда записать покупку">
+          <p style={{ margin:"0 0 12px", fontSize:13, color:C.dim }}>
+            {[sharePrefill.title, sharePrefill.amount && fmtInboxAmount(sharePrefill.amount, sharePrefill.currency)].filter(Boolean).join(" · ")} — дальше отметите, кто был в доле.
+          </p>
+          <AddButton onClick={() => onShare(null, sharePrefill)} style={{ marginBottom:10 }}>Новая туса</AddButton>
+          {targets.map(({ group, kind }) => (
+            <button key={group.id} type="button" onClick={() => onShare(group, sharePrefill)}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"12px 14px", marginBottom:6, borderRadius:12,
+                background:C.rowBg, border:`1px solid ${C.border}`, cursor:"pointer", textAlign:"left" }}>
+              <span style={{ flex:1, minWidth:0, fontSize:15, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</span>
+              <span style={{ flexShrink:0, fontSize:12, color:C.dim }}>{kind} · {group.currency}</span>
+              <Ico n="chevR" s={16} c={C.dim}/>
+            </button>
+          ))}
+        </BottomSheet>
       )}
 
       <ConfirmSheet open={bulkOpen} onClose={() => setBulkOpen(false)} onConfirm={recordBulk} tone="confirm"

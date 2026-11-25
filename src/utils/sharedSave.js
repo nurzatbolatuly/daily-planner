@@ -120,6 +120,7 @@ export const txRow = t => ({ id: t.id, type: t.type, amount: Number(t.amount), c
 //     (в валюте чека); payerId — участник-плательщик (по умолчанию я); treatedMe — меня угостили;
 //     linkTx — уже записанная транзакция («Сделать общим», §5.13): привязывается как есть, новая
 //     не создаётся, баланс не меняется. Привязанный счёт и при правке сохраняет свою транзакцию.
+//     walletInboxId — покупка из «Входящих» (docs/apple-pay-inbox.md §6.3) → tx.wallet_inbox_id.
 //   group — группа (новая или существующая), isNewGroup — тогда она пишется в p.group;
 //   members — участники для upsert: новые (включая «я» новой группы) и изменённые;
 //   edit — существующая запись счёта при правке, entries — записи группы (её корректировки).
@@ -146,6 +147,8 @@ export function buildBillSave({ form, group, isNewGroup, members = [], meId, edi
     account_id: account.id,
     date: form.date,
     note: isRefund ? `${REFUND_NOTE_PREFIX} · ${sharedTxNote(form.title, group.name)}` : sharedTxNote(form.title, group.name),
+    // Покупка из «Входящих» Apple Pay: БД закроет её вместе с этой транзакцией (v41). Только новой.
+    ...(form.walletInboxId && !oldTx ? { wallet_inbox_id: form.walletInboxId } : {}),
   } : null;
 
   const entry = {

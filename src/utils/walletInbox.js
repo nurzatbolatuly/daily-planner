@@ -126,6 +126,45 @@ export function buildBulk(items, ctx, newId) {
   });
 }
 
+// «В общие расходы» (§6.3): данные покупки для формы счёта тусы / покупки Tricount. Транзакцию
+// создаёт сама форма (save_shared_entry), wallet_inbox_id закрывает покупку в той же транзакции БД.
+// Валютная покупка: сумма чека — в валюте покупки, accountAmount — сколько списалось со счёта.
+export function inboxSharePrefill({ item, account, categoryId, amount, charged }) {
+  const foreign = isForeign(item, account);
+  return {
+    inboxId: item.id,
+    title: item.merchant || "",
+    date: localDate(item.occurred_at),
+    currency: itemCurrency(item, account),
+    amount: item.amount || (Number(amount) > 0 ? Number(amount) : null),
+    accountId: account?.id || "",
+    accountCurrency: account?.currency || null,
+    accountAmount: foreign && Number(charged) > 0 ? Number(charged) : null,
+    categoryId: categoryId || "",
+  };
+}
+
+// Сумма для покупки Tricount: группа в одной валюте. Покупка в ней — как есть; иначе, если со счёта
+// в валюте группы списалась известная сумма, — она; иначе пусто (введут руками).
+export function purchaseAmountFor(prefill, groupCurrency) {
+  if (prefill.currency === groupCurrency && prefill.amount) return prefill.amount;
+  if (prefill.accountCurrency === groupCurrency && prefill.accountAmount) return prefill.accountAmount;
+  return null;
+}
+
+// Куда отнести покупку «за всех»: активные группы, свежая активность — первой (туса идёт вечер:
+// кафе → такси → бар — нужная окажется сверху без отдельных правил). → [{ group, kind, last }]
+export function shareTargets(groups, entries) {
+  const last = new Map();
+  entries.forEach(e => {
+    const t = Date.parse(e.created_at || e.date) || 0;
+    if (t > (last.get(e.group_id) || 0)) last.set(e.group_id, t);
+  });
+  return groups.filter(g => !g.archived)
+    .map(g => ({ group: g, kind: g.mode === "mirror" ? "Tricount" : "Туса", last: Math.max(last.get(g.id) || 0, Date.parse(g.created_at) || 0) }))
+    .sort((a, b) => b.last - a.last);
+}
+
 // Ошибки записи из «Входящих» (и TxPage с покупкой) — понятным текстом.
 export function inboxErrorText(e, fallback = "Не удалось сохранить") {
   const msg = `${e?.message || ""} ${e?.details || ""}`;
