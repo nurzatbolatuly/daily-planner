@@ -13,6 +13,7 @@ import { AccSelect } from "../../../components/AccSelect";
 import { NumInput } from "../../../components/NumInput";
 import { Ico } from "../../../components/Ico";
 import { AddButton } from "../../../components/AddButton";
+import { billItemsSummary, billTxNote, cleanBillItems } from "../../../utils/billItems";
 
 const sym = getSym(BASE_CUR);
 
@@ -31,6 +32,7 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
         return {
           kind: "bill", id: r.id, name: r.name, day: r.day,
           amount: r.amount, currency: acc?.currency || BASE_CUR,
+          summary: billItemsSummary(r.items), payPlace: r.pay_place || "",
           paid: notStarted ? true : r.last_fired === mk, notStarted, raw: r,
         };
       });
@@ -48,7 +50,7 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
         const amount = effectivePayment(l, monthlyRate);
         return {
           kind: "loan", id: l.id, name: l.name, day: l.day, amount,
-          currency: l.currency || BASE_CUR,
+          currency: l.currency || BASE_CUR, summary: "", payPlace: l.pay_place || "",
           paid: notStarted ? true : l.last_paid_month === mk, notStarted, raw: l,
           remainingMonths: remainingMonthsFromBalance(l.remaining_principal, monthlyRate, amount),
         };
@@ -123,7 +125,7 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
     const amt = parseFloat(payAmt) || 0;
     const tx = {
       id: newId(), type: "expense", amount: amt, currency: acc.currency,
-      category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: payItem.name,
+      category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: billTxNote(payItem.name, payItem.raw.items),
     };
     const newBal = round2(acc.balance - amt);
     await supaRpc("fire_recurring", {
@@ -173,7 +175,7 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
       if (it.kind === "bill") {
         const tx = {
           id: newId(), type: "expense", amount: it.amount, currency: acc.currency,
-          category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: it.name,
+          category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: billTxNote(it.name, it.raw.items),
         };
         runningBalance = round2(runningBalance - it.amount);
         await supaRpc("fire_recurring", {
@@ -287,8 +289,12 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ margin:0, fontSize:15, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{it.name}</p>
-                <p style={{ margin:"2px 0 0", fontSize:12, color: it.notStarted ? C.dim : it.paid ? C.green : C.dim }}>
+                {it.summary && (
+                  <p style={{ margin:"1px 0 0", fontSize:12, color:C.mid, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{it.summary}</p>
+                )}
+                <p style={{ margin:"2px 0 0", fontSize:12, color: it.notStarted ? C.dim : it.paid ? C.green : C.dim, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                   {it.notStarted ? `Первый платёж ${fmtDateShort(it.raw.start_date)}` : it.paid ? "Оплачено в этом месяце" : "Не оплачено"}
+                  {it.payPlace && <span style={{ color:C.dim }}> · {it.payPlace}</span>}
                 </p>
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
@@ -351,6 +357,7 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
       <BottomSheet open={!!payItem} onClose={() => { setPayItem(null); setPayError(null); }} title={payItem ? `Оплатить «${payItem.name}»` : ""}>
         {payItem && (
           <>
+            <PayItemInfo item={payItem}/>
             <AccSelect
               accounts={accounts}
               value={payAccId}
@@ -403,6 +410,25 @@ export function MonthlyPaymentsListPage({ recurring = [], loans = [], accounts =
           {bulkPaying ? "Оплата..." : `Оплатить ${sym}${fmtAmtAuto(bulkPayTotal)}`}
         </button>
       </BottomSheet>
+    </div>
+  );
+}
+
+// Что входит в платёж и где его платить (v42) — перед глазами в момент оплаты.
+function PayItemInfo({ item }) {
+  const parts = cleanBillItems(item.raw.items);
+  if (parts.length === 0 && !item.payPlace) return null;
+  return (
+    <div style={{ padding:"10px 12px", borderRadius:12, background:C.rowBg, border:`1px solid ${C.border}`, marginBottom:16 }}>
+      {item.payPlace && (
+        <p style={{ margin:0, fontSize:13, color:C.dim }}>Где платить: <span style={{ color:"#fff", fontWeight:600 }}>{item.payPlace}</span></p>
+      )}
+      {parts.map(p => (
+        <div key={p.id || p.name} style={{ display:"flex", justifyContent:"space-between", gap:8, marginTop:6, fontSize:13 }}>
+          <span style={{ color:C.mid, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
+          {p.amount != null && <span style={{ color:C.mid, flexShrink:0 }}>{sym}{fmtAmtAuto(p.amount)}</span>}
+        </div>
+      ))}
     </div>
   );
 }

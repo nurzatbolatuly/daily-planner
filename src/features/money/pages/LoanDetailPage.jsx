@@ -17,13 +17,15 @@ import { NumInput } from "../../../components/NumInput";
 import { CalendarPicker } from "../../../components/CalendarPicker";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { AddButton } from "../../../components/AddButton";
+import { PayPlaceField } from "../components/PayPlaceField";
+import { cleanPayPlace, payPlaceSuggestions } from "../../../utils/billItems";
 
 function fmtDate(s) {
   const d = new Date(s);
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function LoanDetailPage({ loan, accounts = [], systemCats, onReload, onBack }) {
+export function LoanDetailPage({ loan, recurring = [], loans = [], accounts = [], systemCats, onReload, onBack }) {
   const sym = getSym(loan.currency || BASE_CUR);
   const monthlyRate = annualToMonthlyRate(loan.rate_annual);
   // Аннуитетный платёж — фиксированная сумма на весь срок (считается от ИСХОДНОГО principal,
@@ -216,11 +218,18 @@ export function LoanDetailPage({ loan, accounts = [], systemCats, onReload, onBa
   // effectivePayment. Пусто = использовать расчёт по ставке/сроку, как раньше.
   const [editPayment, setEditPayment] = useState(loan.payment != null ? String(loan.payment) : "");
   const [editNameError, setEditNameError] = useState("");
+  // «Где платить» (v42) — как у ежемесячных платежей, подсказки из платежей и других кредитов.
+  const [editPayPlace, setEditPayPlace] = useState(loan.pay_place || "");
+  const placeSuggestions = useMemo(
+    () => payPlaceSuggestions([recurring, loans.filter(l => l.id !== loan.id)]),
+    [recurring, loans, loan.id]
+  );
   const openEdit = () => {
     setEditName(loan.name); setEditAccId(loan.acc_id || ""); setEditDay(String(loan.day));
     setEditStartDate(loan.start_date || todayStr());
     setEditMonthsPaid(String(loan.months_paid_at_creation || 0));
     setEditPayment(loan.payment != null ? String(loan.payment) : "");
+    setEditPayPlace(loan.pay_place || "");
     setEditNameError(""); setEditOpen(true);
   };
   const noAppPayments = payments.length === 0;
@@ -236,6 +245,7 @@ export function LoanDetailPage({ loan, accounts = [], systemCats, onReload, onBa
     const editEffPayment = Number.isFinite(editPaymentN) && editPaymentN > 0 ? editPaymentN : null;
     const updated = {
       ...loan, name: editName.trim(), acc_id: editAccId || null,
+      pay_place: cleanPayPlace(editPayPlace),
       day: parseInt(editDay, 10) || 1,
       start_date: editStartDate,
       months_paid_at_creation: editMonthsPaidN,
@@ -349,11 +359,21 @@ export function LoanDetailPage({ loan, accounts = [], systemCats, onReload, onBa
           </div>
         )}
 
-        {/* Linked account */}
-        {linkedAcc && (
-          <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.18)", borderRadius: 14, padding: "12px 14px", marginBottom: 14 }}>
-            <p style={{ margin: 0, fontSize: 11, color: C.dim }}>Счёт списания</p>
-            <p style={{ margin: "2px 0 0", fontSize: 14, fontWeight: 700, color: "#fff" }}>{linkedAcc.name}</p>
+        {/* Linked account + где платить (v42) */}
+        {(linkedAcc || loan.pay_place) && (
+          <div style={{ display: "flex", gap: 10, background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.18)", borderRadius: 14, padding: "12px 14px", marginBottom: 14 }}>
+            {linkedAcc && (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 11, color: C.dim }}>Счёт списания</p>
+                <p style={{ margin: "2px 0 0", fontSize: 14, fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{linkedAcc.name}</p>
+              </div>
+            )}
+            {loan.pay_place && (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 11, color: C.dim }}>Где платить</p>
+                <p style={{ margin: "2px 0 0", fontSize: 14, fontWeight: 700, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loan.pay_place}</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -466,6 +486,7 @@ export function LoanDetailPage({ loan, accounts = [], systemCats, onReload, onBa
           style={{ width: "100%", background: "none", border: "none", borderBottom: `1px solid ${editNameError ? "rgba(244,67,54,0.5)" : C.border}`, outline: "none", color: "#fff", fontSize: 16, padding: "4px 0", marginBottom: 16, boxSizing: "border-box" }}
         />
         <AccSelect accounts={accounts} value={editAccId} onChange={setEditAccId} label="Счёт списания"/>
+        <PayPlaceField value={editPayPlace} onChange={setEditPayPlace} suggestions={placeSuggestions} style={{ marginBottom: 16 }}/>
         <div style={{ marginBottom: 16 }}>
           <FieldLabel>День оплаты</FieldLabel>
           <input

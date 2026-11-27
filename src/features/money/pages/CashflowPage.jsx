@@ -17,6 +17,7 @@ import { CategoryPicker } from "../../../components/CategoryPicker";
 import { Ico } from "../../../components/Ico";
 import { CashflowRuler } from "../components/CashflowRuler";
 import { AddButton } from "../../../components/AddButton";
+import { billTxNote } from "../../../utils/billItems";
 
 const sym = getSym(BASE_CUR);
 
@@ -265,7 +266,7 @@ export function CashflowPage({ accounts = [], expCats = [], incCats = [], system
 
     if (item.kind === "recurring") {
       const r = item.raw;
-      const tx = { id: newId(), type: "expense", amount: amt, currency: acc.currency, category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: r.name };
+      const tx = { id: newId(), type: "expense", amount: amt, currency: acc.currency, category_id: systemCats.bills, account_id: acc.id, date: todayStr(), note: billTxNote(r.name, r.items) };
       await supaRpc("fire_recurring", { p_tx: tx, p_account_id: acc.id, p_new_balance: round2(acc.balance - amt), p_rec_id: r.id, p_month: todayMk });
     } else if (item.kind === "planned_income") {
       const p = item.raw;

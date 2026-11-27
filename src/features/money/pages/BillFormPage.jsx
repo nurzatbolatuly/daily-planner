@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { C } from "../../../constants/theme";
 import { BASE_CUR } from "../../../constants/currencies";
-import { getSym, fmtDateShort } from "../../../utils/format";
+import { getSym, fmtDateShort, fmtAmtAuto } from "../../../utils/format";
 import { supaUpsert, supa } from "../../../lib/supabase";
 import { newId } from "../../../utils/id";
 import { useSave } from "../../../hooks/useSave";
@@ -11,14 +11,28 @@ import { NumInput } from "../../../components/NumInput";
 import { ConfirmSheet } from "../../../components/ConfirmSheet";
 import { Toggle } from "../../../components/Toggle";
 import { CalendarPicker } from "../../../components/CalendarPicker";
+import { BillItemsEditor } from "../components/BillItemsEditor";
+import { PayPlaceField } from "../components/PayPlaceField";
+import { cleanBillItems, billItemsTotal, cleanPayPlace, payPlaceSuggestions } from "../../../utils/billItems";
 
 const sym = getSym(BASE_CUR);
 
-export function BillFormPage({ onBack, edit }) {
+// Строки ввода состава (сумма — строка для NumInput) из сохранённого recurring.items.
+const toItemRows = (items = []) => items.map(i => ({ id: i.id || newId(), name: i.name || "", amount: i.amount != null ? String(i.amount) : "" }));
+
+export function BillFormPage({ onBack, edit, recurring = [], loans = [] }) {
   const [name, setName] = useState(edit?.name || "");
   const [day, setDay] = useState(edit?.day || 14);
   const [amt, setAmt] = useState(edit?.amount ? String(edit.amount) : "");
   const [active, setActive] = useState(edit?.active !== false);
+  // Состав и «где платить» (v42). Если суммы есть у всех позиций — итог считается из них.
+  const [items, setItems] = useState(() => toItemRows(edit?.items));
+  const [payPlace, setPayPlace] = useState(edit?.pay_place || "");
+  const itemsTotal = billItemsTotal(items);
+  const placeSuggestions = useMemo(
+    () => payPlaceSuggestions([recurring.filter(r => r.id !== edit?.id), loans]),
+    [recurring, loans, edit?.id]
+  );
   // Необязательная дата первого платежа (v19) — как у кредитов (loans.start_date). Пустая —
   // платёж ведёт себя как раньше, "стартовавшим" считается всегда.
   const [startDate, setStartDate] = useState(edit?.start_date || "");
@@ -35,7 +49,9 @@ export function BillFormPage({ onBack, edit }) {
       id: edit?.id || newId(),
       name: name.trim(),
       day: parseInt(day),
-      amount: parseFloat(amt),
+      amount: itemsTotal ?? parseFloat(amt),
+      items: cleanBillItems(items),
+      pay_place: cleanPayPlace(payPlace),
       cat_id: edit?.cat_id ?? null,
       acc_id: edit?.acc_id ?? null,
       active,
@@ -46,10 +62,19 @@ export function BillFormPage({ onBack, edit }) {
     onBack(true);
   };
 
+  // Пока итог считается из позиций — держим его и в amt: если потом у позиции сотрут сумму,
+  // ручное поле продолжит с последнего итога, а не со старого значения.
+  const changeItems = (next) => {
+    setItems(next);
+    const t = billItemsTotal(next);
+    if (t != null) setAmt(String(t));
+    setErrors(p => ({...p, amt:""}));
+  };
+
   const save = () => {
     const errs = {};
     if (!name.trim()) errs.name = "Введите название";
-    if (!amt) errs.amt = "Введите сумму";
+    if (itemsTotal == null && !parseFloat(amt)) errs.amt = "Введите сумму";
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
     execSave();
@@ -95,14 +120,23 @@ export function BillFormPage({ onBack, edit }) {
           </div>
           <div style={{ flex:2 }}>
             <FieldLabel error={errors.amt}>Сумма ({sym})</FieldLabel>
-            <NumInput
-              value={amt}
-              onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }}
-              placeholder="0"
-              style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${errors.amt?"rgba(244,67,54,0.5)":C.border}`, outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0", boxSizing:"border-box" }}
-            />
+            {itemsTotal != null ? (
+              <p aria-label="Сумма из состава" style={{ margin:0, borderBottom:`1px solid ${C.border}`, color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0" }}>
+                {fmtAmtAuto(itemsTotal)}
+              </p>
+            ) : (
+              <NumInput
+                value={amt}
+                onChange={v => { setAmt(v); setErrors(p => ({...p, amt:""})); }}
+                placeholder="0"
+                style={{ width:"100%", background:"none", border:"none", borderBottom:`1px solid ${errors.amt?"rgba(244,67,54,0.5)":C.border}`, outline:"none", color:"#fff", fontSize:22, fontWeight:600, padding:"4px 0", boxSizing:"border-box" }}
+              />
+            )}
           </div>
         </div>
+
+        <BillItemsEditor items={items} onChange={changeItems} sym={sym}/>
+        <PayPlaceField value={payPlace} onChange={setPayPlace} suggestions={placeSuggestions}/>
 
         <div style={{ marginBottom:24 }}>
           <FieldLabel>Дата первого платежа (необязательно)</FieldLabel>
