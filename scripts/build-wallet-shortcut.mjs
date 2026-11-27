@@ -16,9 +16,11 @@ if (!BASE) throw new Error("Нет REACT_APP_SUPABASE_URL (запуск: node --
 const URL = `${BASE}/functions/v1/wallet-ingest`;
 const OUT = process.argv[2] || "public/cashflow-purchase.shortcut";
 
-// Свойства входа автоматизации «Транзакция» (названия — как в английском интерфейсе «Команд»).
-// Не совпало имя — поле придёт пустым; весь вход целиком уходит в `input` для разбора на сервере.
-const FIELDS = { amount: "Amount", merchant: "Merchant", card: "Card", name: "Name" };
+// Свойства входа автоматизации «Транзакция» — WFWalletTransactionContentItem (названия — как в
+// английском интерфейсе «Команд», сверено с ContentKit macOS: transaction.currencyAmount → Amount,
+// merchant.displayName → Merchant, paymentMethod → Card or Pass). Не совпало имя — поле придёт
+// пустым; весь вход целиком уходит в `input` для разбора на сервере.
+const FIELDS = { amount: "Amount", merchant: "Merchant", card: "Card or Pass", name: "Name" };
 
 const OBJ = "￼";   // место переменной в строке «Команд»
 const text = (string, attachments = {}) => ({
@@ -46,7 +48,9 @@ const workflow = {
   WFWorkflowIcon: { WFWorkflowIconStartColor: 4282601983, WFWorkflowIconGlyphNumber: 59511 },
   WFWorkflowTypes: [],
   WFWorkflowHasShortcutInputVariables: true,
+  // Без WFWalletTransactionContentItem iOS не отдаёт команде покупку: вход пустой, сервер видит «проверку связи».
   WFWorkflowInputContentItemClasses: [
+    "WFWalletTransactionContentItem",
     "WFAppContentItem", "WFArticleContentItem", "WFContactContentItem", "WFDateContentItem", "WFEmailAddressContentItem",
     "WFFolderContentItem", "WFGenericFileContentItem", "WFImageContentItem", "WFiTunesProductContentItem", "WFLocationContentItem",
     "WFDCMapsLinkContentItem", "WFAVAssetContentItem", "WFPDFContentItem", "WFPhoneNumberContentItem", "WFRichTextContentItem",
