@@ -5,8 +5,9 @@
 //
 // POST, Authorization: Bearer cf_<64 hex>, тело — JSON:
 //   { v: 1, amount, merchant, card, name, occurred_at, tz }  — покупка;
-//   { v: 1, test: true } или запрос без amount/merchant/card/input — проверка связи (команду
-//   запустили руками: входа нет, поля пустые). input — вход команды целиком текстом (для отладки).
+//   { v: 1, test: true } или запрос без amount/merchant/card/input/kind — проверка связи (команду
+//   запустили руками: входа нет, поля пустые). input — вход команды целиком текстом, kind — его тип
+//   («Получить тип»): оба для отладки, если iOS не отдал свойства.
 // Ответ 200: { id?, message, notify, alert } — alert: текст уведомления команде или "" (молчать).
 // Уведомление — только при проблеме или проверке связи. Ошибки (400/401/429/500) — тоже с alert:
 // команда iOS не различает HTTP-коды, показывает alert, если он не пустой.
@@ -110,7 +111,14 @@ export async function handleRequest(req: Request, deps: Deps): Promise<Response>
   if (!FORMAT_VERSIONS.includes(Number(v))) return fail(400, "bad_request", { reason: "version" });
 
   const blank = (x: unknown) => x === undefined || x === null || String(x).trim() === "";
-  const test = body.test === true || [body.amount, body.merchant, body.card, body.input].every(blank);
+  const test = body.test === true || [body.amount, body.merchant, body.card, body.input, body.kind].every(blank);
+  // Диагностика без данных покупки: какие поля пришли (длины) и тип входа — видно в логах функции,
+  // когда записи во «Входящих» нет (docs/apple-pay-inbox.md §16).
+  const len = (x: unknown) => (blank(x) ? 0 : String(x).length);
+  log(`wallet-ingest ${prefix}: ${JSON.stringify({
+    test, kind: cleanText(body.kind, 60) || null,
+    len: { amount: len(body.amount), merchant: len(body.merchant), card: len(body.card), name: len(body.name), input: len(body.input) },
+  })}`);
   const { amount, currency } = parseAmount(body.amount);
   const merchant = cleanText(body.merchant, MERCHANT_MAX);
   const card = cleanText(body.card, CARD_MAX);

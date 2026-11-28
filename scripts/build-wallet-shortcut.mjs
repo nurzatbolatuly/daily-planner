@@ -3,7 +3,7 @@
 // Результат — public/cashflow-purchase.shortcut: открыть на iPhone (AirDrop/ссылка) → «Добавить» →
 // вставить ключ (Меню → Apple Pay). Ключа в файле нет — его спрашивает «вопрос при импорте».
 //
-// Команда: Текст (ключ) → POST в wallet-ingest с полями входа автоматизации «Транзакция» → если в
+// Команда: Тип входа → Текст (ключ) → POST в wallet-ingest с полями входа автоматизации «Транзакция» → если в
 // ответе alert не пустой → уведомление. Проверка связи и «показывать ли уведомление» решает сервер.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
@@ -36,6 +36,7 @@ const dict = items => ({
 });
 const action = (id, params) => ({ WFWorkflowActionIdentifier: `is.workflow.actions.${id}`, WFWorkflowActionParameters: params });
 
+const KIND = randomUUID().toUpperCase();
 const KEY = randomUUID().toUpperCase();
 const POST = randomUUID().toUpperCase();
 const ALERT = randomUUID().toUpperCase();
@@ -57,10 +58,12 @@ const workflow = {
     "WFSafariWebPageContentItem", "WFStringContentItem", "WFURLContentItem",
   ],
   WFWorkflowImportQuestions: [{
-    ActionIndex: 0, Category: "Parameter", ParameterKey: "WFTextActionText", DefaultValue: "",
+    ActionIndex: 1, Category: "Parameter", ParameterKey: "WFTextActionText", DefaultValue: "",
     Text: "Ключ CashFlow: Меню → Apple Pay → «Создать ключ» → «Скопировать»",
   }],
   WFWorkflowActions: [
+    // Тип входа — для диагностики: пусто → автоматизация не передала покупку в команду.
+    action("getitemtype", { UUID: KIND, WFInput: { Value: { Type: "ExtensionInput" }, WFSerializationType: "WFTextTokenAttachment" } }),
     action("gettext", { UUID: KEY, WFTextActionText: "вставьте ключ" }),
     action("downloadurl", {
       UUID: POST,
@@ -72,6 +75,7 @@ const workflow = {
       WFJSONValues: dict([
         ...Object.entries(FIELDS).map(([key, prop]) => [key, varText(inputProp(prop))]),
         ["input", varText(inputAsText)],
+        ["kind", varText(output(KIND, "Type"))],
       ]),
     }),
     action("getvalueforkey", {

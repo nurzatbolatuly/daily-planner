@@ -190,6 +190,20 @@ describe("handleRequest", () => {
     expect(rpc.mock.calls[0][1].p.test).toBe(false);
   });
 
+  test("пришёл только тип входа (iOS не отдал свойства) — покупка во «Входящие», не проверка", async () => {
+    const { rpc } = await run(req({ amount: "", merchant: "", card: "", input: "", kind: "Транзакция" }));
+    expect(rpc.mock.calls[0][1].p.test).toBe(false);
+  });
+
+  test("в лог — длины полей и тип входа, без значений покупки", async () => {
+    const { log } = await run(req({ ...purchase, input: "Magnum", kind: "Transaction" }));
+    expect(log).toHaveBeenCalledTimes(1);
+    const line = log.mock.calls[0][0];
+    expect(line).toContain('"kind":"Transaction"');
+    expect(line).toContain('"amount":7');
+    expect(line).not.toMatch(/MAGNUM|Kaspi|2 500/);
+  });
+
   test("версия текстом «1» из словаря команды", async () => {
     expect((await run(req({ v: "1", amount: "1" }))).res.status).toBe(200);
   });
